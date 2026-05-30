@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">EcoDrive</string>
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_trips">Trips</string>
+    <string name="nav_analytics">Analytics</string>
+    <string name="nav_coach">Coach</string>
+    <string name="nav_settings">Settings</string>
+    <string name="connected">Connected to Vehicle</string>
+    <string name="disconnected">Not Connected</string>
+    <string name="connecting">Connecting…</string>
+    <string name="eco_score">Eco Score</string>
+    <string name="speed">Speed</string>
+    <string name="rpm">RPM</string>
+    <string name="fuel_rate">Fuel Rate</string>
+    <string name="notification_channel_name">EcoDrive Data Collection</string>
+    <string name="notification_channel_description">Monitors your driving while the app is in the background</string>
+</resources>

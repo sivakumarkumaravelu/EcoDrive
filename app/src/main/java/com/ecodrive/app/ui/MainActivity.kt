@@ -1,0 +1,330 @@
+package com.ecodrive.app.ui
+
+import android.content.Intent
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.ecodrive.app.ui.navigation.Screen
+import com.ecodrive.app.ui.screens.analytics.AnalyticsScreen
+import com.ecodrive.app.ui.screens.coach.CoachScreen
+import com.ecodrive.app.ui.screens.dashboard.DashboardScreen
+import com.ecodrive.app.ui.screens.dashboard.DashboardViewModel
+import com.ecodrive.app.ui.screens.placeholder.*
+import com.ecodrive.app.ui.screens.settings.SettingsScreen
+import com.ecodrive.app.ui.screens.tripdetail.TripDetailScreen
+import com.ecodrive.app.ui.screens.trips.TripsScreen
+import com.ecodrive.app.ui.theme.*
+import dagger.hilt.android.AndroidEntryPoint
+
+/**
+ * Main entry Activity for EcoDrive.
+ * Handles Compose setup, navigation, runtime permissions,
+ * and Smartcar OAuth callback deep links.
+ */
+@AndroidEntryPoint
+class MainActivity : ComponentActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            EcoDriveTheme {
+                EcoDriveApp()
+            }
+        }
+    }
+
+    companion object {
+        val authCodeFlow = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Handle Smartcar OAuth callback deep link
+        intent.data?.let { uri ->
+            if (uri.scheme == "ecodrive" && uri.host == "callback") {
+                val code = uri.getQueryParameter("code")
+                if (code != null) {
+                    authCodeFlow.value = code
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EcoDriveApp() {
+    val navController = rememberNavController()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentDestination = navBackStackEntry?.destination
+
+    // Hide bottom bar on detail screens
+    val showBottomBar = currentDestination?.route?.let { route ->
+        Screen.bottomNavItems.any { it.route == route }
+    } ?: true
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            if (showBottomBar) {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ) {
+                    Screen.bottomNavItems.forEach { screen ->
+                        val selected = currentDestination?.hierarchy?.any {
+                            it.route == screen.route
+                        } == true
+
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = {
+                                Icon(
+                                    imageVector = if (selected) screen.selectedIcon
+                                    else screen.unselectedIcon,
+                                    contentDescription = screen.title,
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = screen.title,
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primary
+                                    .copy(alpha = 0.15f),
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                        )
+                    }
+                }
+            }
+        },
+    ) { innerPadding ->
+        NavHost(
+            navController = navController,
+            startDestination = Screen.Dashboard.route,
+            modifier = Modifier.padding(innerPadding),
+        ) {
+            // ── Main Tabs ───────────────────────────────────────
+            composable(Screen.Dashboard.route) {
+                DashboardWithPermissions()
+            }
+            composable(Screen.Trips.route) {
+                TripsScreen(
+                    onTripClick = { tripId ->
+                        navController.navigate(Screen.TripDetail.createRoute(tripId))
+                    },
+                )
+            }
+            composable(Screen.Analytics.route) {
+                AnalyticsScreen()
+            }
+            composable(Screen.Coach.route) {
+                CoachScreen()
+            }
+            composable(Screen.Settings.route) {
+                SettingsScreen()
+            }
+
+            // ── Detail Screens ──────────────────────────────────
+            composable(
+                route = Screen.TripDetail.route,
+                arguments = listOf(
+                    navArgument("tripId") { type = NavType.LongType }
+                ),
+            ) {
+                TripDetailScreen(
+                    onBack = { navController.popBackStack() },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Wrapper around DashboardScreen that handles runtime permission requests.
+ */
+@Composable
+fun DashboardWithPermissions() {
+    val viewModel: DashboardViewModel = hiltViewModel()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+    ) { permissions ->
+        val allGranted = permissions.values.all { it }
+        if (allGranted) {
+            viewModel.onPermissionsGranted()
+        }
+    }
+
+    if (state.needsPermissions) {
+        PermissionRequestScreen(
+            onRequestPermissions = {
+                val missing = viewModel.permissionManager.getMissingPermissions()
+                permissionLauncher.launch(missing.toTypedArray())
+            },
+        )
+    } else {
+        DashboardScreen(viewModel = viewModel)
+    }
+}
+
+/**
+ * Full-screen permission request with explanation.
+ */
+@Composable
+private fun PermissionRequestScreen(
+    onRequestPermissions: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.LocationOn,
+            contentDescription = null,
+            tint = EcoGreen,
+            modifier = Modifier.size(72.dp),
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Permissions Required",
+            style = MaterialTheme.typography.headlineSmall,
+            color = DarkOnSurface,
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "EcoDrive needs access to your location to measure driving speed " +
+                    "and distance using GPS. This data stays on your device.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = DarkOnSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(DarkCard, RoundedCornerShape(16.dp))
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            PermissionItem(
+                icon = Icons.Filled.MyLocation,
+                title = "Location (GPS)",
+                description = "Speed, distance, route tracking",
+            )
+            PermissionItem(
+                icon = Icons.Filled.Notifications,
+                title = "Notifications",
+                description = "Background recording indicator",
+            )
+            PermissionItem(
+                icon = Icons.Filled.DirectionsCar,
+                title = "Activity Recognition",
+                description = "Detect when you are in a vehicle",
+            )
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Button(
+            onClick = onRequestPermissions,
+            colors = ButtonDefaults.buttonColors(containerColor = EcoGreen),
+            shape = RoundedCornerShape(24.dp),
+            contentPadding = PaddingValues(horizontal = 32.dp, vertical = 14.dp),
+        ) {
+            Text(
+                text = "Grant Permissions",
+                style = MaterialTheme.typography.titleSmall,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Accelerometer & gyroscope don't require permissions",
+            style = MaterialTheme.typography.labelSmall,
+            color = DarkOnSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun PermissionItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    description: String,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = EcoGreen,
+            modifier = Modifier.size(24.dp),
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = DarkOnSurface,
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = DarkOnSurfaceVariant,
+            )
+        }
+    }
+}

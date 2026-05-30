@@ -1,0 +1,32 @@
+# Android / Gradle
+.gradle/
+build/
+app/build/
+
+# Kotlin
+.kotlin/
+
+# IDE Settings
+.idea/
+*.iml
+*.iws
+
+# Local configuration
+local.properties
+
+# Secrets
+google-services.json
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Generated
+.claude/
+.artifacts/
+.agents/
+
+# Others
+*.jks
+*.keystore
+captures/

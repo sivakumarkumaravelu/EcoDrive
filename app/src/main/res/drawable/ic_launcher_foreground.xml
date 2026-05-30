@@ -1,0 +1,32 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Car silhouette -->
+    <group
+        android:translateX="54"
+        android:translateY="64"
+        android:scaleX="2.5"
+        android:scaleY="2.5"
+        android:pivotX="12"
+        android:pivotY="12">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M18.92,6.01C18.72,5.42 18.16,5 17.5,5h-11c-0.66,0 -1.21,0.42 -1.42,1.01L3,12v8c0,0.55 0.45,1 1,1h1c0.55,0 1,-0.45 1,-1v-1h12v1c0,0.55 0.45,1 1,1h1c0.55,0 1,-0.45 1,-1v-8l-2.08,-5.99zM6.5,16c-0.83,0 -1.5,-0.67 -1.5,-1.5S5.67,13 6.5,13s1.5,0.67 1.5,1.5S7.33,16 6.5,16zM17.5,16c-0.83,0 -1.5,-0.67 -1.5,-1.5s0.67,-1.5 1.5,-1.5 1.5,0.67 1.5,1.5 -0.67,1.5 -1.5,1.5zM5,11l1.5,-4.5h11L19,11H5z" />
+    </group>
+
+    <!-- Leaf icon -->
+    <group
+        android:translateX="54"
+        android:translateY="32"
+        android:scaleX="2.0"
+        android:scaleY="2.0"
+        android:pivotX="12"
+        android:pivotY="12">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M17,8c8,0,12,8,12,8s0,0,0,0c0,0-3.87,1.21-5,0.51c-1.51-0.7-3.13-1.38-4.38-1.38C11.2,15.13,8,22,8,22s-8-4-8-13V8H17z" />
+    </group>
+</vector>
