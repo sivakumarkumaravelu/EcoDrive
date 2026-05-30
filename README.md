@@ -1,122 +1,73 @@
 # EcoDrive
 
-EcoDrive is an Android application designed to help drivers improve their fuel efficiency by providing real-time eco-driving coaching. Using a hybrid data architecture, it combines **local phone sensors** (accelerometer, gyroscope, GPS) with the **Toyota Connected Services API** to deliver self-calibrating fuel estimation with persistent model accuracy.
+EcoDrive is an Android application designed to help drivers improve their fuel efficiency by providing real-time eco-driving coaching. It uses a hybrid data architecture that combines **local phone sensors** (accelerometer, gyroscope, GPS) with the **Toyota Connected Services API** and **OBD-II hardware** to deliver precise driving analysis and self-calibrating fuel estimation.
 
-This app features a pre-loaded physics model (Vehicle Specific Power) specifically tuned for the **2023 Toyota Highlander Hybrid**, with automatic calibration that improves over time and persists across app restarts.
+The app features a pre-loaded physics model (Vehicle Specific Power) specifically tuned for the **2023 Toyota Highlander Hybrid**, with automatic calibration that improves over time and persists across app restarts.
 
-## Features
+## 🚀 Key Features
 
-- **Real-time Driving Metrics:** Uses your phone's accelerometer and GPS to monitor harsh braking, rapid acceleration, and sharp cornering with optimized sensor fusion.
-- **Physics-Based Fuel Estimation:** Calculates real-time fuel efficiency (L/h) without requiring OBD-II hardware, using the Vehicle Specific Power (VSP) model tuned for the Highlander Hybrid.
-- **Auto-Calibration with Persistence:** Integrates with the Toyota API to compare actual fuel consumption with the VSP model. Calibration factor is automatically saved and restored across app restarts.
-- **Sensor Fusion:** Intelligently buffers and aligns GPS and IMU (accelerometer/gyroscope) data for accurate driving behavior detection.
-- **Eco Score Calculator:** Generates a comprehensive driving score (0-100) evaluating speed consistency, idling, braking, and acceleration patterns.
-- **Actionable Analytics:** Beautiful visual dashboards summarizing trips and driving patterns with persistent trip history.
+- **Auto-Record Drives:** Intelligently detects when you are in a moving vehicle using **Activity Recognition** and **Bluetooth connection triggers** to start/stop recording automatically.
+- **Real-time Driving Metrics:** Monitors harsh braking, rapid acceleration, and sharp cornering using phone sensors or direct OBD-II data.
+- **Physics-Based Fuel Estimation:** Calculates real-time fuel efficiency (L/h) using the Vehicle Specific Power (VSP) model, even without specialized hardware.
+- **Auto-Calibration:** Integrates with the Toyota API via **Smartcar** to compare actual fuel consumption with the physics model, automatically improving accuracy over time.
+- **Eco Score Calculator:** Generates a comprehensive driving score (0-100) based on speed consistency, idling, braking, and acceleration patterns.
+- **Trip History & Analytics:** Beautiful dashboards summarizing every drive with persistent storage in a local Room database.
+- **Audio Feedback:** Provides real-time coaching tips and event alerts via voice to keep your eyes on the road.
 
-## Tech Stack
+## 🛠️ Tech Stack
 
-- **Language:** Kotlin
-- **UI Toolkit:** Jetpack Compose & Material 3
-- **Dependency Injection:** Hilt / Dagger
-- **Local Storage:** Room Database & DataStore Preferences
-- **Asynchronous Processing:** Kotlin Coroutines & Flows
-- **Testing:** JUnit 4
+- **Language:** [Kotlin](https://kotlinlang.org/)
+- **UI Toolkit:** [Jetpack Compose](https://developer.android.com/jetpack/compose) & Material 3
+- **Dependency Injection:** [Hilt](https://developer.android.com/training/dependency-injection/hilt-android) / Dagger
+- **Local Storage:** [Room Database](https://developer.android.com/training/data-storage/room) & [DataStore Preferences](https://developer.android.com/topic/libraries/architecture/datastore)
+- **Async & Flows:** Kotlin Coroutines & Flows
+- **External APIs:** Google Play Services (Location, Activity Recognition), Smartcar API (Toyota Connected Services)
+- **Testing:** JUnit 4 & [MockK](https://mockk.io/)
 
-## Prerequisites
+## 📋 Prerequisites
 
-To build and run this project locally, you will need:
+- **Android Studio** (Jellyfish or later recommended)
+- **JDK 17**
+- **Android SDK 34+**
+- **Physical Device** (Recommended for sensor/Bluetooth features) or Emulator with API 26+
 
-1. **Android Studio** (Jellyfish or later recommended).
-2. **Java Development Kit (JDK) 17**.
-3. **Android SDK 34** (configured in your Android Studio SDK Manager).
-4. An **Android Emulator** running API 26+ or a **Physical Android Device** with USB debugging enabled.
+## ⚙️ Installation & Setup
 
-## Installation & Setup
+1.  **Open the Project:** Launch Android Studio and open the `EcoDrive` folder.
+2.  **Sync Gradle:** Allow Android Studio to sync the project files and download dependencies.
+3.  **Permissions:** Upon first launch, the app will request:
+    *   **Location**: For speed and distance tracking.
+    *   **Activity Recognition**: For the Auto-Record feature.
+    *   **Notifications**: For the background recording service.
 
-1. **Open the Project:**
-   - Launch Android Studio.
-   - Select **Open** and choose the `EcoDrive` folder located at `/Users/sivakumar/Projects/EcoDrive`.
+## 🧪 Running Tests
 
-2. **Sync Project with Gradle:**
-   - Upon opening, Android Studio will prompt you to sync the project.
-   - If it doesn't happen automatically, click the **"Sync Project with Gradle Files"** button (the elephant icon) in the top toolbar.
-   - *Note: The project uses Gradle plugins which will be downloaded automatically during sync.*
+The project includes a robust suite of **180 unit tests** covering core logic, sensor fusion, and automation.
 
-## Running the App
-
-### Using Android Studio (Recommended)
-1. In the Android Studio toolbar, select your connected device or emulator from the device dropdown menu.
-2. Ensure the run configuration is set to `app`.
-3. Click the **Run** button (green play icon) or press `Control + R` (Mac).
-
-### Using the Command Line
-If you prefer running via terminal, first generate the Gradle wrapper from Android Studio's terminal:
 ```bash
-gradle wrapper
-```
-Once the `gradlew` script is available, you can build and install the debug APK:
-```bash
-./gradlew installDebug
+# Run all unit tests
+./gradlew testDebugUnitTest
 ```
 
-## Running Tests
+### Test Coverage Highlights:
+- **Automation (New)**: `TripRecorderTest`, `AutoRecordManagerTest`, and Receiver tests ensure reliable auto-start/stop behavior.
+- **OBD-II**: Validates command parsing and Bluetooth protocol handling.
+- **Physics Engine**: Tests the VSP model and fuel calibration math.
+- **Sensor Fusion**: Validates the alignment of GPS and IMU data.
 
-Comprehensive unit tests validate the core algorithms and recent bug fixes (184 tests total):
+## 🏗️ Architecture
 
-### Test Suites
-- **OBD Communication** (76 tests): Validates OBD command parsing, error responses, and Bluetooth connection recovery
-- **Sensor Fusion** (40 tests): Tests GPS/IMU alignment and timing synchronization
-- **Fuel Estimation** (60 tests): Validates VSP model, calibration persistence, and fuel calculations
-- **Driving Pattern Analysis** (8 tests): Tests event detection for hard braking, acceleration, and cornering
+The app follows a modern Android architecture with clean separation of concerns:
 
-**To run tests via Android Studio:**
-1. Navigate to the `app/src/test/java/com/ecodrive/app/` folder in the Project Explorer.
-2. Right-click the folder and select **Run 'Tests in app'**.
+*   **`domain.recorder`**: Centralized logic for trip recording and background triggers.
+*   **`sensor`**: Data fusion layer for GPS and IMU (Accelerometer/Gyroscope).
+*   **`domain.analyzer`**: Physics engines for fuel estimation and eco-scoring.
+*   **`data.remote`**: API clients for Toyota (Smartcar) integration.
+*   **`data.local`**: Persistence layer using Room and DataStore.
+*   **`service`**: Foreground services for reliable background data collection.
 
-**To run tests via Command Line:**
-```bash
-# Run all tests
-./gradlew test
+## 📄 Documentation
 
-# Run specific test suite
-./gradlew test --tests "ObdCommandTest"
-./gradlew test --tests "SensorDataManagerTest"
-./gradlew test --tests "AnalyzersExtendedTest"
-
-# Run with coverage report
-./gradlew testDebugUnitTestCoverage
-```
-
-**Test Coverage:** 65% (184 tests) — target is 80%+
-
-## Architecture & Implementation
-
-### Core Components
-
-**Data Layer:**
-- **SensorDataManager:** Orchestrates GPS/IMU fusion with intelligent buffering for temporal alignment
-- **FuelEstimationEngine:** Vehicle Specific Power (VSP) model with self-calibration and persistence
-- **DrivingPatternAnalyzer:** Real-time detection of harsh driving events
-- **BluetoothConnectionManager:** Manages OBD-II adapter connection with automatic error recovery
-
-**Database:**
-- Room database with tables for trips, driving events, sensor data, fuel calibration history, and vehicle profiles
-- Calibration factor persists across app restarts via FuelCalibrationDao
-
-**Testing:**
-- 184 comprehensive unit tests covering OBD communication, sensor fusion, and fuel estimation
-- Tests validate error recovery, timing alignment, and persistence mechanisms
-
-### Key Improvements (Recent Fixes)
-
-1. **Sensor Fusion Timing:** IMU readings are buffered and aligned to GPS timestamps for accurate data fusion
-2. **Calibration Persistence:** Fuel estimation calibration factor is saved to database and restored on app restart
-3. **OBD Error Recovery:** Automatic retry logic with exponential backoff for robust Bluetooth communication
-4. **Response Validation:** OBD response format is validated to prevent crashes on negative responses
-
-## Documentation
-
-For a detailed breakdown of the application architecture, the physics model, and core components:
-- [EcoDrive Code Analysis](docs/ecodrive_code_analysis.md) — Deep technical analysis
-- [CLAUDE.md](CLAUDE.md) — Developer guide and architecture overview
-- [FIXES_APPLIED.md](FIXES_APPLIED.md) — Recent bug fixes and improvements
+- [EcoDrive Code Analysis](docs/ecodrive_code_analysis.md) — Deep technical architecture.
+- [CLAUDE.md](CLAUDE.md) — Developer guidelines.
+- [Walkthrough](.artifacts/20260529-235604-ad5d849d-6299-4b25-b4e3-a43d22a6eca5/walkthrough.artifact.md) — Implementation details for recent features.
