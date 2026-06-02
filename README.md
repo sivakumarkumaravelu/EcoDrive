@@ -1,17 +1,17 @@
 # EcoDrive
 
-EcoDrive is an Android application designed to help drivers improve their fuel efficiency by providing real-time eco-driving coaching. It uses a hybrid data architecture that combines **local phone sensors** (accelerometer, gyroscope, GPS) with the **Toyota Connected Services API** and **OBD-II hardware** to deliver precise driving analysis and self-calibrating fuel estimation.
+EcoDrive is an Android application designed to help drivers improve their fuel efficiency by providing real-time eco-driving coaching. It uses a hybrid data architecture that combines **local phone sensors** (accelerometer, gyroscope, GPS) with the **Smartcar API** and **OBD-II hardware** to deliver precise driving analysis and self-calibrating fuel estimation for any vehicle.
 
-The app features a pre-loaded physics model (Vehicle Specific Power) specifically tuned for the **2023 Toyota Highlander Hybrid**, with automatic calibration that improves over time and persists across app restarts.
+The app features a universal physics model (**Vehicle Specific Power**) that supports multiple vehicle types (ICE, Hybrid, EV) and fuel types (Gasoline, Diesel, etc.), with automatic calibration that improves over time and persists across app restarts.
 
 ## 🚀 Key Features
 
 - **Auto-Record Drives:** Intelligently detects when you are in a moving vehicle using **Activity Recognition** and **Bluetooth connection triggers** to start/stop recording automatically.
 - **Real-time Driving Metrics:** Monitors harsh braking, rapid acceleration, and sharp cornering using phone sensors or direct OBD-II data.
-- **Physics-Based Fuel Estimation:** Calculates real-time fuel efficiency (L/h) using the Vehicle Specific Power (VSP) model, even without specialized hardware.
-- **Auto-Calibration:** Integrates with the Toyota API via **Smartcar** to compare actual fuel consumption with the physics model, automatically improving accuracy over time.
+- **Physics-Based Fuel Estimation:** Calculates real-time fuel efficiency (L/h) using a generalized Vehicle Specific Power (VSP) model, even without specialized hardware.
+- **Universal Auto-Calibration:** Integrates with the **Smartcar API** to compare actual fuel consumption with the physics model, automatically improving accuracy across hundreds of supported vehicle brands.
 - **Eco Score Calculator:** Generates a comprehensive driving score (0-100) based on speed consistency, idling, braking, and acceleration patterns.
-- **Trip History & Analytics:** Beautiful dashboards summarizing every drive with persistent storage in a local Room database, now featuring **interactive route maps** and **history list previews**.
+- **Trip History & Analytics:** Beautiful dashboards summarizing every drive with persistent storage in a local Room database, featuring **interactive route maps** and **history list previews**.
 - **Visual Route Mapping:** Visualizes your driving path on **Google Maps** with markers for notable driving events (hard braking, sharp turns, etc.).
 - **Audio Feedback:** Provides real-time coaching tips and event alerts via voice to keep your eyes on the road.
 
@@ -23,7 +23,7 @@ The app features a pre-loaded physics model (Vehicle Specific Power) specificall
 - **Local Storage:** [Room Database](https://developer.android.com/training/data-storage/room) & [DataStore Preferences](https://developer.android.com/topic/libraries/architecture/datastore)
 - **Async & Flows:** Kotlin Coroutines & Flows
 - **Maps:** [Google Maps SDK for Android](https://developers.google.com/maps/documentation/android-sdk/overview) & [Maps Compose](https://github.com/googlemaps/android-maps-compose)
-- **External APIs:** Google Play Services (Location, Activity Recognition), Smartcar API (Toyota Connected Services)
+- **External APIs:** Google Play Services (Location, Activity Recognition), **Smartcar API** (Multi-brand Vehicle Integration)
 - **Testing:** JUnit 4 & [MockK](https://mockk.io/)
 
 ## 📋 Prerequisites
@@ -64,8 +64,8 @@ The app follows a modern Android architecture with clean separation of concerns:
 
 *   **`domain.recorder`**: Centralized logic for trip recording and background triggers.
 *   **`sensor`**: Data fusion layer for GPS and IMU (Accelerometer/Gyroscope).
-*   **`domain.analyzer`**: Physics engines for fuel estimation and eco-scoring.
-*   **`data.remote`**: API clients for Toyota (Smartcar) integration.
+*   **`domain.analyzer`**: Universal physics engines for fuel estimation and eco-scoring.
+*   **`data.remote`**: API clients for **Smartcar** multi-brand vehicle integration.
 *   **`data.local`**: Persistence layer using Room and DataStore.
 *   **`service`**: Foreground services for reliable background data collection.
 
