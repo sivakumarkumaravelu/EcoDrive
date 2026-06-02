@@ -4,6 +4,14 @@ EcoDrive is an Android application designed to help drivers improve their fuel e
 
 The app features a universal physics model (**Vehicle Specific Power**) that supports multiple vehicle types (ICE, Hybrid, EV) and fuel types (Gasoline, Diesel, etc.), with automatic calibration that improves over time and persists across app restarts.
 
+## 📦 Download
+
+You can download the latest pre-built APK from the [release/](release/) folder:
+- **[EcoDrive-v1.0.0-unsigned.apk](release/EcoDrive-v1.0.0-unsigned.apk)**
+
+> [!IMPORTANT]
+> This is an **unsigned** APK. To install it, you must enable "Install from unknown sources" in your Android settings. If you receive a "Play Protect" warning, you may need to click "Install anyway".
+
 ## 🚀 Key Features
 
 - **Auto-Record Drives:** Intelligently detects when you are in a moving vehicle using **Activity Recognition** and **Bluetooth connection triggers** to start/stop recording automatically.
