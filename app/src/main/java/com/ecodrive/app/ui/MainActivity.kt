@@ -28,31 +28,41 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.ecodrive.app.data.local.PreferenceManager
+import com.ecodrive.app.domain.model.AppColorPalette
+import com.ecodrive.app.domain.model.AppTheme
 import com.ecodrive.app.ui.navigation.Screen
 import com.ecodrive.app.ui.screens.analytics.AnalyticsScreen
 import com.ecodrive.app.ui.screens.coach.CoachScreen
 import com.ecodrive.app.ui.screens.dashboard.DashboardScreen
 import com.ecodrive.app.ui.screens.dashboard.DashboardViewModel
-import com.ecodrive.app.ui.screens.placeholder.*
 import com.ecodrive.app.ui.screens.settings.SettingsScreen
 import com.ecodrive.app.ui.screens.tripdetail.TripDetailScreen
 import com.ecodrive.app.ui.screens.trips.TripsScreen
 import com.ecodrive.app.ui.theme.*
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 /**
  * Main entry Activity for EcoDrive.
- * Handles Compose setup, navigation, runtime permissions,
- * and Smartcar OAuth callback deep links.
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var preferenceManager: PreferenceManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            EcoDriveTheme {
+            val appTheme by preferenceManager.appTheme.collectAsStateWithLifecycle(initialValue = AppTheme.DARK)
+            val appPalette by preferenceManager.colorPalette.collectAsStateWithLifecycle(initialValue = AppColorPalette.ECO_GREEN)
+
+            EcoDriveTheme(
+                appTheme = appTheme,
+                appPalette = appPalette
+            ) {
                 EcoDriveApp()
             }
         }
@@ -64,7 +74,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // Handle Smartcar OAuth callback deep link
         intent.data?.let { uri ->
             if (uri.scheme == "ecodrive" && uri.host == "callback") {
                 val code = uri.getQueryParameter("code")
@@ -83,7 +92,6 @@ fun EcoDriveApp() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
-    // Hide bottom bar on detail screens
     val showBottomBar = currentDestination?.route?.let { route ->
         Screen.bottomNavItems.any { it.route == route }
     } ?: true
@@ -129,8 +137,7 @@ fun EcoDriveApp() {
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primary
-                                    .copy(alpha = 0.15f),
+                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                                 unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             ),
@@ -145,7 +152,6 @@ fun EcoDriveApp() {
             startDestination = Screen.Dashboard.route,
             modifier = Modifier.padding(innerPadding),
         ) {
-            // ── Main Tabs ───────────────────────────────────────
             composable(Screen.Dashboard.route) {
                 DashboardWithPermissions()
             }
@@ -166,7 +172,6 @@ fun EcoDriveApp() {
                 SettingsScreen()
             }
 
-            // ── Detail Screens ──────────────────────────────────
             composable(
                 route = Screen.TripDetail.route,
                 arguments = listOf(
@@ -181,9 +186,6 @@ fun EcoDriveApp() {
     }
 }
 
-/**
- * Wrapper around DashboardScreen that handles runtime permission requests.
- */
 @Composable
 fun DashboardWithPermissions() {
     val viewModel: DashboardViewModel = hiltViewModel()
@@ -210,9 +212,6 @@ fun DashboardWithPermissions() {
     }
 }
 
-/**
- * Full-screen permission request with explanation.
- */
 @Composable
 private fun PermissionRequestScreen(
     onRequestPermissions: () -> Unit,
@@ -228,7 +227,7 @@ private fun PermissionRequestScreen(
         Icon(
             imageVector = Icons.Filled.LocationOn,
             contentDescription = null,
-            tint = EcoGreen,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(72.dp),
         )
 
@@ -237,7 +236,7 @@ private fun PermissionRequestScreen(
         Text(
             text = "Permissions Required",
             style = MaterialTheme.typography.headlineSmall,
-            color = DarkOnSurface,
+            color = MaterialTheme.colorScheme.onBackground,
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -246,7 +245,7 @@ private fun PermissionRequestScreen(
             text = "EcoDrive needs access to your location to measure driving speed " +
                     "and distance using GPS. This data stays on your device.",
             style = MaterialTheme.typography.bodyMedium,
-            color = DarkOnSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
 
@@ -255,7 +254,7 @@ private fun PermissionRequestScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(DarkCard, RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp))
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -280,7 +279,7 @@ private fun PermissionRequestScreen(
 
         Button(
             onClick = onRequestPermissions,
-            colors = ButtonDefaults.buttonColors(containerColor = EcoGreen),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             shape = RoundedCornerShape(24.dp),
             contentPadding = PaddingValues(horizontal = 32.dp, vertical = 14.dp),
         ) {
@@ -295,7 +294,7 @@ private fun PermissionRequestScreen(
         Text(
             text = "Accelerometer & gyroscope don't require permissions",
             style = MaterialTheme.typography.labelSmall,
-            color = DarkOnSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -310,7 +309,7 @@ private fun PermissionItem(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = EcoGreen,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(24.dp),
         )
         Spacer(modifier = Modifier.width(12.dp))
@@ -318,12 +317,12 @@ private fun PermissionItem(
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyMedium,
-                color = DarkOnSurface,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
-                color = DarkOnSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

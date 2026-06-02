@@ -11,11 +11,8 @@ import com.ecodrive.app.util.PermissionManager
 import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionClient
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -24,6 +21,7 @@ class AutoRecordManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val preferenceManager: PreferenceManager,
     private val permissionManager: PermissionManager,
+    private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     companion object {
         private const val TAG = "AutoRecordManager"
@@ -31,7 +29,7 @@ class AutoRecordManager @Inject constructor(
     }
 
     private val client: ActivityRecognitionClient = ActivityRecognition.getClient(context)
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val scope = CoroutineScope(defaultDispatcher + SupervisorJob())
 
     private val pendingIntent: PendingIntent by lazy {
         val intent = Intent(context, ActivityRecognitionReceiver::class.java)

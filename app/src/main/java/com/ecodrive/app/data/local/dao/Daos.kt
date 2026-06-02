@@ -5,6 +5,15 @@ import com.ecodrive.app.data.local.entity.*
 import kotlinx.coroutines.flow.Flow
 
 /**
+ * Partial entity for fetching only route points.
+ */
+data class TripRoutePoint(
+    val tripId: Long,
+    val latitude: Double,
+    val longitude: Double
+)
+
+/**
  * Data Access Object for Trip operations.
  */
 @Dao
@@ -80,6 +89,9 @@ interface DataPointDao {
 
     @Query("SELECT * FROM data_points WHERE tripId = :tripId ORDER BY timestampEpochMs DESC LIMIT 1")
     suspend fun getLatestDataPoint(tripId: Long): DataPointEntity?
+
+    @Query("SELECT tripId, latitude, longitude FROM data_points WHERE tripId IN (:tripIds) AND latitude != 0.0 AND longitude != 0.0 ORDER BY timestampEpochMs ASC")
+    fun getRoutePointsForTrips(tripIds: List<Long>): Flow<List<TripRoutePoint>>
 
     @Query("SELECT COUNT(*) FROM data_points WHERE tripId = :tripId")
     suspend fun getDataPointCount(tripId: Long): Int

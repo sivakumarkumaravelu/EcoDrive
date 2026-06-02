@@ -15,9 +15,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Data returned from the Toyota Connected Services API (via Smartcar).
+ * Data returned from the Smartcar API.
+ * Supports multiple vehicle brands.
  */
-data class ToyotaVehicleData(
+data class SmartcarVehicleData(
     val fuelPercent: Double? = null,
     val odometerKm: Double? = null,
     val tirePressureFrontLeft: Double? = null,
@@ -30,24 +31,21 @@ data class ToyotaVehicleData(
 )
 
 /**
- * Client for the Toyota Connected Services API via Smartcar.
+ * Client for the Smartcar API.
  *
- * Smartcar provides a unified API to access Toyota vehicle data
+ * Smartcar provides a unified API to access vehicle data across brands
  * including fuel level, odometer, tire pressure, and location.
  *
- * The user must authenticate via OAuth (Toyota Remote Connect credentials)
- * and grant permission for data access.
- *
- * Data is polled periodically (not real-time) and used for:
+ * Data is polled periodically and used for:
  *   1. Pre/post-trip fuel level → actual consumption calculation
  *   2. Fuel model calibration
  *   3. Odometer verification
  */
 @Singleton
-class ToyotaApiClient @Inject constructor() {
+class SmartcarApiClient @Inject constructor() {
 
     companion object {
-        private const val TAG = "ToyotaApiClient"
+        private const val TAG = "SmartcarApiClient"
         private const val BASE_URL = Constants.SMARTCAR_BASE_URL
     }
 
@@ -61,8 +59,8 @@ class ToyotaApiClient @Inject constructor() {
     private val _state = MutableStateFlow(ApiState.NOT_CONFIGURED)
     val state: StateFlow<ApiState> = _state.asStateFlow()
 
-    private val _vehicleData = MutableStateFlow(ToyotaVehicleData())
-    val vehicleData: StateFlow<ToyotaVehicleData> = _vehicleData.asStateFlow()
+    private val _vehicleData = MutableStateFlow(SmartcarVehicleData())
+    val vehicleData: StateFlow<SmartcarVehicleData> = _vehicleData.asStateFlow()
 
     private var accessToken: String? = null
     private var vehicleId: String? = null
@@ -73,23 +71,24 @@ class ToyotaApiClient @Inject constructor() {
     /**
      * Generate the Smartcar Connect OAuth URL.
      * The user opens this in a browser and logs in with their
-     * Toyota Remote Connect credentials.
+     * vehicle's remote connect credentials.
      *
      * @param clientId Your Smartcar app's client ID
+     * @param make Optional vehicle brand to pre-filter (e.g., "FORD", "TOYOTA")
      */
-    fun getAuthUrl(clientId: String): String {
+    fun getAuthUrl(clientId: String, make: String? = null): String {
+        val makeParam = if (make.isNullOrBlank()) "" else "&make=${make.uppercase()}"
         return "https://connect.smartcar.com/oauth/authorize" +
                 "?response_type=code" +
                 "&client_id=$clientId" +
                 "&redirect_uri=${Constants.SMARTCAR_REDIRECT_URI}" +
                 "&scope=read_fuel read_odometer read_tires read_location" +
-                "&make=TOYOTA" +
+                makeParam +
                 "&single_select=true"
     }
 
     /**
      * Exchange the OAuth authorization code for an access token.
-     * Called after the user completes authentication.
      */
     suspend fun exchangeCode(
         code: String,
@@ -136,7 +135,7 @@ class ToyotaApiClient @Inject constructor() {
     }
 
     /**
-     * Set a pre-existing access token (e.g., from stored credentials).
+     * Set a pre-existing access token.
      */
     suspend fun setAccessToken(token: String) {
         accessToken = token
@@ -152,14 +151,8 @@ class ToyotaApiClient @Inject constructor() {
 
     // ── Data Fetching ───────────────────────────────────────────
 
-    /**
-     * Fetch the latest fuel level from the vehicle.
-     * @return Fuel level as a percentage (0-100), or null if unavailable
-     */
     suspend fun fetchFuelLevel(): Double? = withContext(Dispatchers.IO) {
-        val token = accessToken ?: return@withContext null
         val vid = vehicleId ?: return@withContext null
-
         try {
             val response = apiGet("${BASE_URL}vehicles/$vid/fuel")
             val json = JSONObject(response)
@@ -170,14 +163,8 @@ class ToyotaApiClient @Inject constructor() {
         }
     }
 
-    /**
-     * Fetch the current odometer reading.
-     * @return Distance in km, or null if unavailable
-     */
     suspend fun fetchOdometer(): Double? = withContext(Dispatchers.IO) {
-        val token = accessToken ?: return@withContext null
         val vid = vehicleId ?: return@withContext null
-
         try {
             val response = apiGet("${BASE_URL}vehicles/$vid/odometer")
             val json = JSONObject(response)
@@ -188,14 +175,11 @@ class ToyotaApiClient @Inject constructor() {
         }
     }
 
-    /**
-     * Fetch all available vehicle data in one call.
-     */
-    suspend fun fetchAll(): ToyotaVehicleData = withContext(Dispatchers.IO) {
+    suspend fun fetchAll(): SmartcarVehicleData = withContext(Dispatchers.IO) {
         val fuel = fetchFuelLevel()
         val odometer = fetchOdometer()
 
-        ToyotaVehicleData(
+        SmartcarVehicleData(
             fuelPercent = fuel,
             odometerKm = odometer,
         ).also {
@@ -233,7 +217,7 @@ class ToyotaApiClient @Inject constructor() {
                 } catch (e: Exception) {
                     Log.w(TAG, "Polling error: ${e.message}")
                 }
-                delay(Constants.TOYOTA_API_POLL_INTERVAL_MS)
+                delay(Constants.SMARTCAR_POLL_INTERVAL_MS)
             }
         }
     }

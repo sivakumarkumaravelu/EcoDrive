@@ -29,7 +29,7 @@ class TripRecorderTest {
     private val audioFeedbackManager: AudioFeedbackManager = mockk(relaxed = true)
 
     private lateinit var tripRecorder: TripRecorder
-    private val testDispatcher = StandardTestDispatcher()
+    private val testDispatcher = UnconfinedTestDispatcher()
 
     @Before
     fun setup() {
@@ -44,7 +44,8 @@ class TripRecorderTest {
             tripRepository,
             analyzer,
             ecoScoreCalculator,
-            audioFeedbackManager
+            audioFeedbackManager,
+            testDispatcher
         )
     }
 

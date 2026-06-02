@@ -5,7 +5,7 @@ import androidx.room.PrimaryKey
 
 /**
  * Room entity representing a driving trip stored in the local database.
- * Updated for hybrid approach (phone sensors + Toyota API + optional OBD).
+ * Updated for universal approach (phone sensors + Smartcar API + optional OBD).
  */
 @Entity(tableName = "trips")
 data class TripEntity(
@@ -26,7 +26,7 @@ data class TripEntity(
     val sharpTurnCount: Int = 0,
     val idleTimeSeconds: Long = 0,
     val isActive: Boolean = true,
-    // Toyota API fuel calibration data
+    // Smartcar API fuel calibration data
     val startFuelPercent: Double? = null,
     val endFuelPercent: Double? = null,
     val calibrationFactor: Double = 1.0,
@@ -82,24 +82,26 @@ data class DataPointEntity(
 
 /**
  * Room entity for storing vehicle profile information.
- * Pre-loaded with 2023 Toyota Highlander Hybrid specs.
+ * Generalized for any vehicle model and fuel type.
  */
 @Entity(tableName = "vehicles")
 data class VehicleEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    val name: String = "My Highlander",
-    val make: String = "Toyota",
-    val model: String = "Highlander Hybrid",
-    val year: Int = 2023,
-    val massKg: Double = 2090.0,
-    val dragCoefficient: Double = 0.35,
-    val frontalAreaM2: Double = 2.83,
+    val name: String = "My Vehicle",
+    val make: String = "",
+    val model: String = "",
+    val year: Int = 2024,
+    val vehicleType: String = "ICE",     // VehicleType enum name
+    val fuelType: String = "GASOLINE", // FuelType enum name
+    val massKg: Double = 1500.0,
+    val dragCoefficient: Double = 0.3,
+    val frontalAreaM2: Double = 2.2,
     val rollingResistance: Double = 0.012,
-    val tankCapacityLiters: Double = 65.0,
-    val engineDisplacementCc: Int = 2487,
-    val isHybrid: Boolean = true,
+    val tankCapacityLiters: Double = 50.0,
+    val engineDisplacementCc: Int = 2000,
     val fuelCalibrationFactor: Double = 1.0,
+    val isDefault: Boolean = false,
 )
 
 /**

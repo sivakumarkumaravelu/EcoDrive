@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.ecodrive.app.domain.model.*
 import com.ecodrive.app.domain.recorder.TripRecorder
 import com.ecodrive.app.sensor.SensorDataManager
-import com.ecodrive.app.data.remote.ToyotaApiClient
+import com.ecodrive.app.data.remote.SmartcarApiClient
 import com.ecodrive.app.util.AudioFeedbackManager
 import com.ecodrive.app.util.PermissionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -20,7 +20,7 @@ import javax.inject.Inject
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val sensorDataManager: SensorDataManager,
-    private val toyotaApiClient: ToyotaApiClient,
+    private val smartcarApiClient: SmartcarApiClient,
     private val audioFeedbackManager: AudioFeedbackManager,
     private val tripRecorder: TripRecorder,
     val permissionManager: PermissionManager,
@@ -30,7 +30,7 @@ class DashboardViewModel @Inject constructor(
 
     data class DashboardState(
         val sensorState: SensorDataManager.CollectionState = SensorDataManager.CollectionState.IDLE,
-        val toyotaApiState: ToyotaApiClient.ApiState = ToyotaApiClient.ApiState.NOT_CONFIGURED,
+        val smartcarApiState: SmartcarApiClient.ApiState = SmartcarApiClient.ApiState.NOT_CONFIGURED,
         val metrics: DrivingMetrics = DrivingMetrics(),
         val ecoScore: EcoScore = EcoScore(overall = 0),
         val hardBrakeCount: Int = 0,
@@ -53,7 +53,7 @@ class DashboardViewModel @Inject constructor(
     init {
         checkPermissions()
         observeSensorState()
-        observeToyotaState()
+        observeSmartcarState()
         observeRecorderState()
     }
 
@@ -84,15 +84,15 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private fun observeToyotaState() {
+    private fun observeSmartcarState() {
         viewModelScope.launch {
-            toyotaApiClient.state.collect { apiState ->
-                _state.update { it.copy(toyotaApiState = apiState) }
+            smartcarApiClient.state.collect { apiState ->
+                _state.update { it.copy(smartcarApiState = apiState) }
             }
         }
         viewModelScope.launch {
-            toyotaApiClient.vehicleData.collect { data ->
-                sensorDataManager.updateToyotaData(
+            smartcarApiClient.vehicleData.collect { data ->
+                sensorDataManager.updateSmartcarData(
                     fuelPercent = data.fuelPercent,
                     odometerKm = data.odometerKm,
                 )
@@ -115,7 +115,7 @@ class DashboardViewModel @Inject constructor(
 
                 val source = buildString {
                     append("📱 Sensors")
-                    if (metrics.fuelTankPercent != null) append(" + 🌐 Toyota API")
+                    if (metrics.fuelTankPercent != null) append(" + 🌐 Vehicle API")
                 }
 
                 _state.update {
@@ -171,17 +171,15 @@ class DashboardViewModel @Inject constructor(
             metrics.isIdle ->
                 "⏱️ Idling wastes fuel. Consider stopping the engine if parked for over 30 seconds."
             ecoScore.overall >= 85 ->
-                "🌟 Fantastic driving! Your Highlander Hybrid is in peak efficiency mode."
+                "🌟 Fantastic driving! You are in peak efficiency mode."
             ecoScore.brakingScore < 50 ->
                 "👀 Look further ahead. Anticipating stops reduces hard braking and saves fuel."
             ecoScore.accelerationScore < 50 ->
-                "🚀 Smooth starts can improve fuel economy by 10-20%. Let the hybrid motor help!"
+                "🚀 Smooth starts can improve fuel economy by 10-20%."
             ecoScore.consistencyScore < 50 ->
                 "📏 Maintain steady speed. Use cruise control on the highway when safe."
-            metrics.speedKmh in 30.0..50.0 ->
-                "⚡ Your hybrid is at peak efficiency! The electric motor is doing heavy lifting."
             else ->
-                "🌿 Drive smoothly and let the hybrid system optimize the gas-electric balance."
+                "🌿 Drive smoothly and optimize your vehicle's efficiency."
         }
     }
 }

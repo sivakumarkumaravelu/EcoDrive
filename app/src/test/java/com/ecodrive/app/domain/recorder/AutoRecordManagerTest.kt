@@ -24,7 +24,7 @@ class AutoRecordManagerTest {
     private val activityRecognitionClient: ActivityRecognitionClient = mockk(relaxed = true)
 
     private lateinit var autoRecordManager: AutoRecordManager
-    private val testDispatcher = StandardTestDispatcher()
+    private val testDispatcher = UnconfinedTestDispatcher()
     private val autoRecordEnabledFlow = MutableStateFlow(false)
 
     @Before
@@ -45,7 +45,8 @@ class AutoRecordManagerTest {
         autoRecordManager = AutoRecordManager(
             context,
             preferenceManager,
-            permissionManager
+            permissionManager,
+            testDispatcher
         )
     }
 
@@ -57,43 +58,37 @@ class AutoRecordManagerTest {
     }
 
     @Test
-    fun `test activity recognition starts when enabled and permission granted`() = runTest {
+    fun `test activity recognition starts when enabled and permission granted`() = runTest(testDispatcher) {
         // Given
         every { permissionManager.hasActivityRecognitionPermission() } returns true
         
         // When
         autoRecordEnabledFlow.value = true
-        advanceUntilIdle()
         
         // Then
-        // The flow collector in AutoRecordManager might trigger multiple updates if not careful,
-        // but it should at least call requestActivityUpdates.
         verify { activityRecognitionClient.requestActivityUpdates(any(), any()) }
     }
 
     @Test
-    fun `test activity recognition does not start when enabled but permission missing`() = runTest {
+    fun `test activity recognition does not start when enabled but permission missing`() = runTest(testDispatcher) {
         // Given
         every { permissionManager.hasActivityRecognitionPermission() } returns false
         
         // When
         autoRecordEnabledFlow.value = true
-        advanceUntilIdle()
         
         // Then
         verify(exactly = 0) { activityRecognitionClient.requestActivityUpdates(any(), any()) }
     }
 
     @Test
-    fun `test activity recognition stops when disabled`() = runTest {
+    fun `test activity recognition stops when disabled`() = runTest(testDispatcher) {
         // Given - start it first
         every { permissionManager.hasActivityRecognitionPermission() } returns true
         autoRecordEnabledFlow.value = true
-        advanceUntilIdle()
         
         // When
         autoRecordEnabledFlow.value = false
-        advanceUntilIdle()
         
         // Then
         verify { activityRecognitionClient.removeActivityUpdates(any()) }

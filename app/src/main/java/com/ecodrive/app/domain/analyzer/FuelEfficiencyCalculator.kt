@@ -15,7 +15,7 @@ class FuelEfficiencyCalculator @Inject constructor() {
      * Formula: (MAF * 3600) / (Stoichiometric_Ratio * fuel_density * 1000)
      */
     fun calculateFuelRateLPerH(mafGramsPerSec: Double, fuelType: FuelType): Double {
-        if (mafGramsPerSec <= 0) return 0.0
+        if (mafGramsPerSec <= 0 || fuelType == FuelType.ELECTRICITY) return 0.0
         
         // Stoichiometric ratio (parts air to 1 part fuel by mass)
         val airFuelRatio = when (fuelType) {
@@ -23,6 +23,7 @@ class FuelEfficiencyCalculator @Inject constructor() {
             FuelType.DIESEL -> 14.5
             FuelType.ETHANOL -> 9.0
             FuelType.LPG -> 15.5
+            FuelType.ELECTRICITY -> 1.0 // Not applicable
         }
         
         // Typical density in kg/L
@@ -31,6 +32,7 @@ class FuelEfficiencyCalculator @Inject constructor() {
             FuelType.DIESEL -> 0.832
             FuelType.ETHANOL -> 0.789
             FuelType.LPG -> 0.510
+            FuelType.ELECTRICITY -> 1.0 // Not applicable
         }
         
         // (grams_air/sec * 3600 sec/hr) / (grams_air/grams_fuel * grams_fuel/liter)

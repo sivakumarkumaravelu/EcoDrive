@@ -4,12 +4,26 @@ import java.time.Instant
 
 /**
  * Fuel types for consumption calculations.
+ * Properties:
+ *   - energyDensityMJperL: Lower Heating Value (LHV) in Megajoules per Liter.
+ *   - densityKgPerL: Mass density in kilograms per Liter.
  */
-enum class FuelType {
-    GASOLINE,
-    DIESEL,
-    ETHANOL,
-    LPG
+enum class FuelType(val energyDensityMJperL: Double, val densityKgPerL: Double) {
+    GASOLINE(34.2, 0.745),
+    DIESEL(38.6, 0.832),
+    ETHANOL(21.2, 0.789),
+    LPG(25.5, 0.510),
+    ELECTRICITY(3.6, 0.0) // 1 kWh = 3.6 MJ. Density is not applicable.
+}
+
+/**
+ * Categorization of vehicle powertrains.
+ */
+enum class VehicleType {
+    ICE,            // Internal Combustion Engine
+    HYBRID,         // Non-pluggable Hybrid (HEV)
+    PLUG_IN_HYBRID, // Plug-in Hybrid (PHEV)
+    ELECTRIC        // Battery Electric Vehicle (BEV)
 }
 
 /**
@@ -67,7 +81,7 @@ enum class DrivingEventType {
 
 /**
  * Real-time driving metrics snapshot.
- * Combines GPS, accelerometer, and OBD-II data.
+ * Combines GPS, accelerometer, and vehicle API data.
  */
 data class DrivingMetrics(
     val timestamp: Instant = Instant.now(),
@@ -82,7 +96,7 @@ data class DrivingMetrics(
     val gpsAccuracyM: Float = 0f,
     val roadGradePercent: Double = 0.0,
 
-    // ── OBD-II Engine Data ──────────────────────────────────
+    // ── Vehicle API Engine Data ─────────────────────────────
     val rpm: Int = 0,
     val throttlePercent: Double = 0.0,
     val engineLoadPercent: Double = 0.0,
@@ -105,13 +119,13 @@ data class DrivingMetrics(
     val isMoving: Boolean = speedKmh > 1.0,
     val isIdle: Boolean = speedKmh <= 1.0,
     
-    // ── Toyota API Specific ─────────────────────────────────
+    // ── Smartcar API Data ───────────────────────────────────
     val odometerKm: Double? = null,
     val tirePressure: TirePressure? = null,
 )
 
 /**
- * Tire pressure data from Toyota API.
+ * Tire pressure data from Vehicle API.
  */
 data class TirePressure(
     val frontLeft: Double = 0.0,
@@ -157,14 +171,16 @@ data class Vehicle(
     val make: String = "",
     val model: String = "",
     val year: Int = 2024,
-    val massKg: Double = 2000.0,
+    val vehicleType: VehicleType = VehicleType.ICE,
+    val fuelType: FuelType = FuelType.GASOLINE,
+    val massKg: Double = 1500.0,
     val dragCoefficient: Double = 0.3,
-    val frontalAreaM2: Double = 2.5,
+    val frontalAreaM2: Double = 2.2,
     val rollingResistance: Double = 0.012,
-    val tankCapacityLiters: Double = 60.0,
+    val tankCapacityLiters: Double = 50.0,
     val engineDisplacementCc: Int = 2000,
-    val isHybrid: Boolean = false,
     val fuelCalibrationFactor: Double = 1.0,
+    val isDefault: Boolean = false,
 )
 
 /**
@@ -178,9 +194,9 @@ enum class SensorState {
 }
 
 /**
- * Toyota API connection state.
+ * Smartcar API connection state.
  */
-enum class ToyotaApiState {
+enum class SmartcarApiState {
     NOT_CONFIGURED,
     AUTHENTICATING,
     CONNECTED,
@@ -188,7 +204,33 @@ enum class ToyotaApiState {
 }
 
 /**
- * Fuel calibration data point from Toyota API.
+ * Options for application theme mode.
+ */
+enum class AppTheme {
+    LIGHT,
+    DARK,
+    FOLLOW_SYSTEM
+}
+
+/**
+ * Options for application color palette.
+ */
+enum class AppColorPalette {
+    ECO_GREEN,
+    MIDNIGHT_BLUE,
+    SOLAR_ORANGE,
+    DEEP_PURPLE,
+    OCEAN_TEAL,
+    CRIMSON_RED,
+    DYNAMIC;
+
+    fun getDisplayName(): String {
+        return name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
+    }
+}
+
+/**
+ * Fuel calibration data point from Smartcar API.
  */
 data class FuelCalibrationPoint(
     val tripId: Long,

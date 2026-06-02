@@ -7,7 +7,8 @@ import androidx.room.Room
 import com.ecodrive.app.data.local.EcoDriveDatabase
 import com.ecodrive.app.data.local.dao.*
 import com.ecodrive.app.data.obd.ObdConnection
-import com.ecodrive.app.data.remote.ToyotaApiClient
+import com.ecodrive.app.data.remote.SmartcarApiClient
+import com.ecodrive.app.data.repository.VehicleRepository
 import com.ecodrive.app.domain.analyzer.FuelEstimationEngine
 import com.ecodrive.app.sensor.LocationTracker
 import com.ecodrive.app.sensor.PhoneSensorManager
@@ -17,16 +18,21 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import javax.inject.Singleton
 
 /**
  * Hilt module providing application-level dependencies.
- * Updated for hybrid approach: primary = sensors + Toyota API,
+ * Updated for universal approach: primary = sensors + Smartcar API,
  * optional = OBD-II adapter.
  */
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
+
+    @Provides
+    fun provideDefaultDispatcher(): CoroutineDispatcher = Dispatchers.Default
 
     // ── Database ────────────────────────────────────────────────
 
@@ -83,13 +89,14 @@ object AppModule {
         locationTracker: LocationTracker,
         phoneSensorManager: PhoneSensorManager,
         fuelEngine: FuelEstimationEngine,
-    ): SensorDataManager = SensorDataManager(locationTracker, phoneSensorManager, fuelEngine)
+        vehicleRepository: VehicleRepository,
+    ): SensorDataManager = SensorDataManager(locationTracker, phoneSensorManager, fuelEngine, vehicleRepository)
 
-    // ── Toyota API (Supplementary) ──────────────────────────────
+    // ── Smartcar API (Supplementary) ─────────────────────────────
 
     @Provides
     @Singleton
-    fun provideToyotaApiClient(): ToyotaApiClient = ToyotaApiClient()
+    fun provideSmartcarApiClient(): SmartcarApiClient = SmartcarApiClient()
 
     // ── OBD-II (Optional Pro Feature) ───────────────────────────
 

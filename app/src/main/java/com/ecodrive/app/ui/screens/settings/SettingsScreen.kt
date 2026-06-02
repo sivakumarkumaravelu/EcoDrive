@@ -2,10 +2,15 @@ package com.ecodrive.app.ui.screens.settings
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -15,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -22,19 +28,23 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.ecodrive.app.data.remote.ToyotaApiClient
+import com.ecodrive.app.data.remote.SmartcarApiClient
+import com.ecodrive.app.domain.model.AppColorPalette
+import com.ecodrive.app.domain.model.AppTheme
 import com.ecodrive.app.ui.theme.*
 
 /**
- * Settings screen with Toyota API configuration, vehicle info,
+ * Settings screen with Vehicle API configuration, vehicle info,
  * and app preferences.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var showAppearanceSheet by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -47,21 +57,32 @@ fun SettingsScreen(
         Text(
             text = "Settings",
             style = MaterialTheme.typography.headlineMedium,
-            color = DarkOnSurface,
+            color = MaterialTheme.colorScheme.onBackground,
         )
+
+        // ── Appearance ──────────────────────────────────────────
+        SettingsSection(title = "Display", icon = Icons.Filled.Palette) {
+            SettingsRow(
+                label = "Theme & Appearance",
+                subLabel = "${state.appTheme.name.lowercase().replaceFirstChar { it.uppercase() }} • ${state.appPalette.getDisplayName()}",
+                onClick = { showAppearanceSheet = true }
+            )
+        }
 
         // ── Vehicle Profile ─────────────────────────────────────
         SettingsSection(title = "Vehicle", icon = Icons.Filled.DirectionsCar) {
-            SettingsInfoRow("Make", "Toyota")
-            SettingsInfoRow("Model", "Highlander Hybrid")
-            SettingsInfoRow("Year", "2023")
-            SettingsInfoRow("Engine", "2.5L 4-Cylinder + Electric")
-            SettingsInfoRow("Tank", "65 L")
-            SettingsInfoRow("Curb Weight", "2,090 kg")
+            SettingsInfoRow("Profile", "Active Vehicle")
+            SettingsInfoRow("Auto-detection", "Smartcar API")
+            Text(
+                text = "Add and manage multiple vehicles in the next update.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
 
-        // ── Toyota Connected Services ───────────────────────────
-        SettingsSection(title = "Toyota Connected Services", icon = Icons.Filled.Cloud) {
+        // ── Smartcar Connected Services ─────────────────────────
+        SettingsSection(title = "Vehicle Connected Services", icon = Icons.Filled.Cloud) {
             // Connection status
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -71,13 +92,13 @@ fun SettingsScreen(
                 Text(
                     text = "Status",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = DarkOnSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                val (statusText, statusColor) = when (state.toyotaApiState) {
-                    ToyotaApiClient.ApiState.CONNECTED -> "Connected" to ScoreExcellent
-                    ToyotaApiClient.ApiState.AUTHENTICATING -> "Authenticating…" to AccentAmber
-                    ToyotaApiClient.ApiState.ERROR -> "Error" to ErrorRed
-                    ToyotaApiClient.ApiState.NOT_CONFIGURED -> "Not configured" to DarkOnSurfaceVariant
+                val (statusText, statusColor) = when (state.smartcarApiState) {
+                    SmartcarApiClient.ApiState.CONNECTED -> "Connected" to EcoDriveTheme.colors.scoreExcellent
+                    SmartcarApiClient.ApiState.AUTHENTICATING -> "Authenticating…" to EcoDriveTheme.colors.scoreAverage
+                    SmartcarApiClient.ApiState.ERROR -> "Error" to MaterialTheme.colorScheme.error
+                    SmartcarApiClient.ApiState.NOT_CONFIGURED -> "Not configured" to MaterialTheme.colorScheme.onSurfaceVariant
                 }
                 Text(
                     text = statusText,
@@ -86,8 +107,8 @@ fun SettingsScreen(
                 )
             }
 
-            if (state.toyotaApiState == ToyotaApiClient.ApiState.CONNECTED) {
-                // Show live data from Toyota API
+            if (state.smartcarApiState == SmartcarApiClient.ApiState.CONNECTED) {
+                // Show live data from Smartcar API
                 state.fuelTankPercent?.let {
                     SettingsInfoRow("Fuel Level", "%.0f%%".format(it))
                 }
@@ -101,8 +122,8 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedButton(
-                    onClick = { viewModel.disconnectToyota() },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
+                    onClick = { viewModel.disconnectSmartcar() },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text("Disconnect")
@@ -112,10 +133,10 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Connect to Toyota via Smartcar to enable fuel tracking " +
+                    text = "Connect to your vehicle via Smartcar to enable fuel tracking " +
                             "and self-calibrating fuel estimates.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = DarkOnSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -127,9 +148,9 @@ fun SettingsScreen(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = EcoGreen,
-                        unfocusedBorderColor = DarkCardBorder,
-                        focusedLabelColor = EcoGreen,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
                     ),
                 )
 
@@ -143,9 +164,9 @@ fun SettingsScreen(
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = EcoGreen,
-                        unfocusedBorderColor = DarkCardBorder,
-                        focusedLabelColor = EcoGreen,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
                     ),
                 )
 
@@ -159,7 +180,7 @@ fun SettingsScreen(
                             context.startActivity(intent)
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = EcoGreen),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     modifier = Modifier.fillMaxWidth(),
                     enabled = state.smartcarClientId.isNotBlank(),
                 ) {
@@ -169,14 +190,14 @@ fun SettingsScreen(
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Connect with Toyota")
+                    Text("Connect to Vehicle")
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Get API keys at smartcar.com/dashboard",
                     style = MaterialTheme.typography.labelSmall,
-                    color = EcoGreen,
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://smartcar.com/dashboard"))
                         context.startActivity(intent)
@@ -196,7 +217,7 @@ fun SettingsScreen(
                 text = "EcoDrive will automatically start and stop recording " +
                         "when it detects you are in a moving vehicle.",
                 style = MaterialTheme.typography.labelSmall,
-                color = DarkOnSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             if (state.autoRecordEnabled && !state.hasBackgroundLocationPermission) {
@@ -205,21 +226,21 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(ErrorRed.copy(alpha = 0.1f))
+                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.1f))
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Warning,
                         contentDescription = null,
-                        tint = ErrorRed,
+                        tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Background location permission is required for auto-record to work reliably.",
                         style = MaterialTheme.typography.labelSmall,
-                        color = ErrorRed
+                        color = MaterialTheme.colorScheme.error
                     )
                 }
             }
@@ -233,8 +254,8 @@ fun SettingsScreen(
                 enabled = false, // Always on
             )
             SettingsCheckRow(
-                label = "🌐 Toyota API (Fuel Calibration)",
-                checked = state.toyotaApiState == ToyotaApiClient.ApiState.CONNECTED,
+                label = "🌐 Vehicle API (Fuel Calibration)",
+                checked = state.smartcarApiState == SmartcarApiClient.ApiState.CONNECTED,
                 enabled = false,
             )
             SettingsCheckRow(
@@ -247,24 +268,230 @@ fun SettingsScreen(
                 text = "OBD-II support coming soon as an optional upgrade for " +
                         "RPM, throttle, and direct fuel flow data.",
                 style = MaterialTheme.typography.labelSmall,
-                color = DarkOnSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
 
         // ── About ───────────────────────────────────────────────
         SettingsSection(title = "About", icon = Icons.Filled.Info) {
-            SettingsInfoRow("App", "EcoDrive v1.0.0")
-            SettingsInfoRow("Target", "2023 Highlander Hybrid")
-            SettingsInfoRow("Fuel Model", "VSP + Hybrid Efficiency Map")
-            SettingsInfoRow("Calibration", "Self-improving via Toyota API")
+            SettingsInfoRow("App", "EcoDrive v1.1.0")
+            SettingsInfoRow("Engine", "Physics-based Power-to-Fuel Model")
+            SettingsInfoRow("Calibration", "Self-improving via Smartcar API")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
     }
+
+    if (showAppearanceSheet) {
+        AppearanceBottomSheet(
+            currentTheme = state.appTheme,
+            currentPalette = state.appPalette,
+            onThemeChange = viewModel::setAppTheme,
+            onPaletteChange = viewModel::setColorPalette,
+            onDismiss = { showAppearanceSheet = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AppearanceBottomSheet(
+    currentTheme: AppTheme,
+    currentPalette: AppColorPalette,
+    onThemeChange: (AppTheme) -> Unit,
+    onPaletteChange: (AppColorPalette) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(),
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        AppearanceSelector(
+            currentTheme = currentTheme,
+            currentPalette = currentPalette,
+            onThemeChange = onThemeChange,
+            onPaletteChange = onPaletteChange
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AppearanceSelector(
+    currentTheme: AppTheme,
+    currentPalette: AppColorPalette,
+    onThemeChange: (AppTheme) -> Unit,
+    onPaletteChange: (AppColorPalette) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+            .padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        Text(
+            text = "Appearance",
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+        )
+
+        // Theme Selector
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "Theme Mode",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                AppTheme.entries.forEachIndexed { index, theme ->
+                    SegmentedButton(
+                        selected = currentTheme == theme,
+                        onClick = { onThemeChange(theme) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = AppTheme.entries.size),
+                        label = { Text(theme.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }) }
+                    )
+                }
+            }
+        }
+
+        // Color Palette Selector
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                text = "Color Palette",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(vertical = 4.dp)
+            ) {
+                items(AppColorPalette.entries) { palette ->
+                    ColorSwatch(
+                        palette = palette,
+                        selected = currentPalette == palette,
+                        onClick = { onPaletteChange(palette) }
+                    )
+                }
+            }
+
+            Text(
+                text = currentPalette.getDisplayName(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ColorSwatch(
+    palette: AppColorPalette,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val color = when (palette) {
+        AppColorPalette.ECO_GREEN -> EcoGreen
+        AppColorPalette.MIDNIGHT_BLUE -> MidnightBlue
+        AppColorPalette.SOLAR_ORANGE -> SolarOrange
+        AppColorPalette.DEEP_PURPLE -> DeepPurple
+        AppColorPalette.OCEAN_TEAL -> OceanTeal
+        AppColorPalette.CRIMSON_RED -> CrimsonRed
+        AppColorPalette.DYNAMIC -> MaterialTheme.colorScheme.secondary
+    }
+
+    Box(
+        modifier = Modifier
+            .size(56.dp)
+            .clip(CircleShape)
+            .background(color.copy(alpha = 0.1f))
+            .border(
+                BorderStroke(
+                    width = if (selected) 3.dp else 1.dp,
+                    color = if (selected) color else color.copy(alpha = 0.3f)
+                ),
+                CircleShape
+            )
+            .clickable { onClick() }
+            .padding(4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .background(color)
+        ) {
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .align(Alignment.Center)
+                )
+            }
+        }
+    }
 }
 
 // ── Reusable Setting Components ─────────────────────────────────
+
+@Composable
+private fun SettingsRow(
+    label: String,
+    subLabel: String? = null,
+    icon: ImageVector? = null,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+            }
+            Column {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (subLabel != null) {
+                    Text(
+                        text = subLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+        Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
 
 @Composable
 private fun SettingsSection(
@@ -276,21 +503,21 @@ private fun SettingsSection(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(DarkCard)
+            .background(EcoDriveTheme.colors.cardBackground)
             .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = EcoGreen,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(20.dp),
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                color = DarkOnSurface,
+                color = MaterialTheme.colorScheme.onSurface,
             )
         }
         Spacer(modifier = Modifier.height(12.dp))
@@ -309,12 +536,12 @@ private fun SettingsInfoRow(label: String, value: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = DarkOnSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
-            color = DarkOnSurface,
+            color = MaterialTheme.colorScheme.onSurface,
         )
     }
 }
@@ -336,15 +563,15 @@ private fun SettingsCheckRow(
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = if (checked) DarkOnSurface else DarkOnSurfaceVariant,
+            color = if (checked) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             enabled = enabled,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = EcoGreen,
-                checkedTrackColor = EcoGreen.copy(alpha = 0.3f),
+                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
             ),
         )
     }

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ecodrive.app.data.repository.TripRepository
 import com.ecodrive.app.domain.model.Trip
+import com.google.android.gms.maps.model.LatLng
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -22,6 +23,7 @@ class TripsViewModel @Inject constructor(
 
     data class TripsState(
         val trips: List<Trip> = emptyList(),
+        val tripRoutes: Map<Long, List<LatLng>> = emptyMap(),
         val isLoading: Boolean = true,
         val weeklyAvgScore: Int = 0,
         val weeklyDistance: Double = 0.0,
@@ -47,6 +49,19 @@ class TripsViewModel @Inject constructor(
                         totalTrips = trips.size,
                     )
                 }
+                
+                // Fetch route points for the trips
+                if (trips.isNotEmpty()) {
+                    loadTripRoutes(trips.map { it.id })
+                }
+            }
+        }
+    }
+
+    private fun loadTripRoutes(tripIds: List<Long>) {
+        viewModelScope.launch {
+            tripRepository.getRoutePointsForTrips(tripIds).collect { routes ->
+                _state.update { it.copy(tripRoutes = routes) }
             }
         }
     }

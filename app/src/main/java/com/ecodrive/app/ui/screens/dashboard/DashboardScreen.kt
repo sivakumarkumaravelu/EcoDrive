@@ -59,12 +59,12 @@ fun DashboardScreen(
         Text(
             text = "EcoDrive",
             style = MaterialTheme.typography.headlineLarge,
-            color = EcoGreen,
+            color = MaterialTheme.colorScheme.primary,
         )
         Text(
-            text = "2023 Highlander Hybrid",
+            text = "Active Vehicle",
             style = MaterialTheme.typography.bodySmall,
-            color = DarkOnSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -94,10 +94,10 @@ fun DashboardScreen(
                 text = "${rating.emoji} ${rating.label}",
                 style = MaterialTheme.typography.titleMedium,
                 color = when (rating) {
-                    com.ecodrive.app.domain.model.EcoRating.EXCELLENT -> ScoreExcellent
-                    com.ecodrive.app.domain.model.EcoRating.GOOD -> ScoreGood
-                    com.ecodrive.app.domain.model.EcoRating.AVERAGE -> ScoreAverage
-                    com.ecodrive.app.domain.model.EcoRating.POOR -> ScorePoor
+                    com.ecodrive.app.domain.model.EcoRating.EXCELLENT -> EcoDriveTheme.colors.scoreExcellent
+                    com.ecodrive.app.domain.model.EcoRating.GOOD -> EcoDriveTheme.colors.scoreGood
+                    com.ecodrive.app.domain.model.EcoRating.AVERAGE -> EcoDriveTheme.colors.scoreAverage
+                    com.ecodrive.app.domain.model.EcoRating.POOR -> EcoDriveTheme.colors.scorePoor
                 },
             )
         }
@@ -115,31 +115,31 @@ fun DashboardScreen(
                 label = "SPEED",
                 value = "%.0f".format(state.metrics.speedKmh),
                 unit = "km/h",
-                accentColor = GaugeBlue,
+                accentColor = EcoDriveTheme.colors.gaugeBlue,
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(DarkCard),
+                    .background(EcoDriveTheme.colors.cardBackground),
             )
             MetricCard(
                 label = "FUEL EST.",
                 value = "%.1f".format(state.metrics.fuelConsumptionLPer100Km),
                 unit = "L/100km",
-                accentColor = GaugeOrange,
+                accentColor = EcoDriveTheme.colors.gaugeOrange,
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(DarkCard),
+                    .background(EcoDriveTheme.colors.cardBackground),
             )
             MetricCard(
                 label = "G-FORCE",
                 value = "%.1f".format(abs(state.metrics.longitudinalAccelMps2) / 9.81),
                 unit = "g",
-                accentColor = EcoGreen,
+                accentColor = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(DarkCard),
+                    .background(EcoDriveTheme.colors.cardBackground),
             )
         }
 
@@ -156,31 +156,31 @@ fun DashboardScreen(
                 label = "LATERAL",
                 value = "%.1f".format(abs(state.metrics.lateralAccelMps2)),
                 unit = "m/s²",
-                accentColor = GaugePurple,
+                accentColor = EcoDriveTheme.colors.gaugePurple,
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(DarkCard),
+                    .background(EcoDriveTheme.colors.cardBackground),
             )
             MetricCard(
                 label = "GRADE",
                 value = "%.1f".format(state.metrics.roadGradePercent),
                 unit = "%",
-                accentColor = AccentAmber,
+                accentColor = EcoDriveTheme.colors.scoreAverage,
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(DarkCard),
+                    .background(EcoDriveTheme.colors.cardBackground),
             )
             MetricCard(
                 label = "FUEL TANK",
                 value = state.metrics.fuelTankPercent?.let { "%.0f".format(it) } ?: "—",
                 unit = if (state.metrics.fuelTankPercent != null) "%" else "N/A",
-                accentColor = AccentBlue,
+                accentColor = EcoDriveTheme.colors.gaugeBlue,
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(DarkCard),
+                    .background(EcoDriveTheme.colors.cardBackground),
             )
         }
 
@@ -192,7 +192,7 @@ fun DashboardScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(DarkCard)
+                .background(EcoDriveTheme.colors.cardBackground)
                 .padding(16.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
@@ -221,7 +221,7 @@ fun DashboardScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(DarkCard)
+                .background(EcoDriveTheme.colors.cardBackground)
                 .padding(16.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
@@ -253,8 +253,8 @@ fun DashboardScreen(
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
-                            EcoGreen.copy(alpha = 0.1f),
-                            EcoTeal.copy(alpha = 0.1f),
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f),
                         ),
                     )
                 )
@@ -264,14 +264,14 @@ fun DashboardScreen(
                 Icon(
                     imageVector = Icons.Filled.Eco,
                     contentDescription = null,
-                    tint = EcoGreen,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(24.dp),
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = state.drivingTip,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = DarkOnSurface,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }

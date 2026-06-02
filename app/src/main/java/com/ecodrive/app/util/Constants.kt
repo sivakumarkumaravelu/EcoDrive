@@ -2,23 +2,11 @@ package com.ecodrive.app.util
 
 /**
  * Application-wide constants for EcoDrive.
- * Updated for the hybrid approach (Phone Sensors + Toyota API).
+ * Universal approach (Phone Sensors + Smartcar API).
  */
 object Constants {
 
-    // ── 2023 Toyota Highlander Hybrid Specs ─────────────────────
-    /** Vehicle curb weight in kg */
-    const val VEHICLE_MASS_KG = 2090.0
-
-    /** Aerodynamic drag coefficient */
-    const val DRAG_COEFFICIENT = 0.35
-
-    /** Frontal area in m² */
-    const val FRONTAL_AREA_M2 = 2.83
-
-    /** Rolling resistance coefficient (all-season tires on asphalt) */
-    const val ROLLING_RESISTANCE = 0.012
-
+    // ── Universal Physical Constants ────────────────────────────
     /** Air density at sea level in kg/m³ */
     const val AIR_DENSITY = 1.225
 
@@ -27,15 +15,6 @@ object Constants {
 
     /** Mass factor for rotating components (wheels, drivetrain) */
     const val ROTATING_MASS_FACTOR = 0.05
-
-    /** Fuel tank capacity in liters */
-    const val TANK_CAPACITY_LITERS = 65.0
-
-    /** Combined fuel efficiency rating (L/100km) from EPA */
-    const val EPA_COMBINED_LPER100KM = 6.4
-
-    /** Engine displacement in cc */
-    const val ENGINE_DISPLACEMENT_CC = 2487
 
     // ── Driving Thresholds ──────────────────────────────────────
     /** Hard acceleration threshold in m/s² */
@@ -94,15 +73,15 @@ object Constants {
     /** Metrics emission interval in milliseconds */
     const val METRICS_EMIT_INTERVAL_MS = 500L
 
-    // ── Toyota API / Smartcar ───────────────────────────────────
+    // ── Smartcar API ────────────────────────────────────────────
     /** Smartcar OAuth redirect URI */
     const val SMARTCAR_REDIRECT_URI = "ecodrive://callback"
 
     /** Smartcar API base URL */
     const val SMARTCAR_BASE_URL = "https://api.smartcar.com/v2.0/"
 
-    /** Polling interval for Toyota API fuel level (milliseconds) */
-    const val TOYOTA_API_POLL_INTERVAL_MS = 60_000L
+    /** Polling interval for Vehicle API (milliseconds) */
+    const val SMARTCAR_POLL_INTERVAL_MS = 60_000L
 
     // ── Fuel Calibration ────────────────────────────────────────
     /** Minimum trip distance (km) for fuel model calibration */

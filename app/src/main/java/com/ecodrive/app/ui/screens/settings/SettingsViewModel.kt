@@ -3,9 +3,11 @@ package com.ecodrive.app.ui.screens.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ecodrive.app.data.local.PreferenceManager
-import com.ecodrive.app.data.remote.ToyotaApiClient
+import com.ecodrive.app.data.remote.SmartcarApiClient
 import com.ecodrive.app.domain.analyzer.FuelEstimationEngine
 import com.ecodrive.app.util.PermissionManager
+import com.ecodrive.app.domain.model.AppColorPalette
+import com.ecodrive.app.domain.model.AppTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -13,22 +15,24 @@ import javax.inject.Inject
 
 /**
  * ViewModel for the Settings screen.
- * Manages Toyota API connection, vehicle profile, and app preferences.
+ * Manages Smartcar API connection, vehicle profile, and app preferences.
  */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val toyotaApiClient: ToyotaApiClient,
+    private val smartcarApiClient: SmartcarApiClient,
     private val fuelEngine: FuelEstimationEngine,
     private val preferenceManager: PreferenceManager,
     val permissionManager: PermissionManager,
 ) : ViewModel() {
 
     data class SettingsState(
-        val toyotaApiState: ToyotaApiClient.ApiState = ToyotaApiClient.ApiState.NOT_CONFIGURED,
+        val smartcarApiState: SmartcarApiClient.ApiState = SmartcarApiClient.ApiState.NOT_CONFIGURED,
         val smartcarClientId: String = "",
         val smartcarClientSecret: String = "",
         val calibrationFactor: Double = 1.0,
         val useMetric: Boolean = true,
+        val appTheme: AppTheme = AppTheme.DARK,
+        val appPalette: AppColorPalette = AppColorPalette.ECO_GREEN,
         val hasBluetoothPermissions: Boolean = false,
         val hasBackgroundLocationPermission: Boolean = false,
         val fuelTankPercent: Double? = null,
@@ -41,7 +45,7 @@ class SettingsViewModel @Inject constructor(
     val state: StateFlow<SettingsState> = _state.asStateFlow()
 
     init {
-        observeToyotaState()
+        observeSmartcarState()
         observePreferences()
         viewModelScope.launch {
             com.ecodrive.app.ui.MainActivity.authCodeFlow.collect { code ->
@@ -53,12 +57,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private fun observeToyotaState() {
+    private fun observeSmartcarState() {
         viewModelScope.launch {
-            toyotaApiClient.state.collect { apiState ->
+            smartcarApiClient.state.collect { apiState ->
                 _state.update {
                     it.copy(
-                        toyotaApiState = apiState,
+                        smartcarApiState = apiState,
                         calibrationFactor = fuelEngine.getCalibrationFactor(),
                         hasBluetoothPermissions = permissionManager.hasBluetoothPermissions(),
                         hasBackgroundLocationPermission = permissionManager.hasBackgroundLocationPermission(),
@@ -67,7 +71,7 @@ class SettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            toyotaApiClient.vehicleData.collect { data ->
+            smartcarApiClient.vehicleData.collect { data ->
                 _state.update {
                     it.copy(
                         fuelTankPercent = data.fuelPercent,
@@ -82,17 +86,19 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             combine(
                 preferenceManager.autoRecordEnabled,
-                preferenceManager.useMetricUnits
-            ) { autoRecord, useMetric ->
-                autoRecord to useMetric
-            }.collect { (autoRecord, useMetric) ->
+                preferenceManager.useMetricUnits,
+                preferenceManager.appTheme,
+                preferenceManager.colorPalette
+            ) { autoRecord, useMetric, appTheme, appPalette ->
                 _state.update {
                     it.copy(
                         autoRecordEnabled = autoRecord,
-                        useMetric = useMetric
+                        useMetric = useMetric,
+                        appTheme = appTheme,
+                        appPalette = appPalette
                     )
                 }
-            }
+            }.collect()
         }
     }
 
@@ -102,7 +108,7 @@ class SettingsViewModel @Inject constructor(
     fun getAuthUrl(): String? {
         val clientId = _state.value.smartcarClientId
         if (clientId.isBlank()) return null
-        return toyotaApiClient.getAuthUrl(clientId)
+        return smartcarApiClient.getAuthUrl(clientId)
     }
 
     /**
@@ -112,7 +118,7 @@ class SettingsViewModel @Inject constructor(
         val clientId = _state.value.smartcarClientId
         val clientSecret = _state.value.smartcarClientSecret
         viewModelScope.launch {
-            toyotaApiClient.exchangeCode(code, clientId, clientSecret)
+            smartcarApiClient.exchangeCode(code, clientId, clientSecret)
         }
     }
 
@@ -124,8 +130,8 @@ class SettingsViewModel @Inject constructor(
         _state.update { it.copy(smartcarClientSecret = secret) }
     }
 
-    fun disconnectToyota() {
-        toyotaApiClient.disconnect()
+    fun disconnectSmartcar() {
+        smartcarApiClient.disconnect()
     }
 
     fun toggleUnits() {
@@ -142,5 +148,17 @@ class SettingsViewModel @Inject constructor(
 
     fun toggleObd() {
         _state.update { it.copy(isObdEnabled = !it.isObdEnabled) }
+    }
+
+    fun setAppTheme(theme: AppTheme) {
+        viewModelScope.launch {
+            preferenceManager.setAppTheme(theme)
+        }
+    }
+
+    fun setColorPalette(palette: AppColorPalette) {
+        viewModelScope.launch {
+            preferenceManager.setColorPalette(palette)
+        }
     }
 }

@@ -2,10 +2,11 @@ package com.ecodrive.app.data.repository
 
 import com.ecodrive.app.data.local.dao.*
 import com.ecodrive.app.data.local.entity.*
-import com.ecodrive.app.data.remote.ToyotaApiClient
+import com.ecodrive.app.data.remote.SmartcarApiClient
 import com.ecodrive.app.domain.analyzer.FuelEstimationEngine
 import com.ecodrive.app.domain.model.*
 import com.ecodrive.app.util.Constants
+import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
@@ -23,20 +24,26 @@ class TripRepository @Inject constructor(
     private val tripDao: TripDao,
     private val drivingEventDao: DrivingEventDao,
     private val dataPointDao: DataPointDao,
-    private val toyotaApiClient: ToyotaApiClient,
+    private val smartcarApiClient: SmartcarApiClient,
     private val fuelEngine: FuelEstimationEngine,
+    private val vehicleRepository: VehicleRepository,
 ) {
     // ── Trip Lifecycle ──────────────────────────────────────────
 
     /**
      * Create a new trip and return its ID.
-     * Optionally captures fuel level from Toyota API as the starting baseline.
+     * Optionally captures fuel level from Smartcar API as the starting baseline.
      */
     suspend fun startTrip(vehicleId: Long = 1): Long {
-        val startFuel = toyotaApiClient.fetchFuelLevel()
+        val startFuel = smartcarApiClient.fetchFuelLevel()
+        
+        // Use provided vehicleId or fetch default
+        val targetVehicleId = if (vehicleId > 0) vehicleId else {
+            vehicleRepository.getDefaultVehicle()?.id ?: 1
+        }
 
         val trip = TripEntity(
-            vehicleId = vehicleId,
+            vehicleId = targetVehicleId,
             startTimeEpochMs = System.currentTimeMillis(),
             isActive = true,
             startFuelPercent = startFuel,
@@ -62,8 +69,9 @@ class TripRepository @Inject constructor(
         sharpTurnCount: Int,
         idleTimeSeconds: Long,
     ) {
-        val endFuel = toyotaApiClient.fetchFuelLevel()
+        val endFuel = smartcarApiClient.fetchFuelLevel()
         val trip = tripDao.getTripById(tripId) ?: return
+        val vehicle = vehicleRepository.getVehicleById(trip.vehicleId) ?: Vehicle()
 
         val fuelEfficiency = if (distanceKm > 0) {
             (fuelConsumedEstimate / distanceKm) * 100.0
@@ -76,7 +84,7 @@ class TripRepository @Inject constructor(
             if (fuelDeltaPercent >= Constants.CALIBRATION_MIN_FUEL_CHANGE_PERCENT &&
                 distanceKm >= Constants.CALIBRATION_MIN_DISTANCE_KM
             ) {
-                val actualFuelLiters = (fuelDeltaPercent / 100.0) * Constants.TANK_CAPACITY_LITERS
+                val actualFuelLiters = (fuelDeltaPercent / 100.0) * vehicle.tankCapacityLiters
                 val calibrationPoint = FuelCalibrationPoint(
                     tripId = tripId,
                     estimatedFuelLiters = fuelConsumedEstimate,
@@ -194,6 +202,18 @@ class TripRepository @Inject constructor(
     }
 
     /**
+     * Get route points for a list of trips.
+     */
+    fun getRoutePointsForTrips(tripIds: List<Long>): Flow<Map<Long, List<LatLng>>> {
+        return dataPointDao.getRoutePointsForTrips(tripIds).map { points ->
+            points.groupBy { it.tripId }
+                .mapValues { entry ->
+                    entry.value.map { LatLng(it.latitude, it.longitude) }
+                }
+        }.flowOn(Dispatchers.IO)
+    }
+
+    /**
      * Get average eco score over a time period.
      */
     suspend fun getAverageEcoScore(sinceEpochMs: Long): Double? {
@@ -255,7 +275,7 @@ private fun DrivingEventEntity.toDomain() = DrivingEvent(
     timestamp = Instant.ofEpochMilli(timestampEpochMs),
     type = try {
         DrivingEventType.valueOf(type)
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         DrivingEventType.ECO_DRIVING
     },
     value = value,

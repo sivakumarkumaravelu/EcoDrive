@@ -31,6 +31,7 @@ import java.io.File
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 
 /**
@@ -56,10 +57,10 @@ fun TripDetailScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DarkBackground,
-                    titleContentColor = DarkOnSurface,
-                    navigationIconContentColor = DarkOnSurface,
-                    actionIconContentColor = DarkOnSurface,
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+                    actionIconContentColor = MaterialTheme.colorScheme.onBackground,
                 ),
                 actions = {
                     val context = LocalContext.current
@@ -85,7 +86,7 @@ fun TripDetailScreen(
                 }
             )
         },
-        containerColor = DarkBackground,
+        containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -95,6 +96,69 @@ fun TripDetailScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
+            // ── Route Map ───────────────────────────────────────
+            if (state.routePoints.isNotEmpty()) {
+                item {
+                    val cameraPositionState = rememberCameraPositionState {
+                        val firstPoint = state.routePoints.first()
+                        position = CameraPosition.fromLatLngZoom(firstPoint, 14f)
+                    }
+
+                    LaunchedEffect(state.routePoints) {
+                        if (state.routePoints.size > 1) {
+                            val bounds = LatLngBounds.builder().apply {
+                                state.routePoints.forEach { include(it) }
+                            }.build()
+                            cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(bounds, 100))
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(300.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                    ) {
+                        GoogleMap(
+                            modifier = Modifier.fillMaxSize(),
+                            cameraPositionState = cameraPositionState,
+                            uiSettings = MapUiSettings(
+                                zoomControlsEnabled = true,
+                                scrollGesturesEnabled = true,
+                                zoomGesturesEnabled = true
+                            )
+                        ) {
+                            Polyline(
+                                points = state.routePoints,
+                                color = MaterialTheme.colorScheme.primary,
+                                width = 12f
+                            )
+
+                            // Start and End Markers
+                            Marker(
+                                state = MarkerState(position = state.routePoints.first()),
+                                title = "Start",
+                                snippet = "Trip started"
+                            )
+                            Marker(
+                                state = MarkerState(position = state.routePoints.last()),
+                                title = "End",
+                                snippet = "Trip ended"
+                            )
+
+                            // Event Markers
+                            state.events.filter { it.latitude != 0.0 && it.longitude != 0.0 }.forEach { event ->
+                                Marker(
+                                    state = MarkerState(position = LatLng(event.latitude, event.longitude)),
+                                    title = event.type.name.replace("_", " "),
+                                    snippet = event.description,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // ── Trip Summary Header ─────────────────────────────
             item {
                 if (trip != null) {
@@ -106,7 +170,7 @@ fun TripDetailScreen(
                             .height(100.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        CircularProgressIndicator(color = EcoGreen)
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -118,59 +182,13 @@ fun TripDetailScreen(
                 }
             }
 
-            // ── Route Map ───────────────────────────────────────
-            if (state.routePoints.isNotEmpty()) {
-                item {
-                    DetailChartCard(title = "Route", subtitle = "GPS path driven") {
-                        val cameraPositionState = rememberCameraPositionState {
-                            val firstPoint = state.routePoints.first()
-                            position = CameraPosition.fromLatLngZoom(firstPoint, 14f)
-                        }
-
-                        LaunchedEffect(state.routePoints) {
-                            if (state.routePoints.size > 1) {
-                                val bounds = LatLngBounds.builder().apply {
-                                    state.routePoints.forEach { include(it) }
-                                }.build()
-                                cameraPositionState.move(CameraUpdateFactory.newLatLngBounds(bounds, 100))
-                            }
-                        }
-
-                        GoogleMap(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(250.dp)
-                                .clip(RoundedCornerShape(8.dp)),
-                            cameraPositionState = cameraPositionState,
-                            uiSettings = MapUiSettings(zoomControlsEnabled = false, scrollGesturesEnabled = false)
-                        ) {
-                            Polyline(
-                                points = state.routePoints,
-                                color = EcoGreen,
-                                width = 10f
-                            )
-                            
-                            // Start and End Markers
-                            Marker(
-                                state = MarkerState(position = state.routePoints.first()),
-                                title = "Start"
-                            )
-                            Marker(
-                                state = MarkerState(position = state.routePoints.last()),
-                                title = "End"
-                            )
-                        }
-                    }
-                }
-            }
-
             // ── Speed Chart ─────────────────────────────────────
             if (state.speedPoints.isNotEmpty()) {
                 item {
                     DetailChartCard(title = "Speed", subtitle = "km/h over time") {
                         LineChart(
                             points = state.speedPoints,
-                            lineColor = GaugeBlue,
+                            lineColor = EcoDriveTheme.colors.gaugeBlue,
                             yAxisLabel = "km/h",
                             minY = 0f,
                         )
@@ -187,7 +205,7 @@ fun TripDetailScreen(
                     ) {
                         LineChart(
                             points = state.accelPoints,
-                            lineColor = GaugeOrange,
+                            lineColor = EcoDriveTheme.colors.gaugeOrange,
                             yAxisLabel = "m/s²",
                             fillGradient = false,
                             showDots = false,
@@ -205,7 +223,7 @@ fun TripDetailScreen(
                     ) {
                         LineChart(
                             points = state.fuelPoints,
-                            lineColor = GaugeOrange,
+                            lineColor = EcoDriveTheme.colors.gaugeOrange,
                             yAxisLabel = "L/100km",
                             minY = 0f,
                         )
@@ -222,7 +240,7 @@ fun TripDetailScreen(
                     ) {
                         LineChart(
                             points = state.altitudePoints,
-                            lineColor = EcoTeal,
+                            lineColor = MaterialTheme.colorScheme.secondary,
                             yAxisLabel = "m",
                             fillGradient = true,
                         )
@@ -238,7 +256,7 @@ fun TripDetailScreen(
                         style = MaterialTheme.typography.titleSmall.copy(
                             fontWeight = FontWeight.Bold,
                         ),
-                        color = DarkOnSurface,
+                        color = MaterialTheme.colorScheme.onBackground,
                     )
                 }
 
@@ -258,17 +276,17 @@ private fun TripSummaryHeader(trip: com.ecodrive.app.domain.model.Trip) {
         DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
     }
     val scoreColor = when (trip.ecoScore) {
-        in 90..100 -> ScoreExcellent
-        in 70..89 -> ScoreGood
-        in 50..69 -> ScoreAverage
-        else -> ScorePoor
+        in 90..100 -> EcoDriveTheme.colors.scoreExcellent
+        in 70..89 -> EcoDriveTheme.colors.scoreGood
+        in 50..69 -> EcoDriveTheme.colors.scoreAverage
+        else -> EcoDriveTheme.colors.scorePoor
     }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(DarkCard)
+            .background(EcoDriveTheme.colors.cardBackground)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -297,7 +315,7 @@ private fun TripSummaryHeader(trip: com.ecodrive.app.domain.model.Trip) {
                     .atZone(ZoneId.systemDefault())
                     .format(dateFormatter),
                 style = MaterialTheme.typography.titleSmall,
-                color = DarkOnSurface,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Spacer(modifier = Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -320,13 +338,13 @@ private fun ScoreBreakdownCard(trip: com.ecodrive.app.domain.model.Trip) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(DarkCard)
+            .background(EcoDriveTheme.colors.cardBackground)
             .padding(16.dp),
     ) {
         Text(
             text = "Event Summary",
             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-            color = DarkOnSurface,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(bottom = 12.dp),
         )
 
@@ -334,22 +352,22 @@ private fun ScoreBreakdownCard(trip: com.ecodrive.app.domain.model.Trip) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
-            EventCounter("Hard Brakes", trip.hardBrakeCount, ScorePoor)
-            EventCounter("Hard Accels", trip.hardAccelCount, ScoreAverage)
-            EventCounter("Sharp Turns", trip.sharpTurnCount, GaugePurple)
-            EventCounter("Idle", "${trip.idleTimeSeconds / 60}m", AccentAmber)
+            EventCounter("Hard Brakes", trip.hardBrakeCount, EcoDriveTheme.colors.scorePoor)
+            EventCounter("Hard Accels", trip.hardAccelCount, EcoDriveTheme.colors.scoreAverage)
+            EventCounter("Sharp Turns", trip.sharpTurnCount, EcoDriveTheme.colors.gaugePurple)
+            EventCounter("Idle", "${trip.idleTimeSeconds / 60}m", EcoDriveTheme.colors.scoreAverage)
         }
 
         // Fuel calibration info
         if (trip.startFuelPercent != null && trip.endFuelPercent != null) {
             Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = DarkCardBorder)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             Spacer(modifier = Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Filled.Verified,
                     contentDescription = null,
-                    tint = EcoTeal,
+                    tint = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.size(16.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -358,7 +376,7 @@ private fun ScoreBreakdownCard(trip: com.ecodrive.app.domain.model.Trip) {
                         trip.startFuelPercent, trip.endFuelPercent, trip.calibrationFactor
                     ),
                     style = MaterialTheme.typography.bodySmall,
-                    color = EcoTeal,
+                    color = MaterialTheme.colorScheme.secondary,
                 )
             }
         }
@@ -381,7 +399,7 @@ private fun EventCounter(label: String, value: String, color: Color) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = DarkOnSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -396,19 +414,19 @@ private fun DetailChartCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(DarkCard)
+            .background(EcoDriveTheme.colors.cardBackground)
             .padding(16.dp),
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-            color = DarkOnSurface,
+            color = MaterialTheme.colorScheme.onSurface,
         )
         if (subtitle.isNotBlank()) {
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.labelSmall,
-                color = DarkOnSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -419,13 +437,13 @@ private fun DetailChartCard(
 @Composable
 private fun EventTimelineItem(event: com.ecodrive.app.domain.model.DrivingEvent) {
     val (icon, color) = when (event.type) {
-        DrivingEventType.HARD_BRAKE -> Icons.Filled.Warning to ScorePoor
-        DrivingEventType.HARD_ACCELERATION -> Icons.Filled.Speed to ScoreAverage
-        DrivingEventType.SHARP_TURN -> Icons.Filled.TurnRight to GaugePurple
-        DrivingEventType.EXCESSIVE_SPEED -> Icons.Filled.Speed to ErrorRed
-        DrivingEventType.EXCESSIVE_IDLE -> Icons.Filled.HourglassEmpty to AccentAmber
-        DrivingEventType.SPEED_INCONSISTENCY -> Icons.Filled.ShowChart to GaugeOrange
-        DrivingEventType.ECO_DRIVING -> Icons.Filled.Eco to EcoGreen
+        DrivingEventType.HARD_BRAKE -> Icons.Filled.Warning to EcoDriveTheme.colors.scorePoor
+        DrivingEventType.HARD_ACCELERATION -> Icons.Filled.Speed to EcoDriveTheme.colors.scoreAverage
+        DrivingEventType.SHARP_TURN -> Icons.Filled.TurnRight to EcoDriveTheme.colors.gaugePurple
+        DrivingEventType.EXCESSIVE_SPEED -> Icons.Filled.Speed to MaterialTheme.colorScheme.error
+        DrivingEventType.EXCESSIVE_IDLE -> Icons.Filled.HourglassEmpty to EcoDriveTheme.colors.scoreAverage
+        DrivingEventType.SPEED_INCONSISTENCY -> Icons.Filled.ShowChart to EcoDriveTheme.colors.gaugeOrange
+        DrivingEventType.ECO_DRIVING -> Icons.Filled.Eco to EcoDriveTheme.colors.scoreExcellent
     }
 
     val timeFormatter = remember {
@@ -436,7 +454,7 @@ private fun EventTimelineItem(event: com.ecodrive.app.domain.model.DrivingEvent)
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(DarkCard)
+            .background(EcoDriveTheme.colors.cardBackground)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -451,12 +469,12 @@ private fun EventTimelineItem(event: com.ecodrive.app.domain.model.DrivingEvent)
             Text(
                 text = event.description,
                 style = MaterialTheme.typography.bodySmall,
-                color = DarkOnSurface,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = "at %.0f km/h".format(event.speedAtEvent),
                 style = MaterialTheme.typography.labelSmall,
-                color = DarkOnSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Text(
@@ -464,7 +482,7 @@ private fun EventTimelineItem(event: com.ecodrive.app.domain.model.DrivingEvent)
                 .atZone(ZoneId.systemDefault())
                 .format(timeFormatter),
             style = MaterialTheme.typography.labelSmall,
-            color = DarkOnSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -475,12 +493,12 @@ private fun DetailStat(value: String, label: String) {
         Text(
             text = value,
             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-            color = DarkOnSurface,
+            color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = DarkOnSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

@@ -11,7 +11,8 @@ The app features a pre-loaded physics model (Vehicle Specific Power) specificall
 - **Physics-Based Fuel Estimation:** Calculates real-time fuel efficiency (L/h) using the Vehicle Specific Power (VSP) model, even without specialized hardware.
 - **Auto-Calibration:** Integrates with the Toyota API via **Smartcar** to compare actual fuel consumption with the physics model, automatically improving accuracy over time.
 - **Eco Score Calculator:** Generates a comprehensive driving score (0-100) based on speed consistency, idling, braking, and acceleration patterns.
-- **Trip History & Analytics:** Beautiful dashboards summarizing every drive with persistent storage in a local Room database.
+- **Trip History & Analytics:** Beautiful dashboards summarizing every drive with persistent storage in a local Room database, now featuring **interactive route maps** and **history list previews**.
+- **Visual Route Mapping:** Visualizes your driving path on **Google Maps** with markers for notable driving events (hard braking, sharp turns, etc.).
 - **Audio Feedback:** Provides real-time coaching tips and event alerts via voice to keep your eyes on the road.
 
 ## 🛠️ Tech Stack
@@ -21,6 +22,7 @@ The app features a pre-loaded physics model (Vehicle Specific Power) specificall
 - **Dependency Injection:** [Hilt](https://developer.android.com/training/dependency-injection/hilt-android) / Dagger
 - **Local Storage:** [Room Database](https://developer.android.com/training/data-storage/room) & [DataStore Preferences](https://developer.android.com/topic/libraries/architecture/datastore)
 - **Async & Flows:** Kotlin Coroutines & Flows
+- **Maps:** [Google Maps SDK for Android](https://developers.google.com/maps/documentation/android-sdk/overview) & [Maps Compose](https://github.com/googlemaps/android-maps-compose)
 - **External APIs:** Google Play Services (Location, Activity Recognition), Smartcar API (Toyota Connected Services)
 - **Testing:** JUnit 4 & [MockK](https://mockk.io/)
 
@@ -50,7 +52,8 @@ The project includes a robust suite of **180 unit tests** covering core logic, s
 ```
 
 ### Test Coverage Highlights:
-- **Automation (New)**: `TripRecorderTest`, `AutoRecordManagerTest`, and Receiver tests ensure reliable auto-start/stop behavior.
+- **Trip History (Latest)**: New batch-fetching strategy for route points ensures smooth scrolling when displaying mini-map previews in the history list.
+- **Automation**: `TripRecorderTest`, `AutoRecordManagerTest`, and Receiver tests ensure reliable auto-start/stop behavior.
 - **OBD-II**: Validates command parsing and Bluetooth protocol handling.
 - **Physics Engine**: Tests the VSP model and fuel calibration math.
 - **Sensor Fusion**: Validates the alignment of GPS and IMU data.

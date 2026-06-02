@@ -482,6 +482,43 @@ class ObdCommandTest {
     }
 
     @Test
+    fun `test command with invalid header prefix throws ObdException`() {
+        // Given
+        val cmd = SpeedCommand()
+        val rawResponse = "420D 3E >"  // Expected 41, got 42
+
+        // When/Then
+        assertThrows(ObdException::class.java) {
+            cmd.parseResponse(rawResponse)
+        }
+    }
+
+    @Test
+    fun `test command with negative response throws ObdException`() {
+        // Given
+        val cmd = SpeedCommand()
+        val rawResponse = "7F0D 11 >"  // Service not supported or similar
+
+        // When/Then
+        assertThrows(ObdException::class.java) {
+            cmd.parseResponse(rawResponse)
+        }
+    }
+
+    @Test
+    fun `test command with short response returns 0`() {
+        // Given
+        val cmd = SpeedCommand()
+        val rawResponse = "41 >"  // Too short
+
+        // When
+        val value = cmd.parseResponse(rawResponse)
+
+        // Then
+        assertEquals(0.0, value, 0.01)
+    }
+
+    @Test
     fun `test ambiguous response header handled correctly`() {
         // This tests boundary condition where response might be ambiguous
         // Given

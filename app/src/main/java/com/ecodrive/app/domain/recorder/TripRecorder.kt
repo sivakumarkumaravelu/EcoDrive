@@ -26,12 +26,13 @@ class TripRecorder @Inject constructor(
     private val analyzer: DrivingPatternAnalyzer,
     private val ecoScoreCalculator: EcoScoreCalculator,
     private val audioFeedbackManager: AudioFeedbackManager,
+    private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     companion object {
         private const val TAG = "TripRecorder"
     }
 
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val scope = CoroutineScope(defaultDispatcher + SupervisorJob())
     
     private val _isRecording = MutableStateFlow(false)
     val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()

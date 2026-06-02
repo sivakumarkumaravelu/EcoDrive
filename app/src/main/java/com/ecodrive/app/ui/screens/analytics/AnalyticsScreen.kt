@@ -47,7 +47,7 @@ fun AnalyticsScreen(
             Text(
                 text = "Analytics",
                 style = MaterialTheme.typography.headlineMedium,
-                color = DarkOnSurface,
+                color = MaterialTheme.colorScheme.onBackground,
             )
         }
 
@@ -64,8 +64,8 @@ fun AnalyticsScreen(
                         Text(range.label, style = MaterialTheme.typography.labelMedium)
                     },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = EcoGreen.copy(alpha = 0.2f),
-                        selectedLabelColor = EcoGreen,
+                        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                        selectedLabelColor = MaterialTheme.colorScheme.primary,
                     ),
                 )
             }
@@ -83,7 +83,7 @@ fun AnalyticsScreen(
                     .height(200.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator(color = EcoGreen)
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
             return@Column
         }
@@ -97,7 +97,7 @@ fun AnalyticsScreen(
                 label = "Trips",
                 value = "${state.totalTrips}",
                 icon = Icons.Filled.Route,
-                color = GaugeBlue,
+                color = EcoDriveTheme.colors.gaugeBlue,
                 modifier = Modifier.weight(1f),
             )
             SummaryCard(
@@ -105,9 +105,9 @@ fun AnalyticsScreen(
                 value = "${state.avgEcoScore}",
                 icon = Icons.Filled.Stars,
                 color = when {
-                    state.avgEcoScore >= 70 -> ScoreGood
-                    state.avgEcoScore >= 50 -> ScoreAverage
-                    else -> ScorePoor
+                    state.avgEcoScore >= 70 -> EcoDriveTheme.colors.scoreGood
+                    state.avgEcoScore >= 50 -> EcoDriveTheme.colors.scoreAverage
+                    else -> EcoDriveTheme.colors.scorePoor
                 },
                 modifier = Modifier.weight(1f),
             )
@@ -115,7 +115,7 @@ fun AnalyticsScreen(
                 label = "Distance",
                 value = "%.0f km".format(state.totalDistanceKm),
                 icon = Icons.Filled.Straighten,
-                color = GaugePurple,
+                color = EcoDriveTheme.colors.gaugePurple,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -126,14 +126,14 @@ fun AnalyticsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(EcoGreen.copy(alpha = 0.1f))
+                    .background(EcoDriveTheme.colors.scoreExcellent.copy(alpha = 0.1f))
                     .padding(16.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Filled.Eco,
                         contentDescription = null,
-                        tint = EcoGreen,
+                        tint = EcoDriveTheme.colors.scoreExcellent,
                         modifier = Modifier.size(28.dp),
                     )
                     Spacer(modifier = Modifier.width(12.dp))
@@ -143,12 +143,12 @@ fun AnalyticsScreen(
                             style = MaterialTheme.typography.titleSmall.copy(
                                 fontWeight = FontWeight.Bold,
                             ),
-                            color = EcoGreen,
+                            color = EcoDriveTheme.colors.scoreExcellent,
                         )
                         Text(
-                            text = "Compared to EPA rated 6.4 L/100km for your Highlander",
+                            text = "Compared to your vehicle's rated efficiency",
                             style = MaterialTheme.typography.bodySmall,
-                            color = DarkOnSurfaceVariant,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -159,7 +159,7 @@ fun AnalyticsScreen(
         ChartCard(title = "Eco Score Trend") {
             LineChart(
                 points = state.ecoScoreTrend,
-                lineColor = EcoGreen,
+                lineColor = EcoDriveTheme.colors.scoreExcellent,
                 yAxisLabel = "Score",
                 xAxisLabels = state.ecoScoreTrend.map { it.label },
                 minY = 0f,
@@ -171,7 +171,7 @@ fun AnalyticsScreen(
         ChartCard(title = "Fuel Efficiency") {
             LineChart(
                 points = state.fuelEfficiencyTrend,
-                lineColor = GaugeOrange,
+                lineColor = EcoDriveTheme.colors.gaugeOrange,
                 yAxisLabel = "L/100km",
                 xAxisLabels = state.fuelEfficiencyTrend.map { it.label },
                 fillGradient = true,
@@ -180,20 +180,23 @@ fun AnalyticsScreen(
             Text(
                 text = "Average: %.1f L/100km (EPA: 6.4)".format(state.avgFuelEfficiency),
                 style = MaterialTheme.typography.labelSmall,
-                color = DarkOnSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
         // ── Weekly Eco Score Bar Chart ───────────────────────────
         if (state.weeklyScores.isNotEmpty()) {
+            val goodColor = EcoDriveTheme.colors.scoreGood
+            val avgColor = EcoDriveTheme.colors.scoreAverage
+            val poorColor = EcoDriveTheme.colors.scorePoor
             ChartCard(title = "Weekly Eco Scores") {
                 BarChart(
                     values = state.weeklyScores,
                     barColor = { score ->
                         when {
-                            score >= 70 -> ScoreGood
-                            score >= 50 -> ScoreAverage
-                            else -> ScorePoor
+                            score >= 70 -> goodColor
+                            score >= 50 -> avgColor
+                            else -> poorColor
                         }
                     },
                     maxValue = 100f,
@@ -204,10 +207,11 @@ fun AnalyticsScreen(
 
         // ── Weekly Distance Bar Chart ───────────────────────────
         if (state.weeklyDistances.isNotEmpty()) {
+            val gaugeBlue = EcoDriveTheme.colors.gaugeBlue
             ChartCard(title = "Weekly Distance") {
                 BarChart(
                     values = state.weeklyDistances,
-                    barColor = { GaugeBlue },
+                    barColor = { gaugeBlue },
                     yAxisLabel = "km",
                 )
             }
@@ -223,9 +227,9 @@ fun AnalyticsScreen(
             if (total > 0) {
                 BreakdownBar(
                     segments = listOf(
-                        Triple("Braking", brakes, ScorePoor),
-                        Triple("Accel", accels, ScoreAverage),
-                        Triple("Cornering", turns, GaugePurple),
+                        Triple("Braking", brakes, EcoDriveTheme.colors.scorePoor),
+                        Triple("Accel", accels, EcoDriveTheme.colors.scoreAverage),
+                        Triple("Cornering", turns, EcoDriveTheme.colors.gaugePurple),
                     ),
                     height = 20.dp,
                 )
@@ -238,10 +242,10 @@ fun AnalyticsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                BehaviorStat("Hard Brakes", state.totalHardBrakes, ScorePoor)
-                BehaviorStat("Hard Accels", state.totalHardAccels, ScoreAverage)
-                BehaviorStat("Sharp Turns", state.totalSharpTurns, GaugePurple)
-                BehaviorStat("Idle (min)", state.totalIdleMinutes.toInt(), AccentAmber)
+                BehaviorStat("Hard Brakes", state.totalHardBrakes, EcoDriveTheme.colors.scorePoor)
+                BehaviorStat("Hard Accels", state.totalHardAccels, EcoDriveTheme.colors.scoreAverage)
+                BehaviorStat("Sharp Turns", state.totalSharpTurns, EcoDriveTheme.colors.gaugePurple)
+                BehaviorStat("Idle (min)", state.totalIdleMinutes.toInt(), EcoDriveTheme.colors.scoreAverage)
             }
         }
 
@@ -257,7 +261,7 @@ fun AnalyticsScreen(
                         score = trip.ecoScore,
                         distance = trip.distanceKm,
                         efficiency = trip.fuelEfficiencyLPer100Km,
-                        color = ScoreExcellent,
+                        color = EcoDriveTheme.colors.scoreExcellent,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -267,7 +271,7 @@ fun AnalyticsScreen(
                         score = trip.ecoScore,
                         distance = trip.distanceKm,
                         efficiency = trip.fuelEfficiencyLPer100Km,
-                        color = ScorePoor,
+                        color = EcoDriveTheme.colors.scorePoor,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -280,17 +284,17 @@ fun AnalyticsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                FuelStat("Total Used", "%.1f L".format(state.totalFuelLiters), GaugeOrange)
+                FuelStat("Total Used", "%.1f L".format(state.totalFuelLiters), EcoDriveTheme.colors.gaugeOrange)
                 FuelStat(
                     "Avg L/100km",
                     "%.1f".format(state.avgFuelEfficiency),
-                    if (state.avgFuelEfficiency < 6.4) ScoreGood else ScoreAverage,
+                    if (state.avgFuelEfficiency < 6.4) EcoDriveTheme.colors.scoreGood else EcoDriveTheme.colors.scoreAverage,
                 )
                 FuelStat(
                     "vs EPA",
                     if (state.fuelSavedEstimate > 0) "-%.1f L".format(state.fuelSavedEstimate)
                     else "+%.1f L".format(-state.fuelSavedEstimate),
-                    if (state.fuelSavedEstimate > 0) ScoreGood else ScorePoor,
+                    if (state.fuelSavedEstimate > 0) EcoDriveTheme.colors.scoreGood else EcoDriveTheme.colors.scorePoor,
                 )
             }
         }
@@ -312,7 +316,7 @@ private fun SummaryCard(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(DarkCard)
+            .background(EcoDriveTheme.colors.cardBackground)
             .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -326,12 +330,12 @@ private fun SummaryCard(
         Text(
             text = value,
             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-            color = DarkOnSurface,
+            color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = DarkOnSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -345,13 +349,13 @@ private fun ChartCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(DarkCard)
+            .background(EcoDriveTheme.colors.cardBackground)
             .padding(16.dp),
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-            color = DarkOnSurface,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(bottom = 12.dp),
         )
         content()
@@ -369,7 +373,7 @@ private fun BehaviorStat(label: String, count: Int, color: Color) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = DarkOnSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -398,12 +402,12 @@ private fun ComparisonItem(
         Text(
             text = "Score: $score",
             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-            color = DarkOnSurface,
+            color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
             text = "%.1f km • %.1f L/100km".format(distance, efficiency),
             style = MaterialTheme.typography.bodySmall,
-            color = DarkOnSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -419,7 +423,7 @@ private fun FuelStat(label: String, value: String, color: Color) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = DarkOnSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -435,19 +439,19 @@ private fun EmptyAnalytics() {
         Icon(
             imageVector = Icons.Filled.Analytics,
             contentDescription = null,
-            tint = DarkOnSurfaceVariant.copy(alpha = 0.4f),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
             modifier = Modifier.size(64.dp),
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "No analytics yet",
             style = MaterialTheme.typography.titleMedium,
-            color = DarkOnSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
             text = "Complete a few trips to see your driving trends here.",
             style = MaterialTheme.typography.bodyMedium,
-            color = DarkOnSurfaceVariant.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
     }
