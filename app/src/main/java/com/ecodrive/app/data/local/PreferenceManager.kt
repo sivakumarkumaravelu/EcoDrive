@@ -18,7 +18,16 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 class PreferenceManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    private val dataStore = context.dataStore
+    private var dataStore: DataStore<Preferences> = context.dataStore
+
+    // Constructor for testing that allows injecting a custom dataStore
+    constructor(context: Context, testDataStore: DataStore<Preferences>) : this(context) {
+        dataStore = testDataStore
+    }
+
+    internal fun setTestDataStore(testDataStore: DataStore<Preferences>) {
+        dataStore = testDataStore
+    }
 
     companion object {
         private val AUTO_RECORD_ENABLED = booleanPreferencesKey("auto_record_enabled")
@@ -28,33 +37,38 @@ class PreferenceManager @Inject constructor(
         private val COLOR_PALETTE = stringPreferencesKey("color_palette")
     }
 
-    val autoRecordEnabled: Flow<Boolean> = dataStore.data.map { preferences ->
-        preferences[AUTO_RECORD_ENABLED] ?: false
-    }
-
-    val carBluetoothAddress: Flow<String?> = dataStore.data.map { preferences ->
-        preferences[CAR_BLUETOOTH_ADDRESS]
-    }
-
-    val useMetricUnits: Flow<Boolean> = dataStore.data.map { preferences ->
-        preferences[USE_METRIC_UNITS] ?: true
-    }
-
-    val appTheme: Flow<AppTheme> = dataStore.data.map { preferences ->
-        try {
-            AppTheme.valueOf(preferences[APP_THEME] ?: AppTheme.DARK.name)
-        } catch (e: Exception) {
-            AppTheme.DARK
+    val autoRecordEnabled: Flow<Boolean>
+        get() = dataStore.data.map { preferences ->
+            preferences[AUTO_RECORD_ENABLED] ?: false
         }
-    }
 
-    val colorPalette: Flow<AppColorPalette> = dataStore.data.map { preferences ->
-        try {
-            AppColorPalette.valueOf(preferences[COLOR_PALETTE] ?: AppColorPalette.ECO_GREEN.name)
-        } catch (e: Exception) {
-            AppColorPalette.ECO_GREEN
+    val carBluetoothAddress: Flow<String?>
+        get() = dataStore.data.map { preferences ->
+            preferences[CAR_BLUETOOTH_ADDRESS]
         }
-    }
+
+    val useMetricUnits: Flow<Boolean>
+        get() = dataStore.data.map { preferences ->
+            preferences[USE_METRIC_UNITS] ?: true
+        }
+
+    val appTheme: Flow<AppTheme>
+        get() = dataStore.data.map { preferences ->
+            try {
+                AppTheme.valueOf(preferences[APP_THEME] ?: AppTheme.DARK.name)
+            } catch (e: Exception) {
+                AppTheme.DARK
+            }
+        }
+
+    val colorPalette: Flow<AppColorPalette>
+        get() = dataStore.data.map { preferences ->
+            try {
+                AppColorPalette.valueOf(preferences[COLOR_PALETTE] ?: AppColorPalette.ECO_GREEN.name)
+            } catch (e: Exception) {
+                AppColorPalette.ECO_GREEN
+            }
+        }
 
     suspend fun setAutoRecordEnabled(enabled: Boolean) {
         dataStore.edit { preferences ->

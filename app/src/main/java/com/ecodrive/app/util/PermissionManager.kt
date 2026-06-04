@@ -23,6 +23,7 @@ import javax.inject.Singleton
 class PermissionManager @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
+    internal var sdkIntProvider: () -> Int = { Build.VERSION.SDK_INT }
     /**
      * Core permissions required for basic sensor data collection.
      */
@@ -33,12 +34,12 @@ class PermissionManager @Inject constructor(
         )
 
         // Android 10+ requires ACTIVITY_RECOGNITION
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (sdkIntProvider() >= Build.VERSION_CODES.Q) {
             permissions.add(Manifest.permission.ACTIVITY_RECOGNITION)
         }
 
         // Android 13+ requires POST_NOTIFICATIONS for foreground service
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (sdkIntProvider() >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
@@ -50,7 +51,7 @@ class PermissionManager @Inject constructor(
      */
     fun getAutoRecordPermissions(): List<String> {
         val permissions = mutableListOf<String>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (sdkIntProvider() >= Build.VERSION_CODES.Q) {
             permissions.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
         }
         return permissions
@@ -60,7 +61,7 @@ class PermissionManager @Inject constructor(
      * Optional permissions for OBD-II pro feature.
      */
     fun getBluetoothPermissions(): List<String> {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        return if (sdkIntProvider() >= Build.VERSION_CODES.S) {
             listOf(
                 Manifest.permission.BLUETOOTH_CONNECT,
                 Manifest.permission.BLUETOOTH_SCAN,
@@ -96,7 +97,7 @@ class PermissionManager @Inject constructor(
      * Check if notification permission is granted (always true pre-Android 13).
      */
     fun hasNotificationPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        return if (sdkIntProvider() >= Build.VERSION_CODES.TIRAMISU) {
             ContextCompat.checkSelfPermission(
                 context, Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
@@ -109,7 +110,7 @@ class PermissionManager @Inject constructor(
      * Check if background location permission is granted (required for auto-record).
      */
     fun hasBackgroundLocationPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        return if (sdkIntProvider() >= Build.VERSION_CODES.Q) {
             ContextCompat.checkSelfPermission(
                 context, Manifest.permission.ACCESS_BACKGROUND_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
@@ -122,7 +123,7 @@ class PermissionManager @Inject constructor(
      * Check if activity recognition permission is granted.
      */
     fun hasActivityRecognitionPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        return if (sdkIntProvider() >= Build.VERSION_CODES.Q) {
             ContextCompat.checkSelfPermission(
                 context, Manifest.permission.ACTIVITY_RECOGNITION
             ) == PackageManager.PERMISSION_GRANTED
