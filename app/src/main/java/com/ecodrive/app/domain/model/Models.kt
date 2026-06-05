@@ -249,3 +249,130 @@ data class FuelCalibrationPoint(
     val correctionRatio: Double
         get() = if (estimatedFuelLiters > 0) actualFuelLiters / estimatedFuelLiters else 1.0
 }
+
+// ── AI Gamification Models ──────────────────────────────────────
+
+/**
+ * Types of achievement badges the driver can earn.
+ */
+enum class BadgeType(val title: String, val icon: String, val description: String) {
+    SMOOTH_OPERATOR("Smooth Operator", "🧘", "Completed 3 trips with zero hard brakes"),
+    ECO_WARRIOR("Eco Warrior", "🌿", "Achieved Eco Score ≥ 90 on 5 consecutive trips"),
+    CONSISTENCY_KING("Consistency King", "📍", "Speed std-dev below 5 km/h for an entire trip"),
+    FUEL_SAVER("Fuel Saver", "⛽", "Saved 10+ litres vs average fleet this month"),
+    NIGHT_OWL("Night Owl", "🦉", "Completed 5 trips after 10 PM with score ≥ 80"),
+    HIGHWAY_HERO("Highway Hero", "🛴", "Drove 100+ km at optimal efficiency (70-90 km/h)"),
+    FIRST_TRIP("First Journey", "🌟", "Completed your very first EcoDrive trip"),
+}
+
+/**
+ * Represents an active or completed AI-generated challenge.
+ */
+data class Challenge(
+    val id: Long = 0,
+    val title: String,
+    val description: String,
+    val targetCount: Int,
+    val progressCount: Int = 0,
+    val metricType: DrivingEventType,
+    val durationDays: Int = 7,
+    val createdAtEpochMs: Long = System.currentTimeMillis(),
+    val completedAtEpochMs: Long? = null,
+    val isCompleted: Boolean = false,
+    val rewardBadgeType: BadgeType? = null,
+) {
+    val progressFraction: Float
+        get() = if (targetCount > 0) (progressCount.toFloat() / targetCount).coerceIn(0f, 1f) else 0f
+
+    val daysRemaining: Int
+        get() {
+            val elapsedMs = System.currentTimeMillis() - createdAtEpochMs
+            val remainingMs = (durationDays * 86_400_000L) - elapsedMs
+            return (remainingMs / 86_400_000L).toInt().coerceAtLeast(0)
+        }
+}
+
+/**
+ * Represents a badge earned by the driver.
+ */
+data class Badge(
+    val id: Long = 0,
+    val type: BadgeType,
+    val earnedAtEpochMs: Long = System.currentTimeMillis(),
+)
+
+// ── AI Anomaly Detection Models ─────────────────────────────────
+
+enum class AnomalyType {
+    HIGH_FUEL_CONSUMPTION,   // Consumption 30%+ above baseline at same speed
+    SPEED_OSCILLATION,       // Unexplained rapid speed fluctuations (not traffic)
+    LATERAL_PULL,            // Persistent lateral acceleration bias (alignment/tire issue)
+    HARSH_VIBRATION,         // Unusually high vertical acceleration (road or suspension)
+    COLD_ENGINE_EXCESS,      // Excessive consumption in first 2 minutes (cold start issue)
+}
+
+enum class AnomalySeverity { LOW, MEDIUM, HIGH }
+
+/**
+ * Represents a detected anomaly in vehicle/driver behavior.
+ */
+data class VehicleAnomaly(
+    val type: AnomalyType,
+    val severity: AnomalySeverity,
+    val description: String,
+    val detectedAtSpeedKmh: Double = 0.0,
+    /** AI-generated diagnosis of the likely cause. Null if AI unavailable. */
+    val aiDiagnosis: String? = null,
+)
+
+// ── Weather Context Model ───────────────────────────────────────
+
+/**
+ * Environmental context affecting driving efficiency.
+ * Populated from WeatherApiClient or time/season heuristics.
+ */
+data class WeatherContext(
+    val tempC: Double = 20.0,
+    val conditionCode: Int = 800, // OpenWeatherMap code; 800 = clear
+    val conditionLabel: String = "Clear",
+    val windSpeedKmh: Double = 0.0,
+    val windBearingDeg: Int = 0,
+    val visibilityKm: Double = 10.0,
+    val humidity: Int = 50,
+    val isRaining: Boolean = false,
+    val isSnowing: Boolean = false,
+    val isFoggy: Boolean = visibilityKm < 1.0,
+) {
+    /** Fuel consumption penalty factor for current conditions (1.0 = no penalty). */
+    val fuelPenaltyFactor: Double get() = when {
+        isSnowing -> 1.25            // Snow: 25% more fuel
+        isRaining -> 1.10            // Rain: 10% more fuel (rolling resistance + traction)
+        tempC < 0 -> 1.18            // Below freezing: cold engine penalty
+        tempC < 10 -> 1.08           // Cold: moderate penalty
+        windSpeedKmh > 60 -> 1.12   // High wind: aerodynamic penalty
+        else -> 1.0
+    }
+
+    /** Safety context tag for coaching tips. */
+    val safetyContext: String get() = when {
+        isSnowing -> "snowy/icy roads"
+        isRaining -> "wet roads"
+        isFoggy -> "reduced visibility"
+        windSpeedKmh > 50 -> "strong crosswinds"
+        tempC < -10 -> "extreme cold"
+        else -> ""
+    }
+}
+
+// ── Eco-Score Prediction Model ──────────────────────────────────
+
+/**
+ * AI-generated prediction for a trip before it starts.
+ */
+data class PredictedScore(
+    val expected: Int,
+    val low: Int,
+    val high: Int,
+    val explanation: String,
+    val basedOnTripCount: Int = 0,
+)

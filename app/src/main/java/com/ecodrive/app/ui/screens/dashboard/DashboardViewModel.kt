@@ -1,5 +1,7 @@
 package com.ecodrive.app.ui.screens.dashboard
 
+import com.ecodrive.app.domain.ai.service.AiCoachService
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ecodrive.app.data.local.PreferenceManager
@@ -23,7 +25,8 @@ class DashboardViewModel @Inject constructor(
     private val smartcarApiClient: SmartcarApiClient,
     private val tripRecorder: TripRecorder,
     private val preferenceManager: PreferenceManager,
-    private val aiCoachService: com.ecodrive.app.domain.ai.AiCoachService,
+    private val aiCoachService: com.ecodrive.app.domain.ai.service.AiCoachService,
+    private val ecoScorePredictor: com.ecodrive.app.domain.ai.analyzer.EcoScorePredictor,
     val permissionManager: PermissionManager,
 ) : ViewModel() {
 
@@ -47,6 +50,7 @@ class DashboardViewModel @Inject constructor(
         val needsPermissions: Boolean = false,
         val maxSpeedKmh: Double = 0.0,
         val useMetric: Boolean = true,
+        val predictedScore: PredictedScore? = null,
     )
 
     private val _state = MutableStateFlow(DashboardState())
@@ -58,6 +62,21 @@ class DashboardViewModel @Inject constructor(
         observeSmartcarState()
         observeRecorderState()
         observePreferences()
+        fetchPrediction()
+    }
+
+    private fun fetchPrediction() {
+        viewModelScope.launch {
+            val prediction = ecoScorePredictor.predictForNow()
+            if (prediction != null) {
+                _state.update {
+                    it.copy(
+                        predictedScore = prediction,
+                        drivingTip = "Predicted Score: ${prediction.expected}/100. ${prediction.explanation}"
+                    )
+                }
+            }
+        }
     }
 
     private fun observePreferences() {

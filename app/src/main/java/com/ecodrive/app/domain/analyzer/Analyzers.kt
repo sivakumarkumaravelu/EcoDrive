@@ -1,17 +1,31 @@
 package com.ecodrive.app.domain.analyzer
 
+import com.ecodrive.app.domain.ai.engine.DrivingThresholds
+import com.ecodrive.app.domain.ai.analyzer.FuelPredictionModel
+import com.ecodrive.app.domain.ai.engine.ScoreWeights
+import com.ecodrive.app.domain.ai.config.AiUtils
+
 import android.util.Log
+import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.local.dao.FuelCalibrationDao
 import com.ecodrive.app.data.local.entity.FuelCalibrationEntity
-import com.ecodrive.app.domain.model.*
-import com.ecodrive.app.domain.ai.GeminiManager
-import com.ecodrive.app.data.local.PreferenceManager
+import com.ecodrive.app.domain.ai.service.AiManager
+import com.ecodrive.app.domain.model.DrivingEvent
+import com.ecodrive.app.domain.model.DrivingEventType
+import com.ecodrive.app.domain.model.DrivingMetrics
+import com.ecodrive.app.domain.model.EcoScore
+import com.ecodrive.app.domain.model.FuelCalibrationPoint
+import com.ecodrive.app.domain.model.Trip
+import com.ecodrive.app.domain.model.Vehicle
+import com.ecodrive.app.domain.model.VehicleType
 import com.ecodrive.app.util.Constants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
@@ -29,9 +43,9 @@ class DrivingPatternAnalyzer @Inject constructor() {
     private var previousMetrics: DrivingMetrics? = null
     private var idleStartTimeMs: Long? = null
     private val speedHistory = java.util.Collections.synchronizedList(mutableListOf<Double>())
-    private var thresholds = com.ecodrive.app.domain.ai.DrivingThresholds()
+    private var thresholds = com.ecodrive.app.domain.ai.engine.DrivingThresholds()
 
-    fun updateThresholds(newThresholds: com.ecodrive.app.domain.ai.DrivingThresholds) {
+    fun updateThresholds(newThresholds: com.ecodrive.app.domain.ai.engine.DrivingThresholds) {
         thresholds = newThresholds
     }
 
@@ -102,9 +116,9 @@ class DrivingPatternAnalyzer @Inject constructor() {
 @Singleton
 class FuelEstimationEngine @Inject constructor(
     private val fuelCalibrationDao: FuelCalibrationDao,
-    private val geminiManager: GeminiManager,
+    private val aiManager: AiManager,
     private val preferenceManager: PreferenceManager,
-    private val mlModel: com.ecodrive.app.domain.ai.FuelPredictionModel,
+    private val mlModel: com.ecodrive.app.domain.ai.analyzer.FuelPredictionModel,
 ) {
     companion object {
         private const val TAG = "FuelEstimationEngine"
@@ -207,8 +221,7 @@ class FuelEstimationEngine @Inject constructor(
      */
     fun performAiRefinement(trips: List<Trip>) {
         CoroutineScope(Dispatchers.IO).launch {
-            val apiKey = preferenceManager.geminiApiKey.first()
-            if (apiKey.isBlank() || trips.isEmpty()) return@launch
+            if (trips.isEmpty()) return@launch
 
             val prompt = """
                 You are a Vehicle Efficiency Analyst. Analyze the following trip records where we estimated fuel consumption vs physics model defaults.
@@ -223,10 +236,10 @@ class FuelEstimationEngine @Inject constructor(
                 Keep the factor between 0.8 and 1.2.
             """.trimIndent()
 
-            val response = geminiManager.generateTripInsight(apiKey, prompt)
+            val response = aiManager.generateTripInsight(prompt)
             response?.let { raw ->
                 try {
-                    val jsonStr = com.ecodrive.app.domain.ai.AiUtils.extractJson(raw) ?: return@let
+                    val jsonStr = com.ecodrive.app.domain.ai.config.AiUtils.extractJson(raw) ?: return@let
                     val json = Json.parseToJsonElement(jsonStr).jsonObject
                     val factor = json["suggested_factor"]?.jsonPrimitive?.doubleOrNull ?: 1.0
                     updateAiCorrection(factor)
@@ -294,7 +307,7 @@ class EcoScoreCalculator @Inject constructor() {
         idleTimePercent: Double,
         speedStdDeviation: Double,
         tripDurationMinutes: Double,
-        weights: com.ecodrive.app.domain.ai.ScoreWeights = com.ecodrive.app.domain.ai.ScoreWeights(),
+        weights: com.ecodrive.app.domain.ai.engine.ScoreWeights = com.ecodrive.app.domain.ai.engine.ScoreWeights(),
     ): EcoScore {
         val per10Min = if (tripDurationMinutes > 0) 10.0 / tripDurationMinutes else 1.0
 

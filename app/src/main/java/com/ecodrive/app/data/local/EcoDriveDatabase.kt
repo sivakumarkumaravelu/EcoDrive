@@ -8,7 +8,7 @@ import com.ecodrive.app.data.local.entity.*
 /**
  * Room database for EcoDrive.
  * Stores trips, driving events, data points, vehicle profiles,
- * and fuel calibration history.
+ * fuel calibration history, AI insights, and gamification data.
  */
 @Database(
     entities = [
@@ -18,8 +18,11 @@ import com.ecodrive.app.data.local.entity.*
         VehicleEntity::class,
         FuelCalibrationEntity::class,
         AiInsightEntity::class,
+        ChallengeEntity::class,
+        BadgeEntity::class,
+        AnomalyEntity::class,
     ],
-    version = 4,
+    version = 6,
     exportSchema = false,
 )
 abstract class EcoDriveDatabase : RoomDatabase() {
@@ -29,4 +32,6 @@ abstract class EcoDriveDatabase : RoomDatabase() {
     abstract fun vehicleDao(): VehicleDao
     abstract fun fuelCalibrationDao(): FuelCalibrationDao
     abstract fun aiInsightDao(): AiInsightDao
+    abstract fun challengeDao(): ChallengeDao
+    abstract fun anomalyDao(): AnomalyDao
 }

@@ -15,7 +15,6 @@ import javax.inject.Inject
 
 /**
  * ViewModel for the Settings screen.
- * Manages Smartcar API connection, vehicle profile, and app preferences.
  */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -39,8 +38,7 @@ class SettingsViewModel @Inject constructor(
         val odometerKm: Double? = null,
         val isObdEnabled: Boolean = false,
         val autoRecordEnabled: Boolean = false,
-        val geminiApiKey: String = "",
-        val mapsApiKey: String = "",
+        val selectedAiProvider: String = "GEMINI",
     )
 
     private val _state = MutableStateFlow(SettingsState())
@@ -49,14 +47,6 @@ class SettingsViewModel @Inject constructor(
     init {
         observeSmartcarState()
         observePreferences()
-        viewModelScope.launch {
-            com.ecodrive.app.ui.MainActivity.authCodeFlow.collect { code ->
-                if (code != null) {
-                    handleAuthCallback(code)
-                    com.ecodrive.app.ui.MainActivity.authCodeFlow.value = null
-                }
-            }
-        }
     }
 
     private fun observeSmartcarState() {
@@ -91,24 +81,15 @@ class SettingsViewModel @Inject constructor(
                 preferenceManager.useMetricUnits,
                 preferenceManager.appTheme,
                 preferenceManager.colorPalette,
-                preferenceManager.geminiApiKey,
-                preferenceManager.mapsApiKey
+                preferenceManager.selectedAiProvider
             ) { args: Array<Any> ->
-                val autoRecord = args[0] as Boolean
-                val useMetric = args[1] as Boolean
-                val appTheme = args[2] as AppTheme
-                val appPalette = args[3] as AppColorPalette
-                val geminiApiKey = args[4] as String
-                val mapsApiKey = args[5] as String
-
                 _state.update {
                     it.copy(
-                        autoRecordEnabled = autoRecord,
-                        useMetric = useMetric,
-                        appTheme = appTheme,
-                        appPalette = appPalette,
-                        geminiApiKey = geminiApiKey,
-                        mapsApiKey = mapsApiKey
+                        autoRecordEnabled = args[0] as Boolean,
+                        useMetric = args[1] as Boolean,
+                        appTheme = args[2] as AppTheme,
+                        appPalette = args[3] as AppColorPalette,
+                        selectedAiProvider = args[4] as String
                     )
                 }
             }.collect()
@@ -175,15 +156,9 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun updateGeminiApiKey(apiKey: String) {
+    fun setSelectedAiProvider(provider: String) {
         viewModelScope.launch {
-            preferenceManager.setGeminiApiKey(apiKey)
-        }
-    }
-
-    fun updateMapsApiKey(apiKey: String) {
-        viewModelScope.launch {
-            preferenceManager.setMapsApiKey(apiKey)
+            preferenceManager.setSelectedAiProvider(provider)
         }
     }
 }

@@ -7,7 +7,7 @@ import com.ecodrive.app.data.local.dao.AiInsightDao
 import com.ecodrive.app.data.local.dao.DataPointDao
 import com.ecodrive.app.data.local.entity.DataPointEntity
 import com.ecodrive.app.data.repository.TripRepository
-import com.ecodrive.app.domain.ai.GeminiManager
+import com.ecodrive.app.domain.ai.service.AiManager
 import com.ecodrive.app.domain.analyzer.LocalEcoCoach
 import com.ecodrive.app.domain.model.DrivingEvent
 import com.ecodrive.app.domain.model.DrivingEventType
@@ -31,7 +31,7 @@ class TripDetailViewModelTest {
     private val aiInsightDao: AiInsightDao = mockk(relaxed = true)
     private val preferenceManager: PreferenceManager = mockk(relaxed = true)
     private val localEcoCoach: LocalEcoCoach = mockk(relaxed = true)
-    private val geminiManager: GeminiManager = mockk(relaxed = true)
+    private val aiManager: AiManager = mockk(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
 
     private val dataPointsFlow = MutableStateFlow<List<DataPointEntity>>(emptyList())
@@ -61,7 +61,7 @@ class TripDetailViewModelTest {
             aiInsightDao,
             preferenceManager,
             localEcoCoach,
-            geminiManager
+            aiManager
         )
     }
 

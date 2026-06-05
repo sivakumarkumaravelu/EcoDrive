@@ -1,4 +1,6 @@
-package com.ecodrive.app.domain.ai
+package com.ecodrive.app.domain.ai.analyzer
+
+import com.ecodrive.app.domain.ai.service.AiManager
 
 import android.content.Context
 import android.util.Log

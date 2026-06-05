@@ -1,5 +1,11 @@
 package com.ecodrive.app.service
 
+import com.ecodrive.app.domain.ai.service.AiCoachService
+import com.ecodrive.app.domain.ai.analyzer.FatigueDetector
+import com.ecodrive.app.domain.ai.analyzer.FatigueStatus
+import com.ecodrive.app.domain.ai.engine.AdaptiveScoreWeights
+import com.ecodrive.app.domain.ai.engine.AdaptiveThresholdEngine
+
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -45,22 +51,25 @@ class SensorForegroundService : Service() {
     lateinit var ecoScoreCalculator: EcoScoreCalculator
 
     @Inject
-    lateinit var adaptiveScoreWeights: com.ecodrive.app.domain.ai.AdaptiveScoreWeights
+    lateinit var adaptiveScoreWeights: com.ecodrive.app.domain.ai.engine.AdaptiveScoreWeights
 
     @Inject
-    lateinit var adaptiveThresholdEngine: com.ecodrive.app.domain.ai.AdaptiveThresholdEngine
+    lateinit var adaptiveThresholdEngine: com.ecodrive.app.domain.ai.engine.AdaptiveThresholdEngine
 
     @Inject
-    lateinit var aiCoachService: com.ecodrive.app.domain.ai.AiCoachService
+    lateinit var aiCoachService: com.ecodrive.app.domain.ai.service.AiCoachService
 
     @Inject
-    lateinit var fatigueDetector: com.ecodrive.app.domain.ai.FatigueDetector
+    lateinit var fatigueDetector: com.ecodrive.app.domain.ai.analyzer.FatigueDetector
 
     @Inject
     lateinit var vehicleRepository: com.ecodrive.app.data.repository.VehicleRepository
 
     @Inject
     lateinit var audioFeedbackManager: AudioFeedbackManager
+
+    @Inject
+    lateinit var anomalyDetector: com.ecodrive.app.domain.ai.analyzer.AnomalyDetector
 
     @Inject
     @com.ecodrive.app.di.ApplicationScope
@@ -153,6 +162,7 @@ class SensorForegroundService : Service() {
             analyzer.updateThresholds(thresholds)
 
             activeTripId = tripRepository.startTrip(vehicle?.id ?: 1)
+            anomalyDetector.reset()
             _isRecording.value = true
         }
     }
@@ -188,6 +198,17 @@ class SensorForegroundService : Service() {
                         idleTimeSeconds = idleTimeMs / 1000,
                     )
                     Log.i(TAG, "Trip $tripId ended successfully")
+
+                    // Activate dormant AI: trigger periodic refinement after every trip
+                    tripRepository.triggerPeriodicAiRefinement()
+
+                    // Enrich any detected anomalies with AI diagnosis
+                    val rawAnomalies = anomalyDetector.getDetectedAnomalies()
+                    if (rawAnomalies.isNotEmpty()) {
+                        Log.i(TAG, "Enriching ${rawAnomalies.size} anomalies with AI diagnosis")
+                        val enrichedAnomalies = anomalyDetector.enrichWithAiDiagnosis(rawAnomalies)
+                        tripRepository.saveAnomalies(tripId, enrichedAnomalies)
+                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to end trip $tripId: ${e.message}")
                 } finally {
@@ -284,8 +305,18 @@ class SensorForegroundService : Service() {
 
         // Fatigue Detection
         val fatigueStatus = fatigueDetector.analyze(metrics)
-        if (fatigueStatus != com.ecodrive.app.domain.ai.FatigueStatus.NORMAL) {
+        if (fatigueStatus != com.ecodrive.app.domain.ai.analyzer.FatigueStatus.NORMAL) {
             handleFatigue(fatigueStatus)
+        }
+
+        // Vehicle Anomaly Detection
+        val anomalies = anomalyDetector.analyze(metrics)
+        for (anomaly in anomalies) {
+            if (anomaly.severity == com.ecodrive.app.domain.model.AnomalySeverity.HIGH) {
+                serviceScope.launch(Dispatchers.Main) {
+                    audioFeedbackManager.playTip("⚠️ ${anomaly.description}")
+                }
+            }
         }
 
         // Real-time AI Coaching
@@ -293,15 +324,15 @@ class SensorForegroundService : Service() {
         maybeFetchAiTip(metrics, ecoScore)
     }
 
-    private fun handleFatigue(status: com.ecodrive.app.domain.ai.FatigueStatus) {
+    private fun handleFatigue(status: com.ecodrive.app.domain.ai.analyzer.FatigueStatus) {
         val now = System.currentTimeMillis()
         if (now - lastFatigueAlertMs < 60_000L) return // Don't annoy too much
         
         lastFatigueAlertMs = now
         val message = when (status) {
-            com.ecodrive.app.domain.ai.FatigueStatus.HIGH_RISK -> 
+            com.ecodrive.app.domain.ai.analyzer.FatigueStatus.HIGH_RISK -> 
                 "⚠️ High fatigue risk detected. Please consider taking a break."
-            com.ecodrive.app.domain.ai.FatigueStatus.MODERATE_RISK -> 
+            com.ecodrive.app.domain.ai.analyzer.FatigueStatus.MODERATE_RISK -> 
                 "🔔 Your driving patterns suggest reduced focus. Stay alert."
             else -> ""
         }

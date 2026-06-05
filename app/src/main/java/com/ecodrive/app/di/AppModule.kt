@@ -1,5 +1,8 @@
 package com.ecodrive.app.di
 
+import com.ecodrive.app.domain.ai.service.AiManager
+import com.ecodrive.app.domain.ai.analyzer.FuelPredictionModel
+
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
@@ -82,6 +85,13 @@ object AppModule {
     @Provides
     fun provideAiInsightDao(db: EcoDriveDatabase): AiInsightDao = db.aiInsightDao()
 
+    @Provides
+    fun provideChallengeDao(db: EcoDriveDatabase): ChallengeDao = db.challengeDao()
+
+    @Provides
+    fun provideAnomalyDao(db: EcoDriveDatabase): AnomalyDao = db.anomalyDao()
+
+
     // ── Phone Sensors (Primary Data Source) ─────────────────────
 
     @Provides
@@ -100,10 +110,10 @@ object AppModule {
     @Singleton
     fun provideFuelEstimationEngine(
         fuelCalibrationDao: FuelCalibrationDao,
-        geminiManager: com.ecodrive.app.domain.ai.GeminiManager,
+        aiManager: com.ecodrive.app.domain.ai.service.AiManager,
         preferenceManager: com.ecodrive.app.data.local.PreferenceManager,
-        mlModel: com.ecodrive.app.domain.ai.FuelPredictionModel,
-    ): FuelEstimationEngine = FuelEstimationEngine(fuelCalibrationDao, geminiManager, preferenceManager, mlModel)
+        mlModel: com.ecodrive.app.domain.ai.analyzer.FuelPredictionModel,
+    ): FuelEstimationEngine = FuelEstimationEngine(fuelCalibrationDao, aiManager, preferenceManager, mlModel)
 
     @Provides
     @Singleton
@@ -113,7 +123,6 @@ object AppModule {
         fuelEngine: FuelEstimationEngine,
         vehicleRepository: VehicleRepository,
         preferenceManager: com.ecodrive.app.data.local.PreferenceManager,
-        geminiManager: com.ecodrive.app.domain.ai.GeminiManager,
         clock: java.time.Clock,
     ): SensorDataManager = SensorDataManager(
         locationTracker,
@@ -121,7 +130,6 @@ object AppModule {
         fuelEngine,
         vehicleRepository,
         preferenceManager,
-        geminiManager,
         clock,
         Dispatchers.Default
     )

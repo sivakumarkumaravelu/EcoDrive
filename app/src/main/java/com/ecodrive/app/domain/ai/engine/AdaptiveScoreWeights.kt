@@ -1,4 +1,8 @@
-package com.ecodrive.app.domain.ai
+package com.ecodrive.app.domain.ai.engine
+
+import com.ecodrive.app.domain.ai.config.AiUtils
+
+import com.ecodrive.app.domain.ai.service.AiManager
 
 import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.domain.model.VehicleType
@@ -26,12 +30,12 @@ data class ScoreWeights(
  */
 @Singleton
 class AdaptiveScoreWeights @Inject constructor(
-    private val geminiManager: GeminiManager,
+    private val aiManager: AiManager,
     private val preferenceManager: PreferenceManager,
 ) {
     /**
      * Returns the recommended weights for a given vehicle type.
-     * In the future, this can be refined by Gemini based on historical data.
+     * In the future, this can be refined by AI based on historical data.
      */
     fun getWeightsForVehicle(vehicleType: VehicleType): ScoreWeights {
         return when (vehicleType) {
@@ -56,12 +60,9 @@ class AdaptiveScoreWeights @Inject constructor(
     }
 
     /**
-     * Refines weights using Gemini by analyzing recent trip performance.
+     * Refines weights using AI by analyzing recent trip performance.
      */
     suspend fun refineWeightsWithAi(vehicleType: VehicleType, tripSummary: String): ScoreWeights? {
-        val apiKey = preferenceManager.geminiApiKey.first()
-        if (apiKey.isBlank()) return null
-
         val prompt = """
             You are a Vehicle Performance Engineer. Suggest optimal Eco Score weights for a $vehicleType vehicle.
             
@@ -73,7 +74,7 @@ class AdaptiveScoreWeights @Inject constructor(
             The sum of all values MUST be exactly 1.0.
         """.trimIndent()
 
-        val response = geminiManager.generateTripInsight(apiKey, prompt)
+        val response = aiManager.generateTripInsight(prompt)
         return try {
             val jsonStr = AiUtils.extractJson(response ?: "") ?: return null
             val json = Json.parseToJsonElement(jsonStr).jsonObject

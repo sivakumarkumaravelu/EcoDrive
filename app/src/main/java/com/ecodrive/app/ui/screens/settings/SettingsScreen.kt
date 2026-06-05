@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ecodrive.app.data.remote.SmartcarApiClient
+import com.ecodrive.app.domain.ai.config.AiConfig
 import com.ecodrive.app.domain.model.AppColorPalette
 import com.ecodrive.app.domain.model.AppTheme
 import com.ecodrive.app.ui.theme.*
@@ -287,56 +288,85 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ── AI Insights (Gemini) ────────────────────────────────
-        SettingsSection(title = "AI Insights (Gemini)", icon = Icons.Filled.AutoAwesome) {
+        // ── AI Insights ────────────────────────────────────────
+        SettingsSection(title = "AI Coaching & Insights", icon = Icons.Filled.AutoAwesome) {
             Text(
-                text = "Provide your Gemini API key to enable advanced natural-language driving insights.",
+                text = "Choose an AI provider for real-time coaching and post-trip analysis.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            OutlinedTextField(
-                value = state.geminiApiKey,
-                onValueChange = viewModel::updateGeminiApiKey,
-                label = { Text("Gemini API Key") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                    focusedLabelColor = MaterialTheme.colorScheme.primary,
-                ),
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = state.mapsApiKey,
-                onValueChange = viewModel::updateMapsApiKey,
-                label = { Text("Google Maps API Key") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                    focusedLabelColor = MaterialTheme.colorScheme.primary,
-                ),
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Get your free API key at aistudio.google.com",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/"))
-                    context.startActivity(intent)
+            var showProviderMenu by remember { mutableStateOf(false) }
+            
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedCard(
+                    onClick = { showProviderMenu = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Selected Provider",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = state.selectedAiProvider.lowercase().replaceFirstChar { it.uppercase() },
+                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                        Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+                    }
                 }
-            )
+
+                DropdownMenu(
+                    expanded = showProviderMenu,
+                    onDismissRequest = { showProviderMenu = false },
+                    modifier = Modifier.fillMaxWidth(0.9f)
+                ) {
+                    val providers = AiConfig.UI_PROVIDERS
+                    providers.forEach { provider ->
+                        DropdownMenuItem(
+                            text = { Text(provider.lowercase().replaceFirstChar { it.uppercase() }) },
+                            onClick = {
+                                viewModel.setSelectedAiProvider(provider)
+                                showProviderMenu = false
+                            },
+                            trailingIcon = {
+                                if (state.selectedAiProvider == provider) {
+                                    Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (state.selectedAiProvider == "LOCAL") {
+                Text(
+                    text = "Local coaching uses rule-based logic and doesn't require an internet connection or API keys.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Text(
+                    text = "Coaching and insights are powered by hardcoded AI configurations for optimal performance.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
 
         // ── About ───────────────────────────────────────────────

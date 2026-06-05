@@ -120,6 +120,9 @@ dependencies {
     // Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
+    // Networking
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
     // TensorFlow Lite
     implementation("org.tensorflow:tensorflow-lite:2.17.0")
 

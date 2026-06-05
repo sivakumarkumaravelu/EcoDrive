@@ -1,4 +1,6 @@
-package com.ecodrive.app.domain.ai
+package com.ecodrive.app.domain.ai.analyzer
+
+import com.ecodrive.app.domain.ai.service.AiManager
 
 import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.ui.screens.analytics.AnalyticsViewModel.AnalyticsState
@@ -12,15 +14,14 @@ import javax.inject.Singleton
  */
 @Singleton
 class AnalyticsInsightGenerator @Inject constructor(
-    private val geminiManager: GeminiManager,
+    private val aiManager: AiManager,
     private val preferenceManager: PreferenceManager,
 ) {
     /**
      * Generates a narrative summary of driving trends.
      */
     suspend fun generateSummary(state: AnalyticsState): String? {
-        val apiKey = preferenceManager.geminiApiKey.first()
-        if (apiKey.isBlank() || state.totalTrips == 0) return null
+        if (state.totalTrips == 0) return null
 
         val prompt = """
             You are an Eco-Driving Analytics Expert. Analyze the following driving trends for the last ${state.selectedRange.label} and provide a insightful narrative summary (max 4 sentences).
@@ -41,6 +42,6 @@ class AnalyticsInsightGenerator @Inject constructor(
             Identify the biggest area for improvement and celebrate any major wins (like high fuel savings or consistent scores).
         """.trimIndent()
 
-        return geminiManager.generateAnalyticsSummary(apiKey, prompt)
+        return aiManager.generateAnalyticsSummary(prompt)
     }
 }

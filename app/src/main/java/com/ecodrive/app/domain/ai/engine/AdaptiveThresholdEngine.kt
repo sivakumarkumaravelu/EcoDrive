@@ -1,4 +1,8 @@
-package com.ecodrive.app.domain.ai
+package com.ecodrive.app.domain.ai.engine
+
+import com.ecodrive.app.domain.ai.config.AiUtils
+
+import com.ecodrive.app.domain.ai.service.AiManager
 
 import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.util.Constants
@@ -21,7 +25,7 @@ data class DrivingThresholds(
  */
 @Singleton
 class AdaptiveThresholdEngine @Inject constructor(
-    private val geminiManager: GeminiManager,
+    private val aiManager: AiManager,
     private val preferenceManager: PreferenceManager,
 ) {
     /**
@@ -34,12 +38,9 @@ class AdaptiveThresholdEngine @Inject constructor(
     }
 
     /**
-     * Uses Gemini to analyze a week of driving data and suggest better thresholds.
+     * Uses AI to analyze a week of driving data and suggest better thresholds.
      */
     suspend fun analyzeAndRefineThresholds(historySummary: String): DrivingThresholds? {
-        val apiKey = preferenceManager.geminiApiKey.first()
-        if (apiKey.isBlank()) return null
-
         val prompt = """
             You are a Driving Data Scientist. Analyze this summary of a driver's behavior over the last week:
             $historySummary
@@ -50,7 +51,7 @@ class AdaptiveThresholdEngine @Inject constructor(
             Return ONLY a JSON object: {"hard_brake": float, "hard_accel": float, "sharp_turn": float}.
         """.trimIndent()
 
-        val response = geminiManager.generateTripInsight(apiKey, prompt)
+        val response = aiManager.generateTripInsight(prompt)
         return try {
             val jsonStr = AiUtils.extractJson(response ?: "") ?: return null
             val json = Json.parseToJsonElement(jsonStr).jsonObject

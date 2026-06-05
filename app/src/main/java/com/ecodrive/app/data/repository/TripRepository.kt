@@ -3,6 +3,8 @@ package com.ecodrive.app.data.repository
 import com.ecodrive.app.data.local.dao.*
 import com.ecodrive.app.data.local.entity.*
 import com.ecodrive.app.data.remote.SmartcarApiClient
+import com.ecodrive.app.domain.ai.engine.AdaptiveScoreWeights
+import com.ecodrive.app.domain.ai.engine.AdaptiveThresholdEngine
 import com.ecodrive.app.domain.analyzer.FuelEstimationEngine
 import com.ecodrive.app.domain.model.*
 import com.ecodrive.app.util.Constants
@@ -27,6 +29,9 @@ class TripRepository @Inject constructor(
     private val smartcarApiClient: SmartcarApiClient,
     private val fuelEngine: FuelEstimationEngine,
     private val vehicleRepository: VehicleRepository,
+    private val adaptiveScoreWeights: AdaptiveScoreWeights,
+    private val adaptiveThresholdEngine: AdaptiveThresholdEngine,
+    private val anomalyDao: AnomalyDao,
 ) {
     // ── Trip Lifecycle ──────────────────────────────────────────
 
@@ -158,6 +163,41 @@ class TripRepository @Inject constructor(
         drivingEventDao.insertEvents(entities)
     }
 
+    /**
+     * Save detected anomalies.
+     */
+    suspend fun saveAnomalies(tripId: Long, anomalies: List<VehicleAnomaly>) {
+        if (anomalies.isEmpty()) return
+        val entities = anomalies.map { anomaly ->
+            com.ecodrive.app.data.local.entity.AnomalyEntity(
+                tripId = tripId,
+                type = anomaly.type.name,
+                severity = anomaly.severity.name,
+                description = anomaly.description,
+                detectedAtSpeedKmh = anomaly.detectedAtSpeedKmh,
+                aiDiagnosis = anomaly.aiDiagnosis,
+            )
+        }
+        anomalyDao.insertAnomalies(entities)
+    }
+
+    /**
+     * Get anomalies for a trip.
+     */
+    fun getAnomaliesForTrip(tripId: Long): Flow<List<VehicleAnomaly>> {
+        return anomalyDao.getAnomaliesForTrip(tripId).map { entities ->
+            entities.map { 
+                VehicleAnomaly(
+                    type = com.ecodrive.app.domain.model.AnomalyType.valueOf(it.type),
+                    severity = com.ecodrive.app.domain.model.AnomalySeverity.valueOf(it.severity),
+                    description = it.description,
+                    detectedAtSpeedKmh = it.detectedAtSpeedKmh,
+                    aiDiagnosis = it.aiDiagnosis,
+                ) 
+            }
+        }.flowOn(Dispatchers.IO)
+    }
+
     // ── Queries ─────────────────────────────────────────────────
 
     /**
@@ -249,6 +289,87 @@ class TripRepository @Inject constructor(
         dataPointDao.deleteDataPointsForTrip(tripId)
         drivingEventDao.deleteEventsForTrip(tripId)
         tripDao.deleteTrip(trip)
+    }
+
+    /**
+     * Returns the total number of completed trips. Used to schedule
+     * periodic AI model refinement cycles.
+     */
+    suspend fun getCompletedTripCount(): Int {
+        return tripDao.getCompletedTripCount()
+    }
+
+    /**
+     * Returns the N most recent completed trips as domain objects.
+     * Used for AI refinement and challenge/badge checks.
+     */
+    suspend fun getRecentCompletedTrips(limit: Int): List<Trip> {
+        return tripDao.getRecentCompletedTrips(limit).map { it.toDomain() }
+    }
+
+    /**
+     * Finds trips that started and ended near the given coordinates.
+     * Used for AI trip comparison (Feature 1).
+     *
+     * @param radiusKm Approximate match radius in km (default 1 km)
+     */
+    suspend fun findSimilarTrips(
+        startLat: Double,
+        startLon: Double,
+        endLat: Double,
+        endLon: Double,
+        radiusKm: Double = 1.0,
+        limit: Int = 5,
+    ): List<Trip> {
+        val allTrips = tripDao.getRecentCompletedTrips(50)
+        val radiusDeg = radiusKm / 111.0  // 1 degree lat ≈ 111km
+
+        return allTrips.filter { trip ->
+            val startPoint = dataPointDao.getFirstDataPoint(trip.id)
+            val endPoint = dataPointDao.getLastDataPoint(trip.id)
+            if (startPoint == null || endPoint == null) return@filter false
+
+            val startMatch = Math.abs(startPoint.latitude - startLat) < radiusDeg &&
+                             Math.abs(startPoint.longitude - startLon) < radiusDeg
+            val endMatch = Math.abs(endPoint.latitude - endLat) < radiusDeg &&
+                           Math.abs(endPoint.longitude - endLon) < radiusDeg
+            startMatch && endMatch
+        }.take(limit).map { it.toDomain() }
+    }
+
+    /**
+     * Triggers periodic AI model refinement after every Nth trip.
+     * Call after [endTrip] to maintain up-to-date adaptive models.
+     *
+     * Schedule:
+     * - Every 5th trip: fuel estimation AI refinement
+     * - Every 10th trip: threshold and score weight refinement
+     */
+    suspend fun triggerPeriodicAiRefinement() {
+        val count = getCompletedTripCount()
+        val recentTrips = getRecentCompletedTrips(10)
+        if (recentTrips.isEmpty()) return
+
+        // Fuel estimation refinement every 5 trips
+        if (count % 5 == 0) {
+            android.util.Log.i("TripRepository", "Triggering fuel estimation AI refinement (trip #$count)")
+            fuelEngine.performAiRefinement(recentTrips)
+        }
+
+        // Threshold and weight refinement every 10 trips
+        if (count % 10 == 0) {
+            android.util.Log.i("TripRepository", "Triggering adaptive AI refinement (trip #$count)")
+            val history = recentTrips.joinToString("\n") {
+                "Trip: score=${it.ecoScore}, brakes=${it.hardBrakeCount}, accels=${it.hardAccelCount}, " +
+                "avgSpeed=${it.averageSpeedKmh}km/h, dist=${it.distanceKm}km"
+            }
+            adaptiveThresholdEngine.analyzeAndRefineThresholds(history)
+
+            val vehicle = vehicleRepository.getDefaultVehicle()
+            if (vehicle != null) {
+                adaptiveScoreWeights.refineWeightsWithAi(vehicle.vehicleType, history)
+            }
+        }
     }
 }
 

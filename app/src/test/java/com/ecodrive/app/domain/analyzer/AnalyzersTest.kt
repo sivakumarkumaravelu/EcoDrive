@@ -2,8 +2,8 @@ package com.ecodrive.app.domain.analyzer
 
 import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.local.dao.FuelCalibrationDao
-import com.ecodrive.app.domain.ai.FuelPredictionModel
-import com.ecodrive.app.domain.ai.GeminiManager
+import com.ecodrive.app.domain.ai.service.AiManager
+import com.ecodrive.app.domain.ai.analyzer.FuelPredictionModel
 import com.ecodrive.app.domain.model.*
 import com.ecodrive.app.util.Constants
 import io.mockk.every
@@ -20,7 +20,7 @@ class AnalyzersTest {
     private lateinit var fuelEstimationEngine: FuelEstimationEngine
     private lateinit var ecoScoreCalculator: EcoScoreCalculator
     private val fuelCalibrationDao: FuelCalibrationDao = mockk(relaxed = true)
-    private val geminiManager: GeminiManager = mockk(relaxed = true)
+    private val aiManager: AiManager = mockk(relaxed = true)
     private val preferenceManager: PreferenceManager = mockk(relaxed = true)
     private val mlModel: FuelPredictionModel = mockk(relaxed = true)
     
@@ -63,7 +63,7 @@ class AnalyzersTest {
         // Mock ML model to return 1.0 by default
         every { mlModel.predictCorrectionFactor(any(), any(), any(), any()) } returns 1.0
         
-        fuelEstimationEngine = FuelEstimationEngine(fuelCalibrationDao, geminiManager, preferenceManager, mlModel)
+        fuelEstimationEngine = FuelEstimationEngine(fuelCalibrationDao, aiManager, preferenceManager, mlModel)
         ecoScoreCalculator = EcoScoreCalculator()
     }
 

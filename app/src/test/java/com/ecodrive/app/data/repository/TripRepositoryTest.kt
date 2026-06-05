@@ -34,13 +34,20 @@ class TripRepositoryTest {
         fuelEngine = mockk(relaxed = true)
         vehicleRepository = mockk(relaxed = true)
 
+        val adaptiveScoreWeights: com.ecodrive.app.domain.ai.engine.AdaptiveScoreWeights = mockk(relaxed = true)
+        val adaptiveThresholdEngine: com.ecodrive.app.domain.ai.engine.AdaptiveThresholdEngine = mockk(relaxed = true)
+        val anomalyDao: AnomalyDao = mockk(relaxed = true)
+
         tripRepository = TripRepository(
             tripDao,
             drivingEventDao,
             dataPointDao,
             smartcarApiClient,
             fuelEngine,
-            vehicleRepository
+            vehicleRepository,
+            adaptiveScoreWeights,
+            adaptiveThresholdEngine,
+            anomalyDao
         )
     }
 

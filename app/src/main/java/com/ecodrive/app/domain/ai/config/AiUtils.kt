@@ -1,4 +1,4 @@
-package com.ecodrive.app.domain.ai
+package com.ecodrive.app.domain.ai.config
 
 import android.util.Log
 

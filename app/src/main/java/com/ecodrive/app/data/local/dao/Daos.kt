@@ -53,6 +53,19 @@ interface TripDao {
 
     @Query("SELECT COUNT(*) FROM trips WHERE startTimeEpochMs >= :sinceMs AND isActive = 0")
     suspend fun getTripCount(sinceMs: Long): Int
+
+    /**
+     * Total count of all completed trips — used to decide when to trigger
+     * periodic AI refinement cycles (every 5th and 10th trip).
+     */
+    @Query("SELECT COUNT(*) FROM trips WHERE isActive = 0")
+    suspend fun getCompletedTripCount(): Int
+
+    /**
+     * Fetches the N most recent completed trips for AI analysis/refinement.
+     */
+    @Query("SELECT * FROM trips WHERE isActive = 0 ORDER BY startTimeEpochMs DESC LIMIT :limit")
+    suspend fun getRecentCompletedTrips(limit: Int): List<TripEntity>
 }
 
 /**
@@ -107,6 +120,20 @@ interface DataPointDao {
 
     @Query("SELECT MAX(speedKmh) FROM data_points WHERE tripId = :tripId")
     suspend fun getMaxSpeed(tripId: Long): Double?
+
+    /**
+     * Fetches the first data point of a trip (start location) for spatial
+     * similarity matching used in AI trip comparison.
+     */
+    @Query("SELECT * FROM data_points WHERE tripId = :tripId ORDER BY timestampEpochMs ASC LIMIT 1")
+    suspend fun getFirstDataPoint(tripId: Long): DataPointEntity?
+
+    /**
+     * Fetches the last data point of a trip (end location) for spatial
+     * similarity matching used in AI trip comparison.
+     */
+    @Query("SELECT * FROM data_points WHERE tripId = :tripId ORDER BY timestampEpochMs DESC LIMIT 1")
+    suspend fun getLastDataPoint(tripId: Long): DataPointEntity?
 }
 
 /**
@@ -158,4 +185,49 @@ interface AiInsightDao {
 
     @Query("DELETE FROM ai_insights WHERE tripId = :tripId")
     suspend fun deleteInsightForTrip(tripId: Long)
+}
+
+/**
+ * Data Access Object for AI-generated driving challenges and earned badges.
+ */
+@Dao
+interface ChallengeDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertChallenge(challenge: com.ecodrive.app.data.local.entity.ChallengeEntity)
+
+    @Update
+    suspend fun updateChallenge(challenge: com.ecodrive.app.data.local.entity.ChallengeEntity)
+
+    @Query("SELECT * FROM challenges WHERE isCompleted = 0 ORDER BY createdAtEpochMs DESC LIMIT 1")
+    suspend fun getActiveChallenge(): com.ecodrive.app.data.local.entity.ChallengeEntity?
+
+    @Query("SELECT * FROM challenges WHERE isCompleted = 1 ORDER BY completedAtEpochMs DESC")
+    fun getCompletedChallenges(): Flow<List<com.ecodrive.app.data.local.entity.ChallengeEntity>>
+
+    @Query("SELECT * FROM challenges ORDER BY createdAtEpochMs DESC LIMIT 10")
+    fun getAllChallenges(): Flow<List<com.ecodrive.app.data.local.entity.ChallengeEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBadge(badge: com.ecodrive.app.data.local.entity.BadgeEntity)
+
+    @Query("SELECT * FROM badges ORDER BY earnedAtEpochMs DESC")
+    fun getAllBadges(): Flow<List<com.ecodrive.app.data.local.entity.BadgeEntity>>
+
+    @Query("SELECT COUNT(*) FROM badges WHERE type = :type")
+    suspend fun hasBadge(type: String): Int
+}
+
+/**
+ * Data Access Object for Vehicle Anomalies.
+ */
+@Dao
+interface AnomalyDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAnomalies(anomalies: List<com.ecodrive.app.data.local.entity.AnomalyEntity>)
+
+    @Query("SELECT * FROM anomalies WHERE tripId = :tripId ORDER BY id ASC")
+    fun getAnomaliesForTrip(tripId: Long): Flow<List<com.ecodrive.app.data.local.entity.AnomalyEntity>>
+
+    @Query("SELECT * FROM anomalies ORDER BY id DESC LIMIT :limit")
+    fun getRecentAnomalies(limit: Int): Flow<List<com.ecodrive.app.data.local.entity.AnomalyEntity>>
 }

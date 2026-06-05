@@ -3,7 +3,7 @@ package com.ecodrive.app.sensor
 import android.util.Log
 import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.repository.VehicleRepository
-import com.ecodrive.app.domain.ai.GeminiManager
+import com.ecodrive.app.domain.ai.service.AiManager
 import com.ecodrive.app.domain.model.DrivingMetrics
 import com.ecodrive.app.domain.analyzer.FuelEstimationEngine
 import com.ecodrive.app.domain.model.Vehicle
@@ -26,7 +26,6 @@ class SensorDataManager @Inject constructor(
     private val fuelEngine: FuelEstimationEngine,
     private val vehicleRepository: VehicleRepository,
     private val preferenceManager: PreferenceManager,
-    private val geminiManager: GeminiManager,
     private val clock: Clock,
     private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {

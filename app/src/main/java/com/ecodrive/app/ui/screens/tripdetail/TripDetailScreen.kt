@@ -232,6 +232,22 @@ fun TripDetailScreen(
                 }
             }
 
+            // ── Detected Anomalies ──────────────────────────────
+            if (state.anomalies.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Detected Diagnostics",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                    )
+                }
+                items(state.anomalies) { anomaly ->
+                    AnomalyCard(anomaly)
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
+
             // ── Fuel Consumption Chart ──────────────────────────
             if (state.fuelPoints.isNotEmpty()) {
                 item {
@@ -668,5 +684,69 @@ private fun formatDuration(seconds: Long): String {
         hours > 0 -> "${hours}h ${minutes}m"
         minutes > 0 -> "${minutes} min"
         else -> "${seconds}s"
+    }
+}
+
+@Composable
+private fun AnomalyCard(anomaly: com.ecodrive.app.domain.model.VehicleAnomaly) {
+    val (icon, color) = when (anomaly.severity) {
+        com.ecodrive.app.domain.model.AnomalySeverity.HIGH -> Icons.Filled.Error to MaterialTheme.colorScheme.error
+        com.ecodrive.app.domain.model.AnomalySeverity.MEDIUM -> Icons.Filled.Warning to EcoDriveTheme.colors.gaugeOrange
+        com.ecodrive.app.domain.model.AnomalySeverity.LOW -> Icons.Filled.Info to MaterialTheme.colorScheme.primary
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(color.copy(alpha = 0.1f))
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = anomaly.type.name.replace("_", " "),
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = color
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Text(
+            text = anomaly.description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        if (!anomaly.aiDiagnosis.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.SmartToy,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = anomaly.aiDiagnosis,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }

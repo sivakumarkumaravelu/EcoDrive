@@ -1,5 +1,7 @@
 package com.ecodrive.app.ui.screens.analytics
 
+import com.ecodrive.app.domain.ai.analyzer.AnalyticsInsightGenerator
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ecodrive.app.data.local.PreferenceManager
@@ -26,7 +28,7 @@ import javax.inject.Inject
 class AnalyticsViewModel @Inject constructor(
     private val tripRepository: TripRepository,
     private val preferenceManager: PreferenceManager,
-    private val analyticsInsightGenerator: com.ecodrive.app.domain.ai.AnalyticsInsightGenerator,
+    private val analyticsInsightGenerator: com.ecodrive.app.domain.ai.analyzer.AnalyticsInsightGenerator,
 ) : ViewModel() {
 
     data class AnalyticsState(

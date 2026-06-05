@@ -4,7 +4,7 @@ import com.ecodrive.app.TestUtils
 import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.remote.SmartcarApiClient
 import com.ecodrive.app.data.remote.SmartcarVehicleData
-import com.ecodrive.app.domain.ai.AiCoachService
+import com.ecodrive.app.domain.ai.service.AiCoachService
 import com.ecodrive.app.domain.model.*
 import com.ecodrive.app.domain.recorder.TripRecorder
 import com.ecodrive.app.sensor.SensorDataManager
@@ -27,6 +27,7 @@ class DashboardViewModelTest {
     private val tripRecorder: TripRecorder = mockk(relaxed = true)
     private val preferenceManager: PreferenceManager = mockk(relaxed = true)
     private val aiCoachService: AiCoachService = mockk(relaxed = true)
+    private val ecoScorePredictor: com.ecodrive.app.domain.ai.analyzer.EcoScorePredictor = mockk(relaxed = true)
     private val permissionManager: PermissionManager = mockk(relaxed = true)
 
     private val testDispatcher = StandardTestDispatcher()
@@ -64,6 +65,7 @@ class DashboardViewModelTest {
             tripRecorder,
             preferenceManager,
             aiCoachService,
+            ecoScorePredictor,
             permissionManager
         )
     }

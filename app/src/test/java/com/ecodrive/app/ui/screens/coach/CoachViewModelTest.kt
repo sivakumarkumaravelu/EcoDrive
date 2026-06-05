@@ -3,7 +3,7 @@ package com.ecodrive.app.ui.screens.coach
 import com.ecodrive.app.TestUtils
 import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.repository.TripRepository
-import com.ecodrive.app.domain.ai.GeminiManager
+import com.ecodrive.app.domain.ai.service.AiManager
 import com.ecodrive.app.domain.model.DrivingEventType
 import com.ecodrive.app.domain.model.Trip
 import com.ecodrive.app.util.AudioFeedbackManager
@@ -26,13 +26,16 @@ import java.time.temporal.ChronoUnit
 class CoachViewModelTest {
 
     private val tripRepository: TripRepository = mockk()
-    private val geminiManager: GeminiManager = mockk(relaxed = true)
+    private val aiManager: AiManager = mockk(relaxed = true)
     private val preferenceManager: PreferenceManager = mockk(relaxed = true)
     private val audioFeedbackManager: AudioFeedbackManager = mockk(relaxed = true)
     private lateinit var viewModel: CoachViewModel
     private val testDispatcher = StandardTestDispatcher()
 
     private val tripsFlow = MutableStateFlow<List<Trip>>(emptyList())
+
+    private val challengeGenerator: com.ecodrive.app.domain.ai.analyzer.ChallengeGenerator = mockk(relaxed = true)
+    private val challengeDao: com.ecodrive.app.data.local.dao.ChallengeDao = mockk(relaxed = true)
 
     @Before
     fun setup() {
@@ -41,9 +44,15 @@ class CoachViewModelTest {
         
         every { tripRepository.getAllTrips() } returns tripsFlow
         every { audioFeedbackManager.isAudioEnabled } returns MutableStateFlow(true)
-        every { preferenceManager.geminiApiKey } returns flowOf("") // No API key by default in tests
         
-        viewModel = CoachViewModel(tripRepository, geminiManager, preferenceManager, audioFeedbackManager)
+        viewModel = CoachViewModel(
+            tripRepository, 
+            aiManager, 
+            preferenceManager, 
+            challengeGenerator,
+            challengeDao,
+            audioFeedbackManager
+        )
     }
 
     @After

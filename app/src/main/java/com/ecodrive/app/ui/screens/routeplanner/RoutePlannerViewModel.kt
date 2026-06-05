@@ -1,5 +1,7 @@
 package com.ecodrive.app.ui.screens.routeplanner
 
+import com.ecodrive.app.domain.ai.analyzer.RouteInsightGenerator
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ecodrive.app.data.local.PreferenceManager
@@ -7,6 +9,7 @@ import com.ecodrive.app.data.remote.GoogleMapsServicesClient
 import com.ecodrive.app.data.repository.VehicleRepository
 import com.ecodrive.app.domain.analyzer.RouteOptimizer
 import com.ecodrive.app.domain.model.Vehicle
+import com.ecodrive.app.util.AppConfig
 import com.google.android.gms.maps.model.LatLng
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -23,7 +26,7 @@ class RoutePlannerViewModel @Inject constructor(
     private val routeOptimizer: RouteOptimizer,
     private val vehicleRepository: VehicleRepository,
     private val preferenceManager: PreferenceManager,
-    private val routeInsightGenerator: com.ecodrive.app.domain.ai.RouteInsightGenerator,
+    private val routeInsightGenerator: com.ecodrive.app.domain.ai.analyzer.RouteInsightGenerator,
 ) : ViewModel() {
 
     data class RouteWithMetrics(
@@ -40,7 +43,6 @@ class RoutePlannerViewModel @Inject constructor(
         val isLoading: Boolean = false,
         val error: String? = null,
         val useMetric: Boolean = true,
-        val mapsApiKey: String = "",
         val aiRouteInsight: String? = null,
     )
 
@@ -57,11 +59,6 @@ class RoutePlannerViewModel @Inject constructor(
                 _state.update { it.copy(useMetric = useMetric) }
             }
         }
-        viewModelScope.launch {
-            preferenceManager.mapsApiKey.collect { apiKey ->
-                _state.update { it.copy(mapsApiKey = apiKey) }
-            }
-        }
     }
 
     fun updateDestination(dest: String) {
@@ -69,8 +66,8 @@ class RoutePlannerViewModel @Inject constructor(
     }
 
     fun findRoutes(origin: LatLng, destName: String) {
-        if (_state.value.mapsApiKey.isBlank()) {
-            _state.update { it.copy(error = "Google Maps API Key not configured in Settings") }
+        if (AppConfig.MAPS_API_KEY.isBlank() || AppConfig.MAPS_API_KEY == "YOUR_GOOGLE_MAPS_API_KEY_HERE") {
+            _state.update { it.copy(error = "Google Maps API Key not configured in AppConfig") }
             return
         }
 
@@ -92,9 +89,9 @@ class RoutePlannerViewModel @Inject constructor(
             
             val vehicle = vehicleRepository.getDefaultVehicle() ?: Vehicle()
             
-            mapsClient.getRoutes(origin, destinationLatLng, _state.value.mapsApiKey).onSuccess { routes ->
+            mapsClient.getRoutes(origin, destinationLatLng, AppConfig.MAPS_API_KEY).onSuccess { routes ->
                 val routesWithMetrics = routes.map { route ->
-                    val elevations = mapsClient.getElevations(route.points, _state.value.mapsApiKey)
+                    val elevations = mapsClient.getElevations(route.points, AppConfig.MAPS_API_KEY)
                         .getOrDefault(emptyList())
                     
                     val metrics = routeOptimizer.calculateEcoMetrics(route, elevations, vehicle)

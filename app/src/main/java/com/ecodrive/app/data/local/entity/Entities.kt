@@ -144,3 +144,61 @@ data class AiInsightEntity(
     /** Model version used — helps detect stale insights after model upgrades. */
     val modelVersion: String = "gemini-2.0-flash",
 )
+
+/**
+ * Room entity for an AI-generated driving challenge.
+ * One active challenge at a time; completed challenges are archived.
+ */
+@Entity(tableName = "challenges")
+data class ChallengeEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    /** Short display title (e.g., "Smooth Stopper"). */
+    val title: String,
+    /** Full description of the goal. */
+    val description: String,
+    /** Target count to reach (e.g., 0 hard brakes in 3 trips). */
+    val targetCount: Int,
+    /** Current progress count. */
+    val progressCount: Int = 0,
+    /** The DrivingEventType name this challenge targets (e.g., "HARD_BRAKE"). */
+    val metricType: String,
+    /** Duration in days the challenge is active. */
+    val durationDays: Int = 7,
+    val createdAtEpochMs: Long = System.currentTimeMillis(),
+    val completedAtEpochMs: Long? = null,
+    val isCompleted: Boolean = false,
+    /** Badge type awarded on completion. */
+    val rewardBadgeType: String? = null,
+)
+
+/**
+ * Room entity for a badge earned by the driver.
+ */
+@Entity(tableName = "badges")
+data class BadgeEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    /** BadgeType enum name. */
+    val type: String,
+    val title: String,
+    val description: String,
+    val earnedAtEpochMs: Long = System.currentTimeMillis(),
+    /** Emoji icon for the badge. */
+    val icon: String = "🏅",
+)
+
+/**
+ * Room entity for a detected vehicle anomaly.
+ */
+@Entity(tableName = "anomalies")
+data class AnomalyEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val tripId: Long,
+    val type: String,
+    val severity: String,
+    val description: String,
+    val detectedAtSpeedKmh: Double,
+    val aiDiagnosis: String?,
+)

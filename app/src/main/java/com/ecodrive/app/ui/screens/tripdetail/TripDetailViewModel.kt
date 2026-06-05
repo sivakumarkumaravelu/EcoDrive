@@ -1,5 +1,7 @@
 package com.ecodrive.app.ui.screens.tripdetail
 
+import com.ecodrive.app.domain.ai.service.AiManager
+
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -24,6 +26,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
+import kotlin.math.abs
 
 /**
  * ViewModel for the Trip Detail screen.
@@ -37,7 +40,7 @@ class TripDetailViewModel @Inject constructor(
     private val aiInsightDao: AiInsightDao,
     private val preferenceManager: PreferenceManager,
     private val localEcoCoach: LocalEcoCoach,
-    private val geminiManager: com.ecodrive.app.domain.ai.GeminiManager,
+    private val aiManager: com.ecodrive.app.domain.ai.service.AiManager,
 ) : ViewModel() {
 
     private val tripId: Long = savedStateHandle.get<Long>("tripId") ?: 0L
@@ -56,6 +59,7 @@ class TripDetailViewModel @Inject constructor(
         val aiInsight: String? = null,
         val isAiLoading: Boolean = false,
         val aiError: String? = null,
+        val anomalies: List<com.ecodrive.app.domain.model.VehicleAnomaly> = emptyList(),
     )
 
     private val _state = MutableStateFlow(TripDetailState())
@@ -100,13 +104,6 @@ class TripDetailViewModel @Inject constructor(
             }
 
             val events = state.value.events
-            val apiKey = preferenceManager.geminiApiKey.first()
-            
-            if (apiKey.isBlank()) {
-                val localInsight = localEcoCoach.getInsight(trip, events)
-                _state.update { it.copy(aiInsight = localInsight, isAiLoading = false) }
-                return@launch
-            }
 
             // Fetch historical averages for context
             val oneMonthAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
@@ -118,16 +115,39 @@ class TripDetailViewModel @Inject constructor(
             val maxAccel = state.value.accelPoints.maxOfOrNull { it.y } ?: 0f
             val maxBrake = state.value.accelPoints.minOfOrNull { it.y } ?: 0f
 
+            // Find similar trips for pattern comparison (Feature 1)
+            val startPoint = state.value.routePoints.firstOrNull()
+            val endPoint = state.value.routePoints.lastOrNull()
+            val similarTripsContext = if (startPoint != null && endPoint != null) {
+                val similarTrips = tripRepository.findSimilarTrips(
+                    startLat = startPoint.latitude,
+                    startLon = startPoint.longitude,
+                    endLat = endPoint.latitude,
+                    endLon = endPoint.longitude,
+                    limit = 5
+                ).filter { it.id != tripId }
+                
+                if (similarTrips.isNotEmpty()) {
+                    val avgSimilarScore = similarTrips.map { it.ecoScore }.average()
+                    val scoreDiff = trip.ecoScore - avgSimilarScore
+                    val comparison = if (scoreDiff > 0) "better" else "worse"
+                    "\nSimilar Route Comparison:\n" +
+                    "- You've driven this route ${similarTrips.size} other time(s) recently.\n" +
+                    "- This trip scored ${"%.1f".format(abs(scoreDiff))} points $comparison than your average (${"%.1f".format(avgSimilarScore)}) for this exact route."
+                } else ""
+            } else ""
+
             val prompt = """
                 You are an expert Eco-Driving Coach. Analyze the following trip data and provide a rich, 
                 encouraging, and actionable insight for the driver.
                 
                 Trip Summary:
                 - Eco Score: ${trip.ecoScore}/100 (Your 30-day average: ${"%.1f".format(avgScore ?: trip.ecoScore.toDouble())})
-                - Distance: ${"%.1f".format(trip.distanceKm)} km
+                - Distance: ${"%.1f".format(trip.distanceKm) } km
                 - Duration: ${trip.durationSeconds / 60} minutes
                 - Fuel Consumed: ${"%.2f".format(trip.fuelConsumedLiters)} L
                 - Efficiency: ${"%.2f".format(trip.fuelEfficiencyLPer100Km)} L/100km (Avg: ${"%.2f".format(avgEfficiency ?: trip.fuelEfficiencyLPer100Km)} L/100km)
+                $similarTripsContext
                 
                 Telemetry Highlights:
                 - Max Speed: ${"%.1f".format(maxSpeed)} km/h
@@ -148,7 +168,7 @@ class TripDetailViewModel @Inject constructor(
                 3. Improvement Plan (Concrete, actionable steps for the next drive)
             """.trimIndent()
 
-            val response = geminiManager.generateTripInsight(apiKey, prompt)
+            val response = aiManager.generateTripInsight(prompt)
             
             if (response != null) {
                 // Save to cache
@@ -277,6 +297,11 @@ class TripDetailViewModel @Inject constructor(
         viewModelScope.launch {
             tripRepository.getEventsForTrip(tripId).collect { events ->
                 _state.update { it.copy(events = events) }
+            }
+        }
+        viewModelScope.launch {
+            tripRepository.getAnomaliesForTrip(tripId).collect { anomalies ->
+                _state.update { it.copy(anomalies = anomalies) }
             }
         }
     }

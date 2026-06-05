@@ -1,4 +1,4 @@
-package com.ecodrive.app.domain.ai
+package com.ecodrive.app.domain.ai.analyzer
 
 import android.content.Context
 import com.ecodrive.app.domain.model.Vehicle

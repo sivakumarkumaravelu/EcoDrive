@@ -86,7 +86,17 @@ fun CoachScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        // ── Active Challenge ────────────────────────────────────
+        if (state.activeChallenge != null) {
+            ChallengeCard(challenge = state.activeChallenge!!)
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+
+        // ── Earned Badges ───────────────────────────────────────
+        if (state.earnedBadges.isNotEmpty()) {
+            BadgesSection(badges = state.earnedBadges)
+            Spacer(modifier = Modifier.height(24.dp))
+        }
 
         // ── Weekly Activity Analysis ────────────────────────────
         Text(
@@ -433,6 +443,153 @@ private fun EfficiencyTipCard(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun ChallengeCard(challenge: com.ecodrive.app.domain.model.Challenge) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(EcoDriveTheme.colors.cardBackground)
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Flag,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Active Challenge",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            if (challenge.daysRemaining > 0) {
+                Text(
+                    text = "${challenge.daysRemaining} days left",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        Text(
+            text = challenge.title,
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = challenge.description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Progress",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "${challenge.progressCount} / ${challenge.targetCount}",
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        LinearProgressIndicator(
+            progress = { challenge.progressFraction },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp)),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+        )
+    }
+}
+
+@Composable
+private fun BadgesSection(badges: List<com.ecodrive.app.domain.model.Badge>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(EcoDriveTheme.colors.cardBackground)
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.WorkspacePremium,
+                contentDescription = null,
+                tint = EcoDriveTheme.colors.scoreExcellent,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Earned Badges",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        // Horizontal scrollable list or simple wrap
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            badges.take(3).forEach { badge ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                    val icon = when (badge.type) {
+                        com.ecodrive.app.domain.model.BadgeType.FIRST_TRIP -> Icons.Filled.DriveEta
+                        com.ecodrive.app.domain.model.BadgeType.SMOOTH_OPERATOR -> Icons.Filled.Speed
+                        com.ecodrive.app.domain.model.BadgeType.ECO_WARRIOR -> Icons.Filled.Eco
+                        com.ecodrive.app.domain.model.BadgeType.CONSISTENCY_KING -> Icons.Filled.Waves
+                        com.ecodrive.app.domain.model.BadgeType.FUEL_SAVER -> Icons.Filled.LocalGasStation
+                        com.ecodrive.app.domain.model.BadgeType.NIGHT_OWL -> Icons.Filled.NightsStay
+                        com.ecodrive.app.domain.model.BadgeType.HIGHWAY_HERO -> Icons.Filled.AddRoad
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(28.dp))
+                            .background(EcoDriveTheme.colors.scoreExcellent.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = EcoDriveTheme.colors.scoreExcellent,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = badge.type.name.replace("_", " "),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1
+                    )
+                }
+            }
         }
     }
 }

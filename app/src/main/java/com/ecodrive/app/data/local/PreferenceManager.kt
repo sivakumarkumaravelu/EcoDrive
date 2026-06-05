@@ -25,106 +25,69 @@ class PreferenceManager @Inject constructor(
         dataStore = testDataStore
     }
 
-    internal fun setTestDataStore(testDataStore: DataStore<Preferences>) {
-        dataStore = testDataStore
-    }
-
     companion object {
         private val AUTO_RECORD_ENABLED = booleanPreferencesKey("auto_record_enabled")
         private val CAR_BLUETOOTH_ADDRESS = stringPreferencesKey("car_bluetooth_address")
         private val USE_METRIC_UNITS = booleanPreferencesKey("use_metric_units")
         private val APP_THEME = stringPreferencesKey("app_theme")
         private val COLOR_PALETTE = stringPreferencesKey("color_palette")
-        private val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
-        private val MAPS_API_KEY = stringPreferencesKey("maps_api_key")
+        private val AI_PROVIDER = stringPreferencesKey("ai_provider")
     }
 
     val autoRecordEnabled: Flow<Boolean>
-        get() = dataStore.data.map { preferences ->
-            preferences[AUTO_RECORD_ENABLED] ?: false
-        }
+        get() = dataStore.data.map { it[AUTO_RECORD_ENABLED] ?: false }
 
     val carBluetoothAddress: Flow<String?>
-        get() = dataStore.data.map { preferences ->
-            preferences[CAR_BLUETOOTH_ADDRESS]
-        }
+        get() = dataStore.data.map { it[CAR_BLUETOOTH_ADDRESS] }
 
     val useMetricUnits: Flow<Boolean>
-        get() = dataStore.data.map { preferences ->
-            preferences[USE_METRIC_UNITS] ?: true
-        }
+        get() = dataStore.data.map { it[USE_METRIC_UNITS] ?: true }
 
     val appTheme: Flow<AppTheme>
-        get() = dataStore.data.map { preferences ->
+        get() = dataStore.data.map {
             try {
-                AppTheme.valueOf(preferences[APP_THEME] ?: AppTheme.DARK.name)
+                AppTheme.valueOf(it[APP_THEME] ?: AppTheme.DARK.name)
             } catch (e: Exception) {
                 AppTheme.DARK
             }
         }
 
     val colorPalette: Flow<AppColorPalette>
-        get() = dataStore.data.map { preferences ->
+        get() = dataStore.data.map {
             try {
-                AppColorPalette.valueOf(preferences[COLOR_PALETTE] ?: AppColorPalette.ECO_GREEN.name)
+                AppColorPalette.valueOf(it[COLOR_PALETTE] ?: AppColorPalette.ECO_GREEN.name)
             } catch (e: Exception) {
                 AppColorPalette.ECO_GREEN
             }
         }
 
-    val geminiApiKey: Flow<String>
-        get() = dataStore.data.map { preferences ->
-            preferences[GEMINI_API_KEY] ?: ""
-        }
-
-    val mapsApiKey: Flow<String>
-        get() = dataStore.data.map { preferences ->
-            preferences[MAPS_API_KEY] ?: ""
-        }
+    val selectedAiProvider: Flow<String>
+        get() = dataStore.data.map { it[AI_PROVIDER] ?: "GEMINI" }
 
     suspend fun setAutoRecordEnabled(enabled: Boolean) {
-        dataStore.edit { preferences ->
-            preferences[AUTO_RECORD_ENABLED] = enabled
-        }
+        dataStore.edit { it[AUTO_RECORD_ENABLED] = enabled }
     }
 
     suspend fun setCarBluetoothAddress(address: String?) {
-        dataStore.edit { preferences ->
-            if (address == null) {
-                preferences.remove(CAR_BLUETOOTH_ADDRESS)
-            } else {
-                preferences[CAR_BLUETOOTH_ADDRESS] = address
-            }
+        dataStore.edit {
+            if (address == null) it.remove(CAR_BLUETOOTH_ADDRESS)
+            else it[CAR_BLUETOOTH_ADDRESS] = address
         }
     }
 
     suspend fun setUseMetricUnits(useMetric: Boolean) {
-        dataStore.edit { preferences ->
-            preferences[USE_METRIC_UNITS] = useMetric
-        }
+        dataStore.edit { it[USE_METRIC_UNITS] = useMetric }
     }
 
     suspend fun setAppTheme(theme: AppTheme) {
-        dataStore.edit { preferences ->
-            preferences[APP_THEME] = theme.name
-        }
+        dataStore.edit { it[APP_THEME] = theme.name }
     }
 
     suspend fun setColorPalette(palette: AppColorPalette) {
-        dataStore.edit { preferences ->
-            preferences[COLOR_PALETTE] = palette.name
-        }
+        dataStore.edit { it[COLOR_PALETTE] = palette.name }
     }
 
-    suspend fun setGeminiApiKey(apiKey: String) {
-        dataStore.edit { preferences ->
-            preferences[GEMINI_API_KEY] = apiKey
-        }
-    }
-
-    suspend fun setMapsApiKey(apiKey: String) {
-        dataStore.edit { preferences ->
-            preferences[MAPS_API_KEY] = apiKey
-        }
+    suspend fun setSelectedAiProvider(provider: String) {
+        dataStore.edit { it[AI_PROVIDER] = provider }
     }
 }

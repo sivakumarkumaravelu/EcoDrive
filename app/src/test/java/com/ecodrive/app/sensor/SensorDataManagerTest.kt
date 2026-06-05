@@ -2,7 +2,6 @@ package com.ecodrive.app.sensor
 
 import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.repository.VehicleRepository
-import com.ecodrive.app.domain.ai.GeminiManager
 import com.ecodrive.app.domain.analyzer.FuelEstimationEngine
 import com.ecodrive.app.domain.model.Vehicle
 import com.ecodrive.app.util.Constants
@@ -24,7 +23,6 @@ class SensorDataManagerTest {
     private lateinit var fuelEngine: FuelEstimationEngine
     private lateinit var vehicleRepository: VehicleRepository
     private lateinit var preferenceManager: PreferenceManager
-    private lateinit var geminiManager: GeminiManager
     private lateinit var sensorDataManager: SensorDataManager
     private val testDispatcher = UnconfinedTestDispatcher()
     private val mockClock: java.time.Clock = mockk()
@@ -42,11 +40,9 @@ class SensorDataManagerTest {
         fuelEngine = mockk()
         vehicleRepository = mockk()
         preferenceManager = mockk(relaxed = true)
-        geminiManager = mockk(relaxed = true)
 
         coEvery { vehicleRepository.getDefaultVehicle() } returns Vehicle(name = "Test Car")
         every { phoneSensorManager.hasAccelerometer } returns true
-        every { preferenceManager.geminiApiKey } returns flowOf("")
 
         sensorDataManager = SensorDataManager(
             locationTracker,
@@ -54,7 +50,6 @@ class SensorDataManagerTest {
             fuelEngine,
             vehicleRepository,
             preferenceManager,
-            geminiManager,
             mockClock,
             testDispatcher
         )

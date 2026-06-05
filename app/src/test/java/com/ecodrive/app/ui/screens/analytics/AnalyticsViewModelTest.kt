@@ -3,7 +3,7 @@ package com.ecodrive.app.ui.screens.analytics
 import com.ecodrive.app.TestUtils
 import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.repository.TripRepository
-import com.ecodrive.app.domain.ai.AnalyticsInsightGenerator
+import com.ecodrive.app.domain.ai.analyzer.AnalyticsInsightGenerator
 import com.ecodrive.app.domain.model.Trip
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
@@ -37,7 +37,6 @@ class AnalyticsViewModelTest {
 
         every { tripRepository.getAllTrips() } returns allTripsFlow
         every { preferenceManager.useMetricUnits } returns flowOf(true)
-        every { preferenceManager.geminiApiKey } returns flowOf("")
     }
 
     @After
