@@ -35,6 +35,8 @@ class PreferenceManager @Inject constructor(
         private val USE_METRIC_UNITS = booleanPreferencesKey("use_metric_units")
         private val APP_THEME = stringPreferencesKey("app_theme")
         private val COLOR_PALETTE = stringPreferencesKey("color_palette")
+        private val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
+        private val MAPS_API_KEY = stringPreferencesKey("maps_api_key")
     }
 
     val autoRecordEnabled: Flow<Boolean>
@@ -70,6 +72,16 @@ class PreferenceManager @Inject constructor(
             }
         }
 
+    val geminiApiKey: Flow<String>
+        get() = dataStore.data.map { preferences ->
+            preferences[GEMINI_API_KEY] ?: ""
+        }
+
+    val mapsApiKey: Flow<String>
+        get() = dataStore.data.map { preferences ->
+            preferences[MAPS_API_KEY] ?: ""
+        }
+
     suspend fun setAutoRecordEnabled(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[AUTO_RECORD_ENABLED] = enabled
@@ -101,6 +113,18 @@ class PreferenceManager @Inject constructor(
     suspend fun setColorPalette(palette: AppColorPalette) {
         dataStore.edit { preferences ->
             preferences[COLOR_PALETTE] = palette.name
+        }
+    }
+
+    suspend fun setGeminiApiKey(apiKey: String) {
+        dataStore.edit { preferences ->
+            preferences[GEMINI_API_KEY] = apiKey
+        }
+    }
+
+    suspend fun setMapsApiKey(apiKey: String) {
+        dataStore.edit { preferences ->
+            preferences[MAPS_API_KEY] = apiKey
         }
     }
 }

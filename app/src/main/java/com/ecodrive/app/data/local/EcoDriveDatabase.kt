@@ -17,8 +17,9 @@ import com.ecodrive.app.data.local.entity.*
         DataPointEntity::class,
         VehicleEntity::class,
         FuelCalibrationEntity::class,
+        AiInsightEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class EcoDriveDatabase : RoomDatabase() {
@@ -27,4 +28,5 @@ abstract class EcoDriveDatabase : RoomDatabase() {
     abstract fun dataPointDao(): DataPointDao
     abstract fun vehicleDao(): VehicleDao
     abstract fun fuelCalibrationDao(): FuelCalibrationDao
+    abstract fun aiInsightDao(): AiInsightDao
 }

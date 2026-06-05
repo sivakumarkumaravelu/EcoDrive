@@ -172,7 +172,102 @@ fun CoachScreen(
             icon = Icons.Filled.PauseCircle
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ── Ask the Coach ───────────────────────────────────────
+        AskTheCoachSection(
+            history = state.chatHistory,
+            isAsking = state.isAskingAi,
+            onAsk = { viewModel.askQuestion(it) }
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+private fun AskTheCoachSection(
+    history: List<CoachViewModel.ChatMessage>,
+    isAsking: Boolean,
+    onAsk: (String) -> Unit
+) {
+    var text by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(EcoDriveTheme.colors.cardBackground)
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.QuestionAnswer,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Ask the Coach",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (history.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                history.forEach { message ->
+                    val background = if (message.isUser) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) 
+                                     else MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)
+                    val alignment = if (message.isUser) Alignment.End else Alignment.Start
+                    
+                    Box(
+                        modifier = Modifier
+                            .align(alignment)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(background)
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = message.text,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        if (isAsking) {
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth().height(2.dp),
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            placeholder = { Text("How can I improve my score?") },
+            modifier = Modifier.fillMaxWidth(),
+            trailingIcon = {
+                IconButton(
+                    onClick = {
+                        onAsk(text)
+                        text = ""
+                    },
+                    enabled = text.isNotBlank() && !isAsking
+                ) {
+                    Icon(Icons.Filled.Send, contentDescription = "Ask")
+                }
+            },
+            shape = RoundedCornerShape(12.dp)
+        )
     }
 }
 

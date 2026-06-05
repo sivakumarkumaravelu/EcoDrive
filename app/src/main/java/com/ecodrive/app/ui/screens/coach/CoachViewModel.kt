@@ -7,6 +7,7 @@ import com.ecodrive.app.domain.model.DrivingEventType
 import com.ecodrive.app.util.AudioFeedbackManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import javax.inject.Inject
@@ -14,6 +15,8 @@ import javax.inject.Inject
 @HiltViewModel
 class CoachViewModel @Inject constructor(
     private val tripRepository: TripRepository,
+    private val geminiManager: com.ecodrive.app.domain.ai.GeminiManager,
+    private val preferenceManager: com.ecodrive.app.data.local.PreferenceManager,
     val audioFeedbackManager: AudioFeedbackManager,
 ) : ViewModel() {
 
@@ -26,12 +29,27 @@ class CoachViewModel @Inject constructor(
         val isAudioCoachingEnabled: Boolean = true,
         val recentEcoScore: Int = 0,
         val scoreTrend: Double = 0.0, // change in score vs last week
+        val chatHistory: List<ChatMessage> = emptyList(),
+        val isAskingAi: Boolean = false,
     )
+
+    data class ChatMessage(
+        val text: String,
+        val isUser: Boolean,
+        val timestamp: Instant = Instant.now()
+    )
+
+    private val _chatHistory = MutableStateFlow<List<ChatMessage>>(emptyList())
+    private val _isAskingAi = MutableStateFlow(false)
+    private val _aiReport = MutableStateFlow<String?>(null)
 
     val state: StateFlow<CoachState> = combine(
         tripRepository.getAllTrips(),
         audioFeedbackManager.isAudioEnabled,
-    ) { allTrips, audioEnabled ->
+        _chatHistory,
+        _isAskingAi,
+        _aiReport
+    ) { allTrips, audioEnabled, chatHistory, isAskingAi, aiReport ->
         val now = Instant.now()
         val oneWeekAgo = now.minus(7, ChronoUnit.DAYS).toEpochMilli()
         val twoWeeksAgo = now.minus(14, ChronoUnit.DAYS).toEpochMilli()
@@ -81,7 +99,7 @@ class CoachViewModel @Inject constructor(
         val prevScore = if (previousTrips.isNotEmpty()) previousTrips.map { it.ecoScore }.average() else 0.0
         val scoreTrend = recentScore - prevScore
 
-        val tip = when {
+        val tip = aiReport ?: when {
             recentScore > 90 -> "Outstanding driving! You're in the top 5% of efficient drivers. Keep maintaining those steady speeds."
             topIssue == DrivingEventType.HARD_BRAKE -> 
                 "You've had ${currentCounts[DrivingEventType.HARD_BRAKE]} hard braking events this week. Try looking further ahead and coasting to a stop."
@@ -103,16 +121,79 @@ class CoachViewModel @Inject constructor(
             trends = trends,
             isAudioCoachingEnabled = audioEnabled,
             recentEcoScore = recentScore.toInt(),
-            scoreTrend = scoreTrend
-        )
+            scoreTrend = scoreTrend,
+            chatHistory = chatHistory,
+            isAskingAi = isAskingAi
+        ).also {
+            // Trigger AI report if data changed and we don't have one yet
+            if (recentTrips.isNotEmpty() && aiReport == null) {
+                generateWeeklyAiReport(it)
+            }
+        }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = CoachState()
     )
 
+    private fun generateWeeklyAiReport(s: CoachState) {
+        viewModelScope.launch {
+            val apiKey = preferenceManager.geminiApiKey.first()
+            if (apiKey.isBlank()) return@launch
+
+            val prompt = """
+                You are an expert Eco-Driving Coach. Analyze the driver's performance this week and provide a personalized coaching report (max 3 sentences).
+                
+                Performance:
+                - Recent Eco Score: ${s.recentEcoScore}/100 (Trend: ${"%.1f".format(s.scoreTrend)} pts)
+                - Top Issue: ${s.topIssue?.name ?: "None"}
+                - Issue Counts: ${s.issuesCount}
+                - Trends: ${s.trends.mapValues { "%.1f%%".format(it.value) }}
+                
+                Provide encouraging, specific advice. If there are improvements, celebrate them.
+            """.trimIndent()
+
+            val response = geminiManager.generateWeeklyReport(apiKey, prompt)
+            _aiReport.value = response
+        }
+    }
+
     fun toggleAudioCoaching() {
         audioFeedbackManager.setAudioEnabled(!state.value.isAudioCoachingEnabled)
+    }
+
+    fun askQuestion(question: String) {
+        if (question.isBlank()) return
+        
+        viewModelScope.launch {
+            val userMsg = ChatMessage(question, isUser = true)
+            _chatHistory.update { it + userMsg }
+            _isAskingAi.value = true
+
+            val apiKey = preferenceManager.geminiApiKey.first()
+            if (apiKey.isBlank()) {
+                _chatHistory.update { it + ChatMessage("Please configure your Gemini API key in Settings to use the AI Coach.", isUser = false) }
+                _isAskingAi.value = false
+                return@launch
+            }
+
+            val contextPrompt = """
+                You are an expert Eco-Driving Coach. The user has a question about driving efficiency or their recent performance.
+                
+                Recent Performance Summary:
+                ${state.value.personalizedTip}
+                
+                User Question: $question
+                
+                Provide a helpful, concise, and encouraging response.
+            """.trimIndent()
+
+            val response = geminiManager.generateTripInsight(apiKey, contextPrompt)
+            val aiMsg = ChatMessage(response ?: "I'm sorry, I'm having trouble connecting right now. Please try again later.", isUser = false)
+            
+            _chatHistory.update { it + aiMsg }
+            _isAskingAi.value = false
+        }
     }
 
     fun refresh() {

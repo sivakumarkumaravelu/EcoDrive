@@ -1,84 +1,87 @@
 # EcoDrive
 
-EcoDrive is an Android application designed to help drivers improve their fuel efficiency by providing real-time eco-driving coaching. It uses a hybrid data architecture that combines **local phone sensors** (accelerometer, gyroscope, GPS) with the **Smartcar API** and **OBD-II hardware** to deliver precise driving analysis and self-calibrating fuel estimation for any vehicle.
+**EcoDrive** is an advanced Android application designed to optimize fuel efficiency through real-time driving analysis, eco-coaching, and hybrid data fusion. It bridges the gap between traditional phone-based trackers and professional telematics by combining local smartphone sensors with **OBD-II hardware** and the **Smartcar API**.
 
-The app features a universal physics model (**Vehicle Specific Power**) that supports multiple vehicle types (ICE, Hybrid, EV) and fuel types (Gasoline, Diesel, etc.), with automatic calibration that improves over time and persists across app restarts.
-
-## 📦 Download
-
-You can download the latest pre-built APK from the [release/](release/) folder:
-- **[EcoDrive-v1.0.0-unsigned.apk](release/EcoDrive-v1.0.0-unsigned.apk)**
-
-> [!IMPORTANT]
-> This is an **unsigned** APK. To install it, you must enable "Install from unknown sources" in your Android settings. If you receive a "Play Protect" warning, you may need to click "Install anyway".
+---
 
 ## 🚀 Key Features
 
-- **Auto-Record Drives:** Intelligently detects when you are in a moving vehicle using **Activity Recognition** and **Bluetooth connection triggers** to start/stop recording automatically.
-- **Real-time Driving Metrics:** Monitors harsh braking, rapid acceleration, and sharp cornering using phone sensors or direct OBD-II data.
-- **Physics-Based Fuel Estimation:** Calculates real-time fuel efficiency (L/h) using a generalized Vehicle Specific Power (VSP) model, even without specialized hardware.
-- **Universal Auto-Calibration:** Integrates with the **Smartcar API** to compare actual fuel consumption with the physics model, automatically improving accuracy across hundreds of supported vehicle brands.
-- **Eco Score Calculator:** Generates a comprehensive driving score (0-100) based on speed consistency, idling, braking, and acceleration patterns.
-- **Trip History & Analytics:** Beautiful dashboards summarizing every drive with persistent storage in a local Room database, featuring **interactive route maps** and **history list previews**.
-- **Visual Route Mapping:** Visualizes your driving path on **Google Maps** with markers for notable driving events (hard braking, sharp turns, etc.).
-- **Audio Feedback:** Provides real-time coaching tips and event alerts via voice to keep your eyes on the road.
+### 📡 Hybrid Data Architecture
+- **Smartphone Sensors:** High-frequency IMU (accelerometer/gyroscope) and GPS data fusion for motion analysis.
+- **OBD-II Integration:** Real-time engine telemetry (RPM, Speed, MAF, Fuel Rate) via ELM327 Bluetooth adapters.
+- **Smartcar API:** Multi-brand vehicle cloud integration for precise fuel level verification and odometer tracking.
+- **Unit Flexibility:** Support for both **Metric (km, L/100km)** and **Imperial (mi, MPG)** unit systems with a dedicated conversion engine.
+
+### 🧠 Intelligent Analytics
+- **Physics-Based Fuel Model:** A universal **Vehicle Specific Power (VSP)** engine that estimates consumption for ICE, Hybrid, and EVs even without OBD-II hardware.
+- **Auto-Calibration:** Self-improving fuel estimation model that learns from actual Smartcar fuel data to reach high accuracy.
+- **Eco Score (0-100):** Comprehensive driving evaluation based on speed consistency, idling, braking, and cornering intensity.
+
+### 🚘 Automation & Experience
+- **Auto-Record:** Intelligent trip detection using **Google Activity Recognition** and **Bluetooth connection triggers**.
+- **Real-time Coaching:** Live dashboard with visual gauges and **Audio Feedback** alerts for inefficient driving events.
+- **Trip History:** Interactive maps with event markers (hard brakes, sharp turns) and detailed performance charts.
+- **Data Export:** Export detailed trip telemetry to CSV for external analysis.
+
+---
 
 ## 🛠️ Tech Stack
 
-- **Language:** [Kotlin](https://kotlinlang.org/)
-- **UI Toolkit:** [Jetpack Compose](https://developer.android.com/jetpack/compose) & Material 3
-- **Dependency Injection:** [Hilt](https://developer.android.com/training/dependency-injection/hilt-android) / Dagger
-- **Local Storage:** [Room Database](https://developer.android.com/training/data-storage/room) & [DataStore Preferences](https://developer.android.com/topic/libraries/architecture/datastore)
-- **Async & Flows:** Kotlin Coroutines & Flows
-- **Maps:** [Google Maps SDK for Android](https://developers.google.com/maps/documentation/android-sdk/overview) & [Maps Compose](https://github.com/googlemaps/android-maps-compose)
-- **External APIs:** Google Play Services (Location, Activity Recognition), **Smartcar API** (Multi-brand Vehicle Integration)
-- **Testing:** JUnit 4 & [MockK](https://mockk.io/)
+- **UI:** Jetpack Compose, Material 3, Google Maps Compose.
+- **Architecture:** MVVM/MVI with Clean Architecture principles.
+- **DI:** Hilt / Dagger.
+- **Persistence:** Room (SQL) for trip history & DataStore for preferences.
+- **Concurrency:** Kotlin Coroutines & Flows for reactive data streams.
+- **Networking:** Smartcar API (OAuth2 + REST).
+- **Bluetooth:** Standard SPP for ELM327 communication.
+
+---
 
 ## 📋 Prerequisites
 
-- **Android Studio** (Jellyfish or later recommended)
-- **JDK 17**
-- **Android SDK 34+**
-- **Physical Device** (Recommended for sensor/Bluetooth features) or Emulator with API 26+
+- **Android Studio** (Jellyfish or later)
+- **JDK 17** & Android SDK 34+
+- **Physical Device** (Required for Sensor, Bluetooth, and GPS features)
+- *(Optional)* **ELM327 OBD-II Adapter** for direct engine telemetry.
+
+---
 
 ## ⚙️ Installation & Setup
 
-1.  **Open the Project:** Launch Android Studio and open the `EcoDrive` folder.
-2.  **Sync Gradle:** Allow Android Studio to sync the project files and download dependencies.
-3.  **Permissions:** Upon first launch, the app will request:
-    *   **Location**: For speed and distance tracking.
-    *   **Activity Recognition**: For the Auto-Record feature.
-    *   **Notifications**: For the background recording service.
+1. **Clone & Open:** Open the project in Android Studio.
+2. **Permissions:** Grant Location (Always), Activity Recognition, and Bluetooth permissions when prompted.
+3. **Vehicle Config:** Add your vehicle details in the app settings to initialize the VSP physics model.
+4. **Smartcar (Optional):** Link your vehicle cloud account via the Connect screen for automatic fuel calibration.
 
-## 🧪 Running Tests
+---
 
-The project includes a robust suite of **180 unit tests** covering core logic, sensor fusion, and automation.
+## 🧪 Testing & Quality
+
+EcoDrive includes a comprehensive test suite (180+ tests) covering:
+- **Domain Logic:** VSP math, Eco Score algorithms, and fuel rate calculations.
+- **Data Layer:** OBD-II command parsing and Room DAO implementations.
+- **Automation:** Trigger logic for `AutoRecordManager` and `BluetoothReceiver`.
 
 ```bash
-# Run all unit tests
+# Run unit tests
 ./gradlew testDebugUnitTest
 ```
 
-### Test Coverage Highlights:
-- **Trip History (Latest)**: New batch-fetching strategy for route points ensures smooth scrolling when displaying mini-map previews in the history list.
-- **Automation**: `TripRecorderTest`, `AutoRecordManagerTest`, and Receiver tests ensure reliable auto-start/stop behavior.
-- **OBD-II**: Validates command parsing and Bluetooth protocol handling.
-- **Physics Engine**: Tests the VSP model and fuel calibration math.
-- **Sensor Fusion**: Validates the alignment of GPS and IMU data.
+---
 
-## 🏗️ Architecture
+## 🏗️ Project Structure
 
-The app follows a modern Android architecture with clean separation of concerns:
+- `com.ecodrive.app.domain.analyzer`: The "brain" — contains physics models and score calculators.
+- `com.ecodrive.app.sensor`: Hardware abstraction for phone sensors and GPS.
+- `com.ecodrive.app.data.obd`: Bluetooth protocol and ELM327 command implementations.
+- `com.ecodrive.app.service`: Foreground services for reliable background recording.
+- `com.ecodrive.app.ui`: Modern Compose-based screens and components.
+- `com.ecodrive.app.util`: Utilities including unit conversion, audio feedback, and permission handling.
 
-*   **`domain.recorder`**: Centralized logic for trip recording and background triggers.
-*   **`sensor`**: Data fusion layer for GPS and IMU (Accelerometer/Gyroscope).
-*   **`domain.analyzer`**: Universal physics engines for fuel estimation and eco-scoring.
-*   **`data.remote`**: API clients for **Smartcar** multi-brand vehicle integration.
-*   **`data.local`**: Persistence layer using Room and DataStore.
-*   **`service`**: Foreground services for reliable background data collection.
+---
 
 ## 📄 Documentation
 
-- [EcoDrive Code Analysis](docs/ecodrive_code_analysis.md) — Deep technical architecture.
-- [CLAUDE.md](CLAUDE.md) — Developer guidelines.
-- [Walkthrough](.artifacts/20260529-235604-ad5d849d-6299-4b25-b4e3-a43d22a6eca5/walkthrough.artifact.md) — Implementation details for recent features.
+For deeper technical insights, refer to:
+- [Technical Architecture](docs/ecodrive_code_analysis.md)
+- [Developer Guidelines](CLAUDE.md)

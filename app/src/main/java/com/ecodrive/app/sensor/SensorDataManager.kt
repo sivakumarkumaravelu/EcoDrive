@@ -1,13 +1,16 @@
 package com.ecodrive.app.sensor
 
 import android.util.Log
+import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.repository.VehicleRepository
+import com.ecodrive.app.domain.ai.GeminiManager
 import com.ecodrive.app.domain.model.DrivingMetrics
 import com.ecodrive.app.domain.analyzer.FuelEstimationEngine
 import com.ecodrive.app.domain.model.Vehicle
 import com.ecodrive.app.util.Constants
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import java.time.Clock
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,6 +25,9 @@ class SensorDataManager @Inject constructor(
     private val phoneSensorManager: PhoneSensorManager,
     private val fuelEngine: FuelEstimationEngine,
     private val vehicleRepository: VehicleRepository,
+    private val preferenceManager: PreferenceManager,
+    private val geminiManager: GeminiManager,
+    private val clock: Clock,
     private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     companion object {
@@ -100,7 +106,7 @@ class SensorDataManager @Inject constructor(
                 }
 
                 locationTracker.locationFlow().collect { gps ->
-                    val now = Instant.now()
+                    val now = Instant.now(clock)
                     val gpsTimeNs = now.toEpochMilli() * 1_000_000L
 
                     val (bestImu, imuIsFresh) = selectBestImuReading(gpsTimeNs)

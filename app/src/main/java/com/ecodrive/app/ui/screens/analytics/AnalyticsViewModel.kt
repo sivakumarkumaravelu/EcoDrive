@@ -9,6 +9,7 @@ import com.ecodrive.app.ui.components.ChartPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -25,6 +26,7 @@ import javax.inject.Inject
 class AnalyticsViewModel @Inject constructor(
     private val tripRepository: TripRepository,
     private val preferenceManager: PreferenceManager,
+    private val analyticsInsightGenerator: com.ecodrive.app.domain.ai.AnalyticsInsightGenerator,
 ) : ViewModel() {
 
     data class AnalyticsState(
@@ -53,6 +55,9 @@ class AnalyticsViewModel @Inject constructor(
         val useMetric: Boolean = true,
         // Time range
         val selectedRange: TimeRange = TimeRange.MONTH,
+        // AI Narrative
+        val aiSummary: String? = null,
+        val isAiLoading: Boolean = false,
     )
 
     enum class TimeRange(val label: String, val days: Long) {
@@ -63,84 +68,104 @@ class AnalyticsViewModel @Inject constructor(
 
     private val _selectedRange = MutableStateFlow(TimeRange.MONTH)
 
-    val state: StateFlow<AnalyticsState> = combine(
-        _selectedRange,
-        tripRepository.getAllTrips(),
-        preferenceManager.useMetricUnits
-    ) { range, allTrips, useMetric ->
-        val sinceMs = Instant.now().minus(range.days, ChronoUnit.DAYS).toEpochMilli()
-        val trips = allTrips.filter {
-            it.startTime.toEpochMilli() >= sinceMs && !it.isActive
-        }.sortedBy { it.startTime }
+    private val _state = MutableStateFlow(AnalyticsState())
+    val state: StateFlow<AnalyticsState> = _state.asStateFlow()
 
-        if (trips.isEmpty()) {
-            return@combine AnalyticsState(isLoading = false, totalTrips = 0, selectedRange = range, useMetric = useMetric)
-        }
+    init {
+        combine(
+            _selectedRange,
+            tripRepository.getAllTrips(),
+            preferenceManager.useMetricUnits
+        ) { range, allTrips, useMetric ->
+            val sinceMs = Instant.now().minus(range.days, ChronoUnit.DAYS).toEpochMilli()
+            val trips = allTrips.filter {
+                it.startTime.toEpochMilli() >= sinceMs && !it.isActive
+            }.sortedBy { it.startTime }
 
-                // Eco score trend
-                val ecoTrend = trips.mapIndexed { i, trip ->
-                    ChartPoint(
-                        x = i.toFloat(),
-                        y = trip.ecoScore.toFloat(),
-                        label = trip.startTime.atZone(ZoneId.systemDefault())
-                            .format(dateFormatter),
-                    )
+            if (trips.isEmpty()) {
+                _state.update { 
+                    AnalyticsState(isLoading = false, totalTrips = 0, selectedRange = range, useMetric = useMetric) 
                 }
+                return@combine
+            }
 
-                // Fuel efficiency trend
-                val fuelTrend = trips.filter { it.distanceKm > 0 }.mapIndexed { i, trip ->
-                    ChartPoint(
-                        x = i.toFloat(),
-                        y = trip.fuelEfficiencyLPer100Km.toFloat(),
-                        label = trip.startTime.atZone(ZoneId.systemDefault())
-                            .format(dateFormatter),
-                    )
-                }
-
-                // Weekly aggregation for bar charts
-                val weeklyData = aggregateWeekly(trips)
-
-                // Behavior totals
-                val totalBrakes = trips.sumOf { it.hardBrakeCount }
-                val totalAccels = trips.sumOf { it.hardAccelCount }
-                val totalTurns = trips.sumOf { it.sharpTurnCount }
-                val totalIdle = trips.sumOf { it.idleTimeSeconds } / 60
-
-                // Summary
-                val totalDist = trips.sumOf { it.distanceKm }
-                val totalFuel = trips.sumOf { it.fuelConsumedLiters }
-                val avgEfficiency = if (totalDist > 0) (totalFuel / totalDist) * 100 else 0.0
-
-                // Fuel saved estimate: compare avg vs EPA 6.4 L/100km
-                val epaFuel = totalDist * 6.4 / 100.0
-                val saved = epaFuel - totalFuel
-
-                AnalyticsState(
-                    isLoading = false,
-                    ecoScoreTrend = ecoTrend,
-                    avgEcoScore = trips.map { t -> t.ecoScore }.average().toInt(),
-                    bestTrip = trips.maxByOrNull { t -> t.ecoScore },
-                    worstTrip = trips.minByOrNull { t -> t.ecoScore },
-                    fuelEfficiencyTrend = fuelTrend,
-                    avgFuelEfficiency = avgEfficiency,
-                    weeklyScores = weeklyData.first,
-                    weeklyDistances = weeklyData.second,
-                    totalHardBrakes = totalBrakes,
-                    totalHardAccels = totalAccels,
-                    totalSharpTurns = totalTurns,
-                    totalIdleMinutes = totalIdle,
-                    totalTrips = trips.size,
-                    totalDistanceKm = totalDist,
-                    totalFuelLiters = totalFuel,
-                    fuelSavedEstimate = saved,
-                    selectedRange = range,
-                    useMetric = useMetric,
+            // Eco score trend
+            val ecoTrend = trips.mapIndexed { i, trip ->
+                ChartPoint(
+                    x = i.toFloat(),
+                    y = trip.ecoScore.toFloat(),
+                    label = trip.startTime.atZone(ZoneId.systemDefault())
+                        .format(dateFormatter),
                 )
-            }.stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5000),
-                initialValue = AnalyticsState()
+            }
+
+            // Fuel efficiency trend
+            val fuelTrend = trips.filter { it.distanceKm > 0 }.mapIndexed { i, trip ->
+                ChartPoint(
+                    x = i.toFloat(),
+                    y = trip.fuelEfficiencyLPer100Km.toFloat(),
+                    label = trip.startTime.atZone(ZoneId.systemDefault())
+                        .format(dateFormatter),
+                )
+            }
+
+            // Weekly aggregation for bar charts
+            val weeklyData = aggregateWeekly(trips)
+
+            // Behavior totals
+            val totalBrakes = trips.sumOf { it.hardBrakeCount }
+            val totalAccels = trips.sumOf { it.hardAccelCount }
+            val totalTurns = trips.sumOf { it.sharpTurnCount }
+            val totalIdle = trips.sumOf { it.idleTimeSeconds } / 60
+
+            // Summary
+            val totalDist = trips.sumOf { it.distanceKm }
+            val totalFuel = trips.sumOf { it.fuelConsumedLiters }
+            val avgEfficiency = if (totalDist > 0) (totalFuel / totalDist) * 100 else 0.0
+
+            // Fuel saved estimate: compare avg vs EPA 6.4 L/100km
+            val epaFuel = totalDist * 6.4 / 100.0
+            val saved = epaFuel - totalFuel
+
+            val newState = AnalyticsState(
+                isLoading = false,
+                ecoScoreTrend = ecoTrend,
+                avgEcoScore = trips.map { t -> t.ecoScore }.average().toInt(),
+                bestTrip = trips.maxByOrNull { t -> t.ecoScore },
+                worstTrip = trips.minByOrNull { t -> t.ecoScore },
+                fuelEfficiencyTrend = fuelTrend,
+                avgFuelEfficiency = avgEfficiency,
+                weeklyScores = weeklyData.first,
+                weeklyDistances = weeklyData.second,
+                totalHardBrakes = totalBrakes,
+                totalHardAccels = totalAccels,
+                totalSharpTurns = totalTurns,
+                totalIdleMinutes = totalIdle,
+                totalTrips = trips.size,
+                totalDistanceKm = totalDist,
+                totalFuelLiters = totalFuel,
+                fuelSavedEstimate = saved,
+                selectedRange = range,
+                useMetric = useMetric,
+                aiSummary = _state.value.aiSummary,
+                isAiLoading = _state.value.isAiLoading
             )
+            
+            _state.update { newState }
+            
+            // Trigger AI Summary if data changed significantly or is first load
+            viewModelScope.launch {
+                generateAiSummary(newState)
+            }
+
+        }.launchIn(viewModelScope)
+    }
+
+    private suspend fun generateAiSummary(s: AnalyticsState) {
+        _state.update { it.copy(isAiLoading = true) }
+        val response = analyticsInsightGenerator.generateSummary(s)
+        _state.update { it.copy(aiSummary = response, isAiLoading = false) }
+    }
 
     private val dateFormatter = DateTimeFormatter.ofPattern("M/d")
 

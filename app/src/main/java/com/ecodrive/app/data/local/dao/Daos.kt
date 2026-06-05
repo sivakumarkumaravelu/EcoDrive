@@ -42,6 +42,9 @@ interface TripDao {
     @Query("SELECT AVG(ecoScore) FROM trips WHERE startTimeEpochMs >= :sinceMs AND isActive = 0")
     suspend fun getAverageEcoScore(sinceMs: Long): Double?
 
+    @Query("SELECT AVG(fuelEfficiencyLPer100Km) FROM trips WHERE startTimeEpochMs >= :sinceMs AND isActive = 0")
+    suspend fun getAverageFuelEfficiency(sinceMs: Long): Double?
+
     @Query("SELECT SUM(fuelConsumedLiters) FROM trips WHERE startTimeEpochMs >= :sinceMs AND isActive = 0")
     suspend fun getTotalFuelConsumed(sinceMs: Long): Double?
 
@@ -140,4 +143,19 @@ interface FuelCalibrationDao {
 
     @Query("SELECT AVG(correctionRatio) FROM fuel_calibration ORDER BY timestampEpochMs DESC LIMIT :limit")
     suspend fun getAverageCorrectionRatio(limit: Int): Double?
+}
+
+/**
+ * Data Access Object for AI Insights.
+ */
+@Dao
+interface AiInsightDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertInsight(insight: AiInsightEntity)
+
+    @Query("SELECT * FROM ai_insights WHERE tripId = :tripId")
+    suspend fun getInsightForTrip(tripId: Long): AiInsightEntity?
+
+    @Query("DELETE FROM ai_insights WHERE tripId = :tripId")
+    suspend fun deleteInsightForTrip(tripId: Long)
 }

@@ -1,6 +1,8 @@
 package com.ecodrive.app.sensor
 
+import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.repository.VehicleRepository
+import com.ecodrive.app.domain.ai.GeminiManager
 import com.ecodrive.app.domain.analyzer.FuelEstimationEngine
 import com.ecodrive.app.domain.model.Vehicle
 import com.ecodrive.app.util.Constants
@@ -8,6 +10,7 @@ import io.mockk.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.test.*
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -20,26 +23,46 @@ class SensorDataManagerTest {
     private lateinit var phoneSensorManager: PhoneSensorManager
     private lateinit var fuelEngine: FuelEstimationEngine
     private lateinit var vehicleRepository: VehicleRepository
+    private lateinit var preferenceManager: PreferenceManager
+    private lateinit var geminiManager: GeminiManager
     private lateinit var sensorDataManager: SensorDataManager
+    private val testDispatcher = UnconfinedTestDispatcher()
+    private val mockClock: java.time.Clock = mockk()
 
     @Before
     fun setup() {
+        Dispatchers.setMain(testDispatcher)
         com.ecodrive.app.TestUtils.mockLog()
+        
+        every { mockClock.instant() } returns Instant.parse("2024-01-01T00:00:00Z")
+        every { mockClock.zone } returns java.time.ZoneId.of("UTC")
+
         locationTracker = mockk()
         phoneSensorManager = mockk()
         fuelEngine = mockk()
         vehicleRepository = mockk()
+        preferenceManager = mockk(relaxed = true)
+        geminiManager = mockk(relaxed = true)
 
         coEvery { vehicleRepository.getDefaultVehicle() } returns Vehicle(name = "Test Car")
         every { phoneSensorManager.hasAccelerometer } returns true
-        
+        every { preferenceManager.geminiApiKey } returns flowOf("")
+
         sensorDataManager = SensorDataManager(
             locationTracker,
             phoneSensorManager,
             fuelEngine,
             vehicleRepository,
-            UnconfinedTestDispatcher()
+            preferenceManager,
+            geminiManager,
+            mockClock,
+            testDispatcher
         )
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
     }
 
     @Test
@@ -120,10 +143,15 @@ class SensorDataManagerTest {
         sensorDataManager.startCollection()
         sensorDataManager.state.first { it == SensorDataManager.CollectionState.COLLECTING }
 
-        // 1. Initial fix
+        // 1. Initial fix at T=0
+        val t0 = Instant.parse("2024-01-01T00:00:00Z")
+        every { mockClock.instant() } returns t0
         gpsFlow.emit(createGpsReading(speedKmh = 72.0, altitude = 100.0)) // 20 m/s
         
-        // 2. Second fix after 1 second (20 meters traveled)
+        // 2. Second fix after 1 second (20 meters traveled) at T=1s
+        val t1 = t0.plusSeconds(1)
+        every { mockClock.instant() } returns t1
+
         // elevation gain = 2m over 20m = 10% grade
         gpsFlow.emit(createGpsReading(speedKmh = 72.0, altitude = 102.0))
         

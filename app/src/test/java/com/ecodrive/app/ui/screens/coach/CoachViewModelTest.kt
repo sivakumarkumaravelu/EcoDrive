@@ -1,7 +1,9 @@
 package com.ecodrive.app.ui.screens.coach
 
 import com.ecodrive.app.TestUtils
+import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.repository.TripRepository
+import com.ecodrive.app.domain.ai.GeminiManager
 import com.ecodrive.app.domain.model.DrivingEventType
 import com.ecodrive.app.domain.model.Trip
 import com.ecodrive.app.util.AudioFeedbackManager
@@ -10,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -23,6 +26,8 @@ import java.time.temporal.ChronoUnit
 class CoachViewModelTest {
 
     private val tripRepository: TripRepository = mockk()
+    private val geminiManager: GeminiManager = mockk(relaxed = true)
+    private val preferenceManager: PreferenceManager = mockk(relaxed = true)
     private val audioFeedbackManager: AudioFeedbackManager = mockk(relaxed = true)
     private lateinit var viewModel: CoachViewModel
     private val testDispatcher = StandardTestDispatcher()
@@ -36,8 +41,9 @@ class CoachViewModelTest {
         
         every { tripRepository.getAllTrips() } returns tripsFlow
         every { audioFeedbackManager.isAudioEnabled } returns MutableStateFlow(true)
+        every { preferenceManager.geminiApiKey } returns flowOf("") // No API key by default in tests
         
-        viewModel = CoachViewModel(tripRepository, audioFeedbackManager)
+        viewModel = CoachViewModel(tripRepository, geminiManager, preferenceManager, audioFeedbackManager)
     }
 
     @After

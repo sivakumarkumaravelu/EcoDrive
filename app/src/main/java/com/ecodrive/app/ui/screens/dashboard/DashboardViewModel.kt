@@ -7,7 +7,6 @@ import com.ecodrive.app.data.remote.SmartcarApiClient
 import com.ecodrive.app.domain.model.*
 import com.ecodrive.app.domain.recorder.TripRecorder
 import com.ecodrive.app.sensor.SensorDataManager
-import com.ecodrive.app.util.AudioFeedbackManager
 import com.ecodrive.app.util.PermissionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -22,9 +21,9 @@ import javax.inject.Inject
 class DashboardViewModel @Inject constructor(
     private val sensorDataManager: SensorDataManager,
     private val smartcarApiClient: SmartcarApiClient,
-    private val audioFeedbackManager: AudioFeedbackManager,
     private val tripRecorder: TripRecorder,
     private val preferenceManager: PreferenceManager,
+    private val aiCoachService: com.ecodrive.app.domain.ai.AiCoachService,
     val permissionManager: PermissionManager,
 ) : ViewModel() {
 
@@ -121,10 +120,7 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             tripRecorder.currentMetrics.collect { metrics ->
                 val tip = generateDrivingTip(metrics, _state.value.ecoScore)
-                if (tip != _state.value.drivingTip && tip != "Tap Start to begin monitoring your drive") {
-                    audioFeedbackManager.playTip(tip)
-                }
-
+                
                 val source = buildString {
                     append("📱 Sensors")
                     if (metrics.fuelTankPercent != null) append(" + 🌐 Vehicle API")
@@ -133,7 +129,7 @@ class DashboardViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         metrics = metrics,
-                        drivingTip = tip,
+                        drivingTip = if (it.drivingTip.startsWith("🤖")) it.drivingTip else tip,
                         dataSource = source,
                     )
                 }
@@ -143,6 +139,13 @@ class DashboardViewModel @Inject constructor(
             tripRecorder.currentEcoScore.collect { ecoScore ->
                 _state.update {
                     it.copy(ecoScore = ecoScore)
+                }
+            }
+        }
+        viewModelScope.launch {
+            tripRecorder.latestTip.collect { tip ->
+                if (tip != null) {
+                    _state.update { it.copy(drivingTip = "🤖 $tip") }
                 }
             }
         }
@@ -156,11 +159,13 @@ class DashboardViewModel @Inject constructor(
             return
         }
 
+        aiCoachService.clearContext()
         tripRecorder.startRecording()
     }
 
     fun stopRecording() {
         tripRecorder.stopRecording()
+        aiCoachService.clearContext()
         _state.update {
             it.copy(
                 drivingTip = "Trip saved! Check your trip history for details.",

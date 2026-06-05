@@ -34,6 +34,9 @@ class TripRecorder @Inject constructor(
     private val _currentEcoScore = MutableStateFlow(EcoScore(overall = 0))
     val currentEcoScore: StateFlow<EcoScore> = _currentEcoScore.asStateFlow()
 
+    private val _latestTip = MutableStateFlow<String?>(null)
+    val latestTip: StateFlow<String?> = _latestTip.asStateFlow()
+
     private var boundService: SensorForegroundService? = null
     private var isBound = false
     private var observationJob: Job? = null
@@ -93,6 +96,9 @@ class TripRecorder @Inject constructor(
                 }
                 launch {
                     service.currentEcoScore.collect { _currentEcoScore.value = it }
+                }
+                launch {
+                    service.latestTip.collect { _latestTip.value = it }
                 }
             }
         }

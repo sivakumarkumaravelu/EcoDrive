@@ -221,6 +221,13 @@ class TripRepository @Inject constructor(
     }
 
     /**
+     * Get average fuel efficiency (L/100km) over a time period.
+     */
+    suspend fun getAverageFuelEfficiency(sinceEpochMs: Long): Double? {
+        return tripDao.getAverageFuelEfficiency(sinceEpochMs)
+    }
+
+    /**
      * Get total fuel consumed over a time period.
      */
     suspend fun getTotalFuelConsumed(sinceEpochMs: Long): Double? {

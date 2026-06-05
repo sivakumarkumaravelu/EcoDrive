@@ -1,7 +1,9 @@
 package com.ecodrive.app.ui.screens.analytics
 
 import com.ecodrive.app.TestUtils
+import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.repository.TripRepository
+import com.ecodrive.app.domain.ai.AnalyticsInsightGenerator
 import com.ecodrive.app.domain.model.Trip
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
@@ -20,28 +22,39 @@ import java.time.temporal.ChronoUnit
 class AnalyticsViewModelTest {
 
     private val tripRepository: TripRepository = mockk(relaxed = true)
+    private val preferenceManager: PreferenceManager = mockk(relaxed = true)
+    private val analyticsInsightGenerator: AnalyticsInsightGenerator = mockk(relaxed = true)
 
     private val allTripsFlow = MutableStateFlow<List<Trip>>(emptyList())
 
     private lateinit var viewModel: AnalyticsViewModel
+    private val testDispatcher = StandardTestDispatcher()
 
     @Before
     fun setup() {
+        Dispatchers.setMain(testDispatcher)
         TestUtils.mockLog()
 
         every { tripRepository.getAllTrips() } returns allTripsFlow
+        every { preferenceManager.useMetricUnits } returns flowOf(true)
+        every { preferenceManager.geminiApiKey } returns flowOf("")
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
     }
 
     @Test
     fun `test state is loading initially`() = runTest {
-        viewModel = AnalyticsViewModel(tripRepository)
+        viewModel = AnalyticsViewModel(tripRepository, preferenceManager, analyticsInsightGenerator)
         assertTrue(viewModel.state.value.isLoading)
     }
 
     @Ignore("StateFlow with WhileSubscribed collector requires proper subscription handling in runTest context")
     @Test
     fun `test empty trips state`() = runTest {
-        viewModel = AnalyticsViewModel(tripRepository)
+        viewModel = AnalyticsViewModel(tripRepository, preferenceManager, analyticsInsightGenerator)
         allTripsFlow.value = emptyList()
         advanceUntilIdle()
 
@@ -53,7 +66,7 @@ class AnalyticsViewModelTest {
     @Ignore("StateFlow with WhileSubscribed collector requires proper subscription handling in runTest context")
     @Test
     fun `test analytics correctly aggregates trips for MONTH range`() = runTest {
-        viewModel = AnalyticsViewModel(tripRepository)
+        viewModel = AnalyticsViewModel(tripRepository, preferenceManager, analyticsInsightGenerator)
         val now = Instant.now()
         val trips = listOf(
             Trip(id = 1, startTime = now.minus(3, ChronoUnit.DAYS), ecoScore = 80,
@@ -80,7 +93,7 @@ class AnalyticsViewModelTest {
     @Ignore("StateFlow with WhileSubscribed collector requires proper subscription handling in runTest context")
     @Test
     fun `test best and worst trip identified correctly`() = runTest {
-        viewModel = AnalyticsViewModel(tripRepository)
+        viewModel = AnalyticsViewModel(tripRepository, preferenceManager, analyticsInsightGenerator)
         val now = Instant.now()
         val bestTrip = Trip(id = 1, startTime = now.minus(1, ChronoUnit.DAYS), ecoScore = 95, isActive = false)
         val worstTrip = Trip(id = 2, startTime = now.minus(2, ChronoUnit.DAYS), ecoScore = 40, isActive = false)
@@ -96,7 +109,7 @@ class AnalyticsViewModelTest {
     @Ignore("StateFlow with WhileSubscribed collector requires proper subscription handling in runTest context")
     @Test
     fun `test active trips excluded from analytics`() = runTest {
-        viewModel = AnalyticsViewModel(tripRepository)
+        viewModel = AnalyticsViewModel(tripRepository, preferenceManager, analyticsInsightGenerator)
         val now = Instant.now()
         val completedTrip = Trip(id = 1, startTime = now.minus(1, ChronoUnit.DAYS), ecoScore = 80, isActive = false)
         val activeTrip = Trip(id = 2, startTime = now, ecoScore = 50, isActive = true)
@@ -110,7 +123,7 @@ class AnalyticsViewModelTest {
     @Ignore("StateFlow with WhileSubscribed collector requires proper subscription handling in runTest context")
     @Test
     fun `test WEEK range filters out older trips`() = runTest {
-        viewModel = AnalyticsViewModel(tripRepository)
+        viewModel = AnalyticsViewModel(tripRepository, preferenceManager, analyticsInsightGenerator)
         val now = Instant.now()
         val recentTrip = Trip(id = 1, startTime = now.minus(3, ChronoUnit.DAYS), ecoScore = 90, isActive = false)
         val oldTrip = Trip(id = 2, startTime = now.minus(15, ChronoUnit.DAYS), ecoScore = 60, isActive = false)
@@ -127,7 +140,7 @@ class AnalyticsViewModelTest {
     @Ignore("StateFlow with WhileSubscribed collector requires proper subscription handling in runTest context")
     @Test
     fun `test selectTimeRange switches state correctly`() = runTest {
-        viewModel = AnalyticsViewModel(tripRepository)
+        viewModel = AnalyticsViewModel(tripRepository, preferenceManager, analyticsInsightGenerator)
         allTripsFlow.value = emptyList()
         viewModel.selectTimeRange(AnalyticsViewModel.TimeRange.WEEK)
         advanceUntilIdle()
@@ -141,7 +154,7 @@ class AnalyticsViewModelTest {
     @Ignore("StateFlow with WhileSubscribed collector requires proper subscription handling in runTest context")
     @Test
     fun `test fuel savings estimate uses EPA baseline`() = runTest {
-        viewModel = AnalyticsViewModel(tripRepository)
+        viewModel = AnalyticsViewModel(tripRepository, preferenceManager, analyticsInsightGenerator)
         val now = Instant.now()
         // A trip where actual fuel < EPA estimate (efficient driver)
         val trip = Trip(

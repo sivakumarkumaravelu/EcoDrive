@@ -2,9 +2,13 @@ package com.ecodrive.app.ui.screens.tripdetail
 
 import androidx.lifecycle.SavedStateHandle
 import com.ecodrive.app.TestUtils
+import com.ecodrive.app.data.local.PreferenceManager
+import com.ecodrive.app.data.local.dao.AiInsightDao
 import com.ecodrive.app.data.local.dao.DataPointDao
 import com.ecodrive.app.data.local.entity.DataPointEntity
 import com.ecodrive.app.data.repository.TripRepository
+import com.ecodrive.app.domain.ai.GeminiManager
+import com.ecodrive.app.domain.analyzer.LocalEcoCoach
 import com.ecodrive.app.domain.model.DrivingEvent
 import com.ecodrive.app.domain.model.DrivingEventType
 import com.ecodrive.app.domain.model.Trip
@@ -24,6 +28,10 @@ class TripDetailViewModelTest {
 
     private val tripRepository: TripRepository = mockk(relaxed = true)
     private val dataPointDao: DataPointDao = mockk(relaxed = true)
+    private val aiInsightDao: AiInsightDao = mockk(relaxed = true)
+    private val preferenceManager: PreferenceManager = mockk(relaxed = true)
+    private val localEcoCoach: LocalEcoCoach = mockk(relaxed = true)
+    private val geminiManager: GeminiManager = mockk(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
 
     private val dataPointsFlow = MutableStateFlow<List<DataPointEntity>>(emptyList())
@@ -46,7 +54,15 @@ class TripDetailViewModelTest {
         )
 
         val savedStateHandle = SavedStateHandle(mapOf("tripId" to 1L))
-        viewModel = TripDetailViewModel(savedStateHandle, tripRepository, dataPointDao)
+        viewModel = TripDetailViewModel(
+            savedStateHandle,
+            tripRepository,
+            dataPointDao,
+            aiInsightDao,
+            preferenceManager,
+            localEcoCoach,
+            geminiManager
+        )
     }
 
     @After

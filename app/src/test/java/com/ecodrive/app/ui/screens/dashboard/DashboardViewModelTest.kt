@@ -1,12 +1,13 @@
 package com.ecodrive.app.ui.screens.dashboard
 
 import com.ecodrive.app.TestUtils
+import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.remote.SmartcarApiClient
 import com.ecodrive.app.data.remote.SmartcarVehicleData
+import com.ecodrive.app.domain.ai.AiCoachService
 import com.ecodrive.app.domain.model.*
 import com.ecodrive.app.domain.recorder.TripRecorder
 import com.ecodrive.app.sensor.SensorDataManager
-import com.ecodrive.app.util.AudioFeedbackManager
 import com.ecodrive.app.util.PermissionManager
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
@@ -23,8 +24,9 @@ class DashboardViewModelTest {
 
     private val sensorDataManager: SensorDataManager = mockk(relaxed = true)
     private val smartcarApiClient: SmartcarApiClient = mockk(relaxed = true)
-    private val audioFeedbackManager: AudioFeedbackManager = mockk(relaxed = true)
     private val tripRecorder: TripRecorder = mockk(relaxed = true)
+    private val preferenceManager: PreferenceManager = mockk(relaxed = true)
+    private val aiCoachService: AiCoachService = mockk(relaxed = true)
     private val permissionManager: PermissionManager = mockk(relaxed = true)
 
     private val testDispatcher = StandardTestDispatcher()
@@ -36,6 +38,7 @@ class DashboardViewModelTest {
     private val isRecordingFlow = MutableStateFlow(false)
     private val currentMetricsFlow = MutableStateFlow(DrivingMetrics())
     private val currentEcoScoreFlow = MutableStateFlow(EcoScore(overall = 0))
+    private val latestTipFlow = MutableStateFlow<String?>(null)
 
     private lateinit var viewModel: DashboardViewModel
 
@@ -51,10 +54,17 @@ class DashboardViewModelTest {
         every { tripRecorder.isRecording } returns isRecordingFlow
         every { tripRecorder.currentMetrics } returns currentMetricsFlow
         every { tripRecorder.currentEcoScore } returns currentEcoScoreFlow
+        every { tripRecorder.latestTip } returns latestTipFlow
         every { permissionManager.hasRequiredPermissions() } returns true
+        every { preferenceManager.useMetricUnits } returns flowOf(true)
 
         viewModel = DashboardViewModel(
-            sensorDataManager, smartcarApiClient, audioFeedbackManager, tripRecorder, permissionManager
+            sensorDataManager,
+            smartcarApiClient,
+            tripRecorder,
+            preferenceManager,
+            aiCoachService,
+            permissionManager
         )
     }
 

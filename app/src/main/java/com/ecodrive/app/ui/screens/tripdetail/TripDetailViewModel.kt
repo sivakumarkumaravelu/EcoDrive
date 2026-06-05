@@ -4,11 +4,16 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ecodrive.app.data.local.PreferenceManager
+import com.ecodrive.app.data.local.dao.AiInsightDao
 import com.ecodrive.app.data.local.dao.DataPointDao
+import com.ecodrive.app.data.local.entity.AiInsightEntity
 import com.ecodrive.app.data.repository.TripRepository
+import com.ecodrive.app.domain.analyzer.LocalEcoCoach
 import com.ecodrive.app.domain.model.DrivingEvent
 import com.ecodrive.app.domain.model.Trip
 import com.ecodrive.app.ui.components.ChartPoint
+import com.ecodrive.app.util.Constants
+import com.google.ai.client.generativeai.GenerativeModel
 import com.google.android.gms.maps.model.LatLng
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -29,7 +34,10 @@ class TripDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val tripRepository: TripRepository,
     private val dataPointDao: DataPointDao,
+    private val aiInsightDao: AiInsightDao,
     private val preferenceManager: PreferenceManager,
+    private val localEcoCoach: LocalEcoCoach,
+    private val geminiManager: com.ecodrive.app.domain.ai.GeminiManager,
 ) : ViewModel() {
 
     private val tripId: Long = savedStateHandle.get<Long>("tripId") ?: 0L
@@ -45,6 +53,9 @@ class TripDetailViewModel @Inject constructor(
         val events: List<DrivingEvent> = emptyList(),
         val scoreBreakdown: List<Pair<String, Int>> = emptyList(),
         val useMetric: Boolean = true,
+        val aiInsight: String? = null,
+        val isAiLoading: Boolean = false,
+        val aiError: String? = null,
     )
 
     private val _state = MutableStateFlow(TripDetailState())
@@ -71,6 +82,95 @@ class TripDetailViewModel @Inject constructor(
         viewModelScope.launch {
             val trip = tripRepository.getTripById(tripId)
             _state.update { it.copy(trip = trip) }
+            if (trip != null) {
+                generateAiInsight(trip)
+            }
+        }
+    }
+
+    private fun generateAiInsight(trip: Trip) {
+        viewModelScope.launch {
+            _state.update { it.copy(isAiLoading = true, aiError = null) }
+            
+            // Check cache first
+            val cached = aiInsightDao.getInsightForTrip(tripId)
+            if (cached != null) {
+                _state.update { it.copy(aiInsight = cached.insightText, isAiLoading = false) }
+                return@launch
+            }
+
+            val events = state.value.events
+            val apiKey = preferenceManager.geminiApiKey.first()
+            
+            if (apiKey.isBlank()) {
+                val localInsight = localEcoCoach.getInsight(trip, events)
+                _state.update { it.copy(aiInsight = localInsight, isAiLoading = false) }
+                return@launch
+            }
+
+            // Fetch historical averages for context
+            val oneMonthAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
+            val avgScore = tripRepository.getAverageEcoScore(oneMonthAgo)
+            val avgEfficiency = tripRepository.getAverageFuelEfficiency(oneMonthAgo)
+
+            // Prepare telemetry context (peaks and highlights)
+            val maxSpeed = state.value.speedPoints.maxOfOrNull { it.y } ?: 0f
+            val maxAccel = state.value.accelPoints.maxOfOrNull { it.y } ?: 0f
+            val maxBrake = state.value.accelPoints.minOfOrNull { it.y } ?: 0f
+
+            val prompt = """
+                You are an expert Eco-Driving Coach. Analyze the following trip data and provide a rich, 
+                encouraging, and actionable insight for the driver.
+                
+                Trip Summary:
+                - Eco Score: ${trip.ecoScore}/100 (Your 30-day average: ${"%.1f".format(avgScore ?: trip.ecoScore.toDouble())})
+                - Distance: ${"%.1f".format(trip.distanceKm)} km
+                - Duration: ${trip.durationSeconds / 60} minutes
+                - Fuel Consumed: ${"%.2f".format(trip.fuelConsumedLiters)} L
+                - Efficiency: ${"%.2f".format(trip.fuelEfficiencyLPer100Km)} L/100km (Avg: ${"%.2f".format(avgEfficiency ?: trip.fuelEfficiencyLPer100Km)} L/100km)
+                
+                Telemetry Highlights:
+                - Max Speed: ${"%.1f".format(maxSpeed)} km/h
+                - Max Acceleration: ${"%.2f".format(maxAccel)} m/s²
+                - Strongest Braking: ${"%.2f".format(maxBrake)} m/s²
+                
+                Driving Events:
+                ${events.joinToString("\n") { "- ${it.type.name} at ${it.speedAtEvent} km/h: ${it.description}" }}
+                
+                Context:
+                The trip was taken on ${trip.startTime.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("EEEE, MMMM d 'at' HH:mm"))}.
+                
+                Focus on why the score was high or low and what specific behavior to improve or maintain.
+                Compare with historical averages if relevant.
+                Structure your response into these sections:
+                1. Summary (A concise overview of the trip's efficiency)
+                2. Key Moments (Mention specific events or telemetry highlights)
+                3. Improvement Plan (Concrete, actionable steps for the next drive)
+            """.trimIndent()
+
+            val response = geminiManager.generateTripInsight(apiKey, prompt)
+            
+            if (response != null) {
+                // Save to cache
+                aiInsightDao.insertInsight(
+                    AiInsightEntity(
+                        tripId = tripId,
+                        insightText = response,
+                        isAiGenerated = true
+                    )
+                )
+                _state.update { it.copy(aiInsight = response, isAiLoading = false) }
+            } else {
+                // Fallback to local insight on error or null response
+                val localInsight = localEcoCoach.getInsight(trip, events)
+                _state.update { 
+                    it.copy(
+                        aiInsight = localInsight, 
+                        isAiLoading = false,
+                        aiError = "Using local coach (AI unavailable)"
+                    ) 
+                }
+            }
         }
     }
 

@@ -39,6 +39,8 @@ class SettingsViewModel @Inject constructor(
         val odometerKm: Double? = null,
         val isObdEnabled: Boolean = false,
         val autoRecordEnabled: Boolean = false,
+        val geminiApiKey: String = "",
+        val mapsApiKey: String = "",
     )
 
     private val _state = MutableStateFlow(SettingsState())
@@ -88,14 +90,25 @@ class SettingsViewModel @Inject constructor(
                 preferenceManager.autoRecordEnabled,
                 preferenceManager.useMetricUnits,
                 preferenceManager.appTheme,
-                preferenceManager.colorPalette
-            ) { autoRecord, useMetric, appTheme, appPalette ->
+                preferenceManager.colorPalette,
+                preferenceManager.geminiApiKey,
+                preferenceManager.mapsApiKey
+            ) { args: Array<Any> ->
+                val autoRecord = args[0] as Boolean
+                val useMetric = args[1] as Boolean
+                val appTheme = args[2] as AppTheme
+                val appPalette = args[3] as AppColorPalette
+                val geminiApiKey = args[4] as String
+                val mapsApiKey = args[5] as String
+
                 _state.update {
                     it.copy(
                         autoRecordEnabled = autoRecord,
                         useMetric = useMetric,
                         appTheme = appTheme,
-                        appPalette = appPalette
+                        appPalette = appPalette,
+                        geminiApiKey = geminiApiKey,
+                        mapsApiKey = mapsApiKey
                     )
                 }
             }.collect()
@@ -159,6 +172,18 @@ class SettingsViewModel @Inject constructor(
     fun setColorPalette(palette: AppColorPalette) {
         viewModelScope.launch {
             preferenceManager.setColorPalette(palette)
+        }
+    }
+
+    fun updateGeminiApiKey(apiKey: String) {
+        viewModelScope.launch {
+            preferenceManager.setGeminiApiKey(apiKey)
+        }
+    }
+
+    fun updateMapsApiKey(apiKey: String) {
+        viewModelScope.launch {
+            preferenceManager.setMapsApiKey(apiKey)
         }
     }
 }

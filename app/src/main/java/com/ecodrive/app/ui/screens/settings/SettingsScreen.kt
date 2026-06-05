@@ -285,6 +285,60 @@ fun SettingsScreen(
             )
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ── AI Insights (Gemini) ────────────────────────────────
+        SettingsSection(title = "AI Insights (Gemini)", icon = Icons.Filled.AutoAwesome) {
+            Text(
+                text = "Provide your Gemini API key to enable advanced natural-language driving insights.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = state.geminiApiKey,
+                onValueChange = viewModel::updateGeminiApiKey,
+                label = { Text("Gemini API Key") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                ),
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = state.mapsApiKey,
+                onValueChange = viewModel::updateMapsApiKey,
+                label = { Text("Google Maps API Key") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                ),
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Get your free API key at aistudio.google.com",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/"))
+                    context.startActivity(intent)
+                }
+            )
+        }
+
         // ── About ───────────────────────────────────────────────
         SettingsSection(title = "About", icon = Icons.Filled.Info) {
             SettingsInfoRow("App", "EcoDrive v1.1.0")

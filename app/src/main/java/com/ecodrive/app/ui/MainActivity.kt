@@ -36,6 +36,7 @@ import com.ecodrive.app.ui.screens.analytics.AnalyticsScreen
 import com.ecodrive.app.ui.screens.coach.CoachScreen
 import com.ecodrive.app.ui.screens.dashboard.DashboardScreen
 import com.ecodrive.app.ui.screens.dashboard.DashboardViewModel
+import com.ecodrive.app.ui.screens.routeplanner.RoutePlannerScreen
 import com.ecodrive.app.ui.screens.settings.SettingsScreen
 import com.ecodrive.app.ui.screens.tripdetail.TripDetailScreen
 import com.ecodrive.app.ui.screens.trips.TripsScreen
@@ -153,7 +154,9 @@ fun EcoDriveApp() {
             modifier = Modifier.padding(innerPadding),
         ) {
             composable(Screen.Dashboard.route) {
-                DashboardWithPermissions()
+                DashboardWithPermissions(
+                    onPlanRoute = { navController.navigate(Screen.RoutePlanner.route) }
+                )
             }
             composable(Screen.Trips.route) {
                 TripsScreen(
@@ -172,6 +175,12 @@ fun EcoDriveApp() {
                 SettingsScreen()
             }
 
+            composable(Screen.RoutePlanner.route) {
+                RoutePlannerScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
             composable(
                 route = Screen.TripDetail.route,
                 arguments = listOf(
@@ -187,7 +196,7 @@ fun EcoDriveApp() {
 }
 
 @Composable
-fun DashboardWithPermissions() {
+fun DashboardWithPermissions(onPlanRoute: () -> Unit) {
     val viewModel: DashboardViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -208,7 +217,7 @@ fun DashboardWithPermissions() {
             },
         )
     } else {
-        DashboardScreen(viewModel = viewModel)
+        DashboardScreen(viewModel = viewModel, onPlanRoute = onPlanRoute)
     }
 }
 

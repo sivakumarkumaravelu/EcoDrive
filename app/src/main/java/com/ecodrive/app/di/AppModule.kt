@@ -22,6 +22,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import java.time.Clock
 import javax.inject.Qualifier
 import javax.inject.Singleton
 
@@ -40,6 +41,9 @@ object AppModule {
 
     @Provides
     fun provideDefaultDispatcher(): CoroutineDispatcher = Dispatchers.Default
+
+    @Provides
+    fun provideClock(): java.time.Clock = java.time.Clock.systemDefaultZone()
 
     @Provides
     @Singleton
@@ -75,6 +79,9 @@ object AppModule {
     @Provides
     fun provideFuelCalibrationDao(db: EcoDriveDatabase): FuelCalibrationDao = db.fuelCalibrationDao()
 
+    @Provides
+    fun provideAiInsightDao(db: EcoDriveDatabase): AiInsightDao = db.aiInsightDao()
+
     // ── Phone Sensors (Primary Data Source) ─────────────────────
 
     @Provides
@@ -93,7 +100,10 @@ object AppModule {
     @Singleton
     fun provideFuelEstimationEngine(
         fuelCalibrationDao: FuelCalibrationDao,
-    ): FuelEstimationEngine = FuelEstimationEngine(fuelCalibrationDao)
+        geminiManager: com.ecodrive.app.domain.ai.GeminiManager,
+        preferenceManager: com.ecodrive.app.data.local.PreferenceManager,
+        mlModel: com.ecodrive.app.domain.ai.FuelPredictionModel,
+    ): FuelEstimationEngine = FuelEstimationEngine(fuelCalibrationDao, geminiManager, preferenceManager, mlModel)
 
     @Provides
     @Singleton
@@ -102,7 +112,19 @@ object AppModule {
         phoneSensorManager: PhoneSensorManager,
         fuelEngine: FuelEstimationEngine,
         vehicleRepository: VehicleRepository,
-    ): SensorDataManager = SensorDataManager(locationTracker, phoneSensorManager, fuelEngine, vehicleRepository)
+        preferenceManager: com.ecodrive.app.data.local.PreferenceManager,
+        geminiManager: com.ecodrive.app.domain.ai.GeminiManager,
+        clock: java.time.Clock,
+    ): SensorDataManager = SensorDataManager(
+        locationTracker,
+        phoneSensorManager,
+        fuelEngine,
+        vehicleRepository,
+        preferenceManager,
+        geminiManager,
+        clock,
+        Dispatchers.Default
+    )
 
     // ── Smartcar API (Supplementary) ─────────────────────────────
 

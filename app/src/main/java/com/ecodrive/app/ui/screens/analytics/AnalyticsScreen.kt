@@ -121,6 +121,12 @@ fun AnalyticsScreen(
             )
         }
 
+        // ── AI Analytics Narrative ──────────────────────────────
+        AiNarrativeCard(
+            narrative = state.aiSummary,
+            isLoading = state.isAiLoading
+        )
+
         // ── Fuel Savings Highlight ──────────────────────────────
         if (state.fuelSavedEstimate > 0.5) {
             Box(
@@ -316,6 +322,56 @@ fun AnalyticsScreen(
 }
 
 // ── Sub-components ──────────────────────────────────────────────
+
+@Composable
+private fun AiNarrativeCard(
+    narrative: String?,
+    isLoading: Boolean
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(EcoDriveTheme.colors.cardBackground)
+            .padding(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "AI Trends Narrative",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (isLoading) {
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth().height(2.dp),
+                color = MaterialTheme.colorScheme.primary
+            )
+        } else if (narrative != null) {
+            Text(
+                text = narrative,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        } else {
+            Text(
+                text = "Generate insights to see your driving story.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
 
 @Composable
 private fun SummaryCard(

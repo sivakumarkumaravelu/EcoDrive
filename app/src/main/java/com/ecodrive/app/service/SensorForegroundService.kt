@@ -45,6 +45,21 @@ class SensorForegroundService : Service() {
     lateinit var ecoScoreCalculator: EcoScoreCalculator
 
     @Inject
+    lateinit var adaptiveScoreWeights: com.ecodrive.app.domain.ai.AdaptiveScoreWeights
+
+    @Inject
+    lateinit var adaptiveThresholdEngine: com.ecodrive.app.domain.ai.AdaptiveThresholdEngine
+
+    @Inject
+    lateinit var aiCoachService: com.ecodrive.app.domain.ai.AiCoachService
+
+    @Inject
+    lateinit var fatigueDetector: com.ecodrive.app.domain.ai.FatigueDetector
+
+    @Inject
+    lateinit var vehicleRepository: com.ecodrive.app.data.repository.VehicleRepository
+
+    @Inject
     lateinit var audioFeedbackManager: AudioFeedbackManager
 
     @Inject
@@ -63,8 +78,12 @@ class SensorForegroundService : Service() {
     private val _currentEcoScore = MutableStateFlow(EcoScore(overall = 0))
     val currentEcoScore: StateFlow<EcoScore> = _currentEcoScore.asStateFlow()
 
+    private val _latestTip = MutableStateFlow<String?>(null)
+    val latestTip: StateFlow<String?> = _latestTip.asStateFlow()
+
     // Trip State
     private var activeTripId: Long? = null
+    private var vehicleType: com.ecodrive.app.domain.model.VehicleType = com.ecodrive.app.domain.model.VehicleType.ICE
     private var hardBrakes = 0
     private var hardAccels = 0
     private var sharpTurns = 0
@@ -76,6 +95,7 @@ class SensorForegroundService : Service() {
     private var lastTimestampMs = 0L
     private var idleTimeMs = 0L
     private var dataPointCounter = 0
+    private var lastFatigueAlertMs = 0L
 
     inner class LocalBinder : Binder() {
         fun getService(): SensorForegroundService = this@SensorForegroundService
@@ -121,10 +141,18 @@ class SensorForegroundService : Service() {
         
         Log.i(TAG, "Starting trip recording in service")
         resetCounters()
+        aiCoachService.clearContext()
         sensorDataManager.startCollection()
 
         serviceScope.launch {
-            activeTripId = tripRepository.startTrip()
+            val vehicle = vehicleRepository.getDefaultVehicle()
+            vehicleType = vehicle?.vehicleType ?: com.ecodrive.app.domain.model.VehicleType.ICE
+            
+            // Set adaptive thresholds
+            val thresholds = adaptiveThresholdEngine.getPersonalizedThresholds()
+            analyzer.updateThresholds(thresholds)
+
+            activeTripId = tripRepository.startTrip(vehicle?.id ?: 1)
             _isRecording.value = true
         }
     }
@@ -237,6 +265,7 @@ class SensorForegroundService : Service() {
             (idleTimeMs / 1000.0 / tripDuration) * 100.0
         } else 0.0
 
+        val weights = adaptiveScoreWeights.getWeightsForVehicle(vehicleType)
         val ecoScore = ecoScoreCalculator.calculate(
             hardBrakeCount = hardBrakes,
             hardAccelCount = hardAccels,
@@ -247,10 +276,54 @@ class SensorForegroundService : Service() {
             idleTimePercent = idlePercent,
             speedStdDeviation = analyzer.getSpeedStdDeviation(),
             tripDurationMinutes = tripDuration / 60.0,
+            weights = weights
         )
 
         _currentMetrics.value = metrics
         _currentEcoScore.value = ecoScore
+
+        // Fatigue Detection
+        val fatigueStatus = fatigueDetector.analyze(metrics)
+        if (fatigueStatus != com.ecodrive.app.domain.ai.FatigueStatus.NORMAL) {
+            handleFatigue(fatigueStatus)
+        }
+
+        // Real-time AI Coaching
+        aiCoachService.updateContext(metrics)
+        maybeFetchAiTip(metrics, ecoScore)
+    }
+
+    private fun handleFatigue(status: com.ecodrive.app.domain.ai.FatigueStatus) {
+        val now = System.currentTimeMillis()
+        if (now - lastFatigueAlertMs < 60_000L) return // Don't annoy too much
+        
+        lastFatigueAlertMs = now
+        val message = when (status) {
+            com.ecodrive.app.domain.ai.FatigueStatus.HIGH_RISK -> 
+                "⚠️ High fatigue risk detected. Please consider taking a break."
+            com.ecodrive.app.domain.ai.FatigueStatus.MODERATE_RISK -> 
+                "🔔 Your driving patterns suggest reduced focus. Stay alert."
+            else -> ""
+        }
+        
+        if (message.isNotBlank()) {
+            serviceScope.launch(Dispatchers.Main) {
+                audioFeedbackManager.playTip(message)
+            }
+        }
+    }
+
+    private suspend fun maybeFetchAiTip(
+        metrics: DrivingMetrics,
+        ecoScore: EcoScore
+    ) {
+        val tip = aiCoachService.getRealTimeTip(metrics, ecoScore)
+        if (tip != null) {
+            _latestTip.value = tip
+            withContext(Dispatchers.Main) {
+                audioFeedbackManager.playTip("🤖 $tip")
+            }
+        }
     }
 
     private fun createNotificationChannel() {

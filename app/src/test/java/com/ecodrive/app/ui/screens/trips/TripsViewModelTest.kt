@@ -1,6 +1,7 @@
 package com.ecodrive.app.ui.screens.trips
 
 import com.ecodrive.app.TestUtils
+import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.repository.TripRepository
 import com.ecodrive.app.domain.model.Trip
 import com.google.android.gms.maps.model.LatLng
@@ -20,6 +21,7 @@ import java.time.temporal.ChronoUnit
 class TripsViewModelTest {
 
     private val tripRepository: TripRepository = mockk(relaxed = true)
+    private val preferenceManager: PreferenceManager = mockk(relaxed = true)
     private val testDispatcher = StandardTestDispatcher()
 
     private val tripsFlow = MutableStateFlow<List<Trip>>(emptyList())
@@ -38,7 +40,7 @@ class TripsViewModelTest {
         coEvery { tripRepository.getTotalDistance(any()) } returns 200.0
         coEvery { tripRepository.getTotalFuelConsumed(any()) } returns 12.5
 
-        viewModel = TripsViewModel(tripRepository)
+        viewModel = TripsViewModel(tripRepository, preferenceManager)
     }
 
     @After

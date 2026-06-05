@@ -33,6 +33,7 @@ import kotlin.math.abs
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel = hiltViewModel(),
+    onPlanRoute: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -71,11 +72,38 @@ fun DashboardScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // ── Start / Stop Button ─────────────────────────────────
-        RecordButton(
-            isRecording = state.isRecording,
-            onStart = viewModel::startRecording,
-            onStop = viewModel::stopRecording,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RecordButton(
+                isRecording = state.isRecording,
+                onStart = viewModel::startRecording,
+                onStop = viewModel::stopRecording,
+            )
+            
+            if (!state.isRecording) {
+                Spacer(modifier = Modifier.width(12.dp))
+                OutlinedButton(
+                    onClick = onPlanRoute,
+                    shape = RoundedCornerShape(24.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Route,
+                        contentDescription = "Plan Route",
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Plan Route",
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
 

@@ -1,8 +1,12 @@
 package com.ecodrive.app.domain.analyzer
 
+import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.local.dao.FuelCalibrationDao
+import com.ecodrive.app.domain.ai.FuelPredictionModel
+import com.ecodrive.app.domain.ai.GeminiManager
 import com.ecodrive.app.domain.model.*
 import com.ecodrive.app.util.Constants
+import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -16,6 +20,9 @@ class AnalyzersTest {
     private lateinit var fuelEstimationEngine: FuelEstimationEngine
     private lateinit var ecoScoreCalculator: EcoScoreCalculator
     private val fuelCalibrationDao: FuelCalibrationDao = mockk(relaxed = true)
+    private val geminiManager: GeminiManager = mockk(relaxed = true)
+    private val preferenceManager: PreferenceManager = mockk(relaxed = true)
+    private val mlModel: FuelPredictionModel = mockk(relaxed = true)
     
     private val iceVehicle = Vehicle(
         name = "ICE Car",
@@ -52,7 +59,11 @@ class AnalyzersTest {
     @Before
     fun setup() {
         drivingPatternAnalyzer = DrivingPatternAnalyzer()
-        fuelEstimationEngine = FuelEstimationEngine(fuelCalibrationDao)
+        
+        // Mock ML model to return 1.0 by default
+        every { mlModel.predictCorrectionFactor(any(), any(), any(), any()) } returns 1.0
+        
+        fuelEstimationEngine = FuelEstimationEngine(fuelCalibrationDao, geminiManager, preferenceManager, mlModel)
         ecoScoreCalculator = EcoScoreCalculator()
     }
 

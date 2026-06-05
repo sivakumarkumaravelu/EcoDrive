@@ -56,6 +56,11 @@ sealed class Screen(
         fun createRoute(tripId: Long): String = "trip_detail/$tripId"
     }
 
+    data object RoutePlanner : Screen(
+        route = "route_planner",
+        title = "Route Planner",
+    )
+
     companion object {
         val bottomNavItems = listOf(Dashboard, Trips, Analytics, Coach, Settings)
     }

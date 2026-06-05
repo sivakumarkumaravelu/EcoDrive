@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ecodrive.app.domain.model.DrivingEventType
@@ -160,6 +162,15 @@ fun TripDetailScreen(
                 }
             }
 
+            // ── AI Trip Coach Insight ───────────────────────────
+            item {
+                AiInsightCard(
+                    insight = state.aiInsight,
+                    isLoading = state.isAiLoading,
+                    error = state.aiError
+                )
+            }
+
             // ── Trip Summary Header ─────────────────────────────
             item {
                 if (trip != null) {
@@ -276,6 +287,140 @@ fun TripDetailScreen(
             }
 
             item { Spacer(modifier = Modifier.height(16.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun AiInsightCard(
+    insight: String?,
+    isLoading: Boolean,
+    error: String?
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(EcoDriveTheme.colors.cardBackground)
+            .padding(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "AI Trip Coach",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Analyzing your driving style...",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else if (error != null) {
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        } else if (insight != null) {
+            val sections = remember(insight) {
+                insight.split(Regex("(?=\\d\\.\\s|Summary:|Key Moments:|Improvement Plan:)"))
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+            }
+
+            if (sections.size > 1) {
+                sections.forEach { section ->
+                    val isSummary = section.startsWith("Summary") || section.startsWith("1.")
+                    val isKeyMoments = section.startsWith("Key Moments") || section.startsWith("2.")
+                    val isImprovement = section.startsWith("Improvement Plan") || section.startsWith("3.")
+
+                    val (headerText, bodyText) = if (section.contains(":")) {
+                        section.substringBefore(":").replace(Regex("\\d\\.\\s"), "").trim() to 
+                        section.substringAfter(":").trim()
+                    } else if (section.matches(Regex("\\d\\.\\s.*"))) {
+                        section.substringBefore(" ").trim() to section.substringAfter(" ").trim()
+                    } else {
+                        "" to section
+                    }
+
+                    if (headerText.isNotBlank()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                        ) {
+                            val icon = when {
+                                isSummary -> Icons.Filled.HistoryEdu
+                                isKeyMoments -> Icons.Filled.Lightbulb
+                                isImprovement -> Icons.AutoMirrored.Filled.TrendingUp
+                                else -> Icons.Filled.Info
+                            }
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = headerText.uppercase(),
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                ),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    
+                    if (bodyText.isNotBlank()) {
+                        Text(
+                            text = bodyText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = insight,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        } else {
+            Text(
+                text = "Waiting for trip analysis...",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

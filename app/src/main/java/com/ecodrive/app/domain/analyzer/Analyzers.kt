@@ -4,10 +4,14 @@ import android.util.Log
 import com.ecodrive.app.data.local.dao.FuelCalibrationDao
 import com.ecodrive.app.data.local.entity.FuelCalibrationEntity
 import com.ecodrive.app.domain.model.*
+import com.ecodrive.app.domain.ai.GeminiManager
+import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.util.Constants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.*
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
@@ -25,6 +29,11 @@ class DrivingPatternAnalyzer @Inject constructor() {
     private var previousMetrics: DrivingMetrics? = null
     private var idleStartTimeMs: Long? = null
     private val speedHistory = java.util.Collections.synchronizedList(mutableListOf<Double>())
+    private var thresholds = com.ecodrive.app.domain.ai.DrivingThresholds()
+
+    fun updateThresholds(newThresholds: com.ecodrive.app.domain.ai.DrivingThresholds) {
+        thresholds = newThresholds
+    }
 
     fun analyze(metrics: DrivingMetrics, tripId: Long): List<DrivingEvent> {
         val events = mutableListOf<DrivingEvent>()
@@ -35,15 +44,15 @@ class DrivingPatternAnalyzer @Inject constructor() {
             }
         }
 
-        if (metrics.longitudinalAccelMps2 < -Constants.HARD_BRAKE_THRESHOLD) {
+        if (metrics.longitudinalAccelMps2 < -thresholds.hardBrake) {
             events.add(DrivingEvent(tripId = tripId, type = DrivingEventType.HARD_BRAKE, value = metrics.longitudinalAccelMps2, speedAtEvent = metrics.speedKmh, latitude = metrics.latitude, longitude = metrics.longitude, description = "Hard braking: %.1f m/s²".format(metrics.longitudinalAccelMps2)))
         }
 
-        if (metrics.longitudinalAccelMps2 > Constants.HARD_ACCEL_THRESHOLD) {
+        if (metrics.longitudinalAccelMps2 > thresholds.hardAccel) {
             events.add(DrivingEvent(tripId = tripId, type = DrivingEventType.HARD_ACCELERATION, value = metrics.longitudinalAccelMps2, speedAtEvent = metrics.speedKmh, latitude = metrics.latitude, longitude = metrics.longitude, description = "Hard acceleration: +%.1f m/s²".format(metrics.longitudinalAccelMps2)))
         }
 
-        if (abs(metrics.lateralAccelMps2) > Constants.SHARP_TURN_THRESHOLD) {
+        if (abs(metrics.lateralAccelMps2) > thresholds.sharpTurn) {
             events.add(DrivingEvent(tripId = tripId, type = DrivingEventType.SHARP_TURN, value = metrics.lateralAccelMps2, speedAtEvent = metrics.speedKmh, latitude = metrics.latitude, longitude = metrics.longitude, description = "Sharp turn: %.1f m/s² lateral".format(metrics.lateralAccelMps2)))
         }
 
@@ -93,12 +102,17 @@ class DrivingPatternAnalyzer @Inject constructor() {
 @Singleton
 class FuelEstimationEngine @Inject constructor(
     private val fuelCalibrationDao: FuelCalibrationDao,
+    private val geminiManager: GeminiManager,
+    private val preferenceManager: PreferenceManager,
+    private val mlModel: com.ecodrive.app.domain.ai.FuelPredictionModel,
 ) {
     companion object {
         private const val TAG = "FuelEstimationEngine"
     }
 
     private var calibrationFactor = Constants.DEFAULT_CALIBRATION_FACTOR
+    private var aiCorrectionFactor = 1.0
+    private var mlCorrectionFactor = 1.0
     private val calibrationHistory = java.util.Collections.synchronizedList(mutableListOf<FuelCalibrationPoint>())
 
     init {
@@ -118,23 +132,30 @@ class FuelEstimationEngine @Inject constructor(
         }
     }
 
-    /**
-     * Estimate instantaneous fuel consumption rate in L/h.
-     */
     fun estimateFuelRateLPerH(
         speedMps: Double,
         accelerationMps2: Double,
         roadGradePercent: Double,
         vehicle: Vehicle
     ): Double {
+        val speedKmh = speedMps * 3.6
+        
+        // Update ML correction factor
+        mlCorrectionFactor = mlModel.predictCorrectionFactor(
+            speedKmh = speedKmh,
+            accelMps2 = accelerationMps2,
+            gradePercent = roadGradePercent,
+            vehicle = vehicle
+        )
+
         // 1. Idle estimation
         if (speedMps < 0.2) {
             // Idle consumption roughly proportional to displacement: ~0.2 L/h per liter of displacement
-            return (vehicle.engineDisplacementCc / 1000.0) * 0.4 * calibrationFactor
+            return (vehicle.engineDisplacementCc / 1000.0) * 0.4 * calibrationFactor * mlCorrectionFactor
         }
 
         // 2. Physics-based Power (VSP) calculation (Watts per kg)
-        // VSP = v * (a(1+eps) + g*sin(theta) + g*Cr) + (0.5*rho*Cd*A*v^3)/m
+        // ... (rest of the VSP calculation)
         val g = Constants.GRAVITY
         val rho = Constants.AIR_DENSITY
         val eps = Constants.ROTATING_MASS_FACTOR
@@ -159,7 +180,6 @@ class FuelEstimationEngine @Inject constructor(
         }
 
         // Apply low-speed efficiency penalty for ICE, bonus for hybrids
-        val speedKmh = speedMps * 3.6
         if (vehicle.vehicleType == VehicleType.ICE && speedKmh < 40) {
             eta *= (0.6 + 0.4 * (speedKmh / 40.0)) // Efficiency drops at low speeds
         } else if ((vehicle.vehicleType == VehicleType.HYBRID || vehicle.vehicleType == VehicleType.PLUG_IN_HYBRID) && speedKmh < 40) {
@@ -173,8 +193,48 @@ class FuelEstimationEngine @Inject constructor(
 
         val fuelRateLPerH = (powerWatts * 3600.0) / (eta * energyDensityJperL)
 
-        // Apply calibration factor and return
-        return fuelRateLPerH * calibrationFactor
+        // Apply calibration factor, AI correction, and ML correction
+        return fuelRateLPerH * calibrationFactor * aiCorrectionFactor * mlCorrectionFactor
+    }
+
+    fun updateAiCorrection(newFactor: Double) {
+        aiCorrectionFactor = newFactor.coerceIn(0.8, 1.2)
+        Log.d(TAG, "AI Correction Factor updated to: $aiCorrectionFactor")
+    }
+
+    /**
+     * Periodically analyze recent trips with AI to refine the correction factor.
+     */
+    fun performAiRefinement(trips: List<Trip>) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val apiKey = preferenceManager.geminiApiKey.first()
+            if (apiKey.isBlank() || trips.isEmpty()) return@launch
+
+            val prompt = """
+                You are a Vehicle Efficiency Analyst. Analyze the following trip records where we estimated fuel consumption vs physics model defaults.
+                
+                Data:
+                ${trips.joinToString("\n") { "- Trip ${it.id}: Dist=${it.distanceKm}km, Estimated=${it.fuelConsumedLiters}L, Score=${it.ecoScore}" }}
+                
+                Current AI Correction Factor: $aiCorrectionFactor
+                
+                Based on the consistency of the scores and estimated consumption, should we adjust our physics-based estimation factor?
+                Return ONLY a JSON object: {"suggested_factor": float, "reason": "string"}. 
+                Keep the factor between 0.8 and 1.2.
+            """.trimIndent()
+
+            val response = geminiManager.generateTripInsight(apiKey, prompt)
+            response?.let { raw ->
+                try {
+                    val jsonStr = com.ecodrive.app.domain.ai.AiUtils.extractJson(raw) ?: return@let
+                    val json = Json.parseToJsonElement(jsonStr).jsonObject
+                    val factor = json["suggested_factor"]?.jsonPrimitive?.doubleOrNull ?: 1.0
+                    updateAiCorrection(factor)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to parse AI refinement response: ${e.message}")
+                }
+            }
+        }
     }
 
     fun estimateFuelConsumed(fuelRateLPerH: Double, durationSeconds: Double): Double {
@@ -234,6 +294,7 @@ class EcoScoreCalculator @Inject constructor() {
         idleTimePercent: Double,
         speedStdDeviation: Double,
         tripDurationMinutes: Double,
+        weights: com.ecodrive.app.domain.ai.ScoreWeights = com.ecodrive.app.domain.ai.ScoreWeights(),
     ): EcoScore {
         val per10Min = if (tripDurationMinutes > 0) 10.0 / tripDurationMinutes else 1.0
 
@@ -290,12 +351,12 @@ class EcoScoreCalculator @Inject constructor() {
         }
 
         val overall = (
-            accelScore * Constants.WEIGHT_ACCELERATION +
-            brakeScore * Constants.WEIGHT_BRAKING +
-            speedScore * Constants.WEIGHT_SPEED +
-            corneringScore * Constants.WEIGHT_CORNERING +
-            idleScore * Constants.WEIGHT_IDLE +
-            consistencyScore * Constants.WEIGHT_CONSISTENCY
+            accelScore * weights.acceleration +
+            brakeScore * weights.braking +
+            speedScore * weights.speed +
+            corneringScore * weights.cornering +
+            idleScore * weights.idle +
+            consistencyScore * weights.consistency
         ).toInt().coerceIn(0, 100)
 
         return EcoScore(
