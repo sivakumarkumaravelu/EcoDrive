@@ -2,10 +2,12 @@ package com.ecodrive.app.ui.screens.analytics
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.repository.TripRepository
 import com.ecodrive.app.domain.model.Trip
 import com.ecodrive.app.ui.components.ChartPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import java.time.Instant
 import java.time.ZoneId
@@ -22,6 +24,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AnalyticsViewModel @Inject constructor(
     private val tripRepository: TripRepository,
+    private val preferenceManager: PreferenceManager,
 ) : ViewModel() {
 
     data class AnalyticsState(
@@ -47,6 +50,7 @@ class AnalyticsViewModel @Inject constructor(
         val totalDistanceKm: Double = 0.0,
         val totalFuelLiters: Double = 0.0,
         val fuelSavedEstimate: Double = 0.0,
+        val useMetric: Boolean = true,
         // Time range
         val selectedRange: TimeRange = TimeRange.MONTH,
     )
@@ -58,18 +62,20 @@ class AnalyticsViewModel @Inject constructor(
     }
 
     private val _selectedRange = MutableStateFlow(TimeRange.MONTH)
-    
-    val state: StateFlow<AnalyticsState> = _selectedRange
-        .flatMapLatest { range ->
-            tripRepository.getAllTrips().map { allTrips ->
-                val sinceMs = Instant.now().minus(range.days, ChronoUnit.DAYS).toEpochMilli()
-                val trips = allTrips.filter {
-                    it.startTime.toEpochMilli() >= sinceMs && !it.isActive
-                }.sortedBy { it.startTime }
 
-                if (trips.isEmpty()) {
-                    return@map AnalyticsState(isLoading = false, totalTrips = 0, selectedRange = range)
-                }
+    val state: StateFlow<AnalyticsState> = combine(
+        _selectedRange,
+        tripRepository.getAllTrips(),
+        preferenceManager.useMetricUnits
+    ) { range, allTrips, useMetric ->
+        val sinceMs = Instant.now().minus(range.days, ChronoUnit.DAYS).toEpochMilli()
+        val trips = allTrips.filter {
+            it.startTime.toEpochMilli() >= sinceMs && !it.isActive
+        }.sortedBy { it.startTime }
+
+        if (trips.isEmpty()) {
+            return@combine AnalyticsState(isLoading = false, totalTrips = 0, selectedRange = range, useMetric = useMetric)
+        }
 
                 // Eco score trend
                 val ecoTrend = trips.mapIndexed { i, trip ->
@@ -128,14 +134,13 @@ class AnalyticsViewModel @Inject constructor(
                     totalFuelLiters = totalFuel,
                     fuelSavedEstimate = saved,
                     selectedRange = range,
+                    useMetric = useMetric,
                 )
-            }
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = AnalyticsState()
-        )
+            }.stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = AnalyticsState()
+            )
 
     private val dateFormatter = DateTimeFormatter.ofPattern("M/d")
 

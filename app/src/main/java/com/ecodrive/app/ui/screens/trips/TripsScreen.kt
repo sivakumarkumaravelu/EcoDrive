@@ -23,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ecodrive.app.domain.model.EcoRating
 import com.ecodrive.app.domain.model.Trip
 import com.ecodrive.app.ui.theme.*
+import com.ecodrive.app.util.UnitConverter
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -67,6 +68,7 @@ fun TripsScreen(
                 distance = state.weeklyDistance,
                 fuel = state.weeklyFuel,
                 totalTrips = state.totalTrips,
+                useMetric = state.useMetric,
             )
         }
 
@@ -84,6 +86,7 @@ fun TripsScreen(
             TripCard(
                 trip = trip,
                 routePoints = state.tripRoutes[trip.id] ?: emptyList(),
+                useMetric = state.useMetric,
                 onClick = { onTripClick(trip.id) },
                 onDelete = { viewModel.deleteTrip(trip.id) },
             )
@@ -114,6 +117,7 @@ private fun WeeklySummaryCard(
     distance: Double,
     fuel: Double,
     totalTrips: Int,
+    useMetric: Boolean,
 ) {
     Box(
         modifier = Modifier
@@ -161,12 +165,12 @@ private fun WeeklySummaryCard(
                     },
                 )
                 WeeklyStatItem(
-                    value = "%.1f km".format(distance),
+                    value = UnitConverter.formatDistance(distance, useMetric),
                     label = "Distance",
                     color = EcoDriveTheme.colors.gaugeBlue,
                 )
                 WeeklyStatItem(
-                    value = "%.1f L".format(fuel),
+                    value = UnitConverter.formatFuelVolume(fuel, useMetric),
                     label = "Fuel Used",
                     color = EcoDriveTheme.colors.gaugeOrange,
                 )
@@ -205,6 +209,7 @@ private fun WeeklyStatItem(
 private fun TripCard(
     trip: Trip,
     routePoints: List<LatLng>,
+    useMetric: Boolean,
     onClick: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -354,15 +359,15 @@ private fun TripCard(
                 ) {
                     TripDetailItem(
                         icon = Icons.Filled.Straighten,
-                        value = "%.1f km".format(trip.distanceKm),
+                        value = UnitConverter.formatDistance(trip.distanceKm, useMetric),
                     )
                     TripDetailItem(
                         icon = Icons.Filled.Speed,
-                        value = "%.0f km/h avg".format(trip.averageSpeedKmh),
+                        value = UnitConverter.formatSpeed(trip.averageSpeedKmh, useMetric),
                     )
                     TripDetailItem(
                         icon = Icons.Filled.LocalGasStation,
-                        value = "%.2f L".format(trip.fuelConsumedLiters),
+                        value = UnitConverter.formatFuelVolume(trip.fuelConsumedLiters, useMetric),
                     )
                 }
 
@@ -393,7 +398,7 @@ private fun TripCard(
                     if (trip.distanceKm > 0) {
                         val efficiency = (trip.fuelConsumedLiters / trip.distanceKm) * 100
                         Text(
-                            text = "%.1f L/100km".format(efficiency),
+                            text = UnitConverter.formatFuelEfficiency(efficiency, useMetric),
                             style = MaterialTheme.typography.labelSmall,
                             color = when {
                                 efficiency < 7.0 -> EcoDriveTheme.colors.scoreExcellent

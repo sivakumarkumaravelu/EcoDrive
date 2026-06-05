@@ -3,6 +3,7 @@ package com.ecodrive.app.ui.screens.tripdetail
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.local.dao.DataPointDao
 import com.ecodrive.app.data.repository.TripRepository
 import com.ecodrive.app.domain.model.DrivingEvent
@@ -28,6 +29,7 @@ class TripDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val tripRepository: TripRepository,
     private val dataPointDao: DataPointDao,
+    private val preferenceManager: PreferenceManager,
 ) : ViewModel() {
 
     private val tripId: Long = savedStateHandle.get<Long>("tripId") ?: 0L
@@ -42,6 +44,7 @@ class TripDetailViewModel @Inject constructor(
         val routePoints: List<LatLng> = emptyList(),
         val events: List<DrivingEvent> = emptyList(),
         val scoreBreakdown: List<Pair<String, Int>> = emptyList(),
+        val useMetric: Boolean = true,
     )
 
     private val _state = MutableStateFlow(TripDetailState())
@@ -52,7 +55,16 @@ class TripDetailViewModel @Inject constructor(
             loadTrip()
             loadDataPoints()
             loadEvents()
+            observePreferences()
         }
+    }
+
+    private fun observePreferences() {
+        preferenceManager.useMetricUnits
+            .onEach { useMetric ->
+                _state.update { it.copy(useMetric = useMetric) }
+            }
+            .launchIn(viewModelScope)
     }
 
     private fun loadTrip() {

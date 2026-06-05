@@ -23,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ecodrive.app.sensor.SensorDataManager
 import com.ecodrive.app.ui.components.*
 import com.ecodrive.app.ui.theme.*
+import com.ecodrive.app.util.UnitConverter
 import kotlin.math.abs
 
 /**
@@ -111,20 +112,27 @@ fun DashboardScreen(
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            val speed = if (state.useMetric) state.metrics.speedKmh else UnitConverter.kmhToMph(state.metrics.speedKmh)
+            val speedUnit = if (state.useMetric) "km/h" else "mph"
+            
             MetricCard(
                 label = "SPEED",
-                value = "%.0f".format(state.metrics.speedKmh),
-                unit = "km/h",
+                value = "%.0f".format(speed),
+                unit = speedUnit,
                 accentColor = EcoDriveTheme.colors.gaugeBlue,
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(16.dp))
                     .background(EcoDriveTheme.colors.cardBackground),
             )
+            
+            val fuelVal = if (state.useMetric) state.metrics.fuelConsumptionLPer100Km else UnitConverter.l100kmToMpg(state.metrics.fuelConsumptionLPer100Km)
+            val fuelUnit = if (state.useMetric) "L/100km" else "mpg"
+            
             MetricCard(
                 label = "FUEL EST.",
-                value = "%.1f".format(state.metrics.fuelConsumptionLPer100Km),
-                unit = "L/100km",
+                value = if (state.metrics.fuelConsumptionLPer100Km > 0) "%.1f".format(fuelVal) else "—",
+                unit = fuelUnit,
                 accentColor = EcoDriveTheme.colors.gaugeOrange,
                 modifier = Modifier
                     .weight(1f)
@@ -201,15 +209,17 @@ fun DashboardScreen(
                 label = "Duration",
                 value = formatDuration(state.tripDurationSeconds),
             )
+            
             TripStatItem(
                 icon = Icons.Filled.Straighten,
                 label = "Distance",
-                value = "%.1f km".format(state.tripDistanceKm),
+                value = UnitConverter.formatDistance(state.tripDistanceKm, state.useMetric),
             )
+            
             TripStatItem(
                 icon = Icons.Filled.LocalGasStation,
                 label = "Fuel Est.",
-                value = "%.2f L".format(state.fuelConsumedEstimate),
+                value = UnitConverter.formatFuelVolume(state.fuelConsumedEstimate, state.useMetric),
             )
         }
 

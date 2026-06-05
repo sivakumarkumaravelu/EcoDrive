@@ -19,6 +19,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ecodrive.app.ui.components.*
 import com.ecodrive.app.ui.theme.*
+import com.ecodrive.app.util.UnitConverter
 
 /**
  * Analytics dashboard with trend charts, behavior breakdown,
@@ -113,7 +114,7 @@ fun AnalyticsScreen(
             )
             SummaryCard(
                 label = "Distance",
-                value = "%.0f km".format(state.totalDistanceKm),
+                value = UnitConverter.formatDistance(state.totalDistanceKm, state.useMetric),
                 icon = Icons.Filled.Straighten,
                 color = EcoDriveTheme.colors.gaugePurple,
                 modifier = Modifier.weight(1f),
@@ -168,17 +169,20 @@ fun AnalyticsScreen(
         }
 
         // ── Fuel Efficiency Trend ───────────────────────────────
+        val fuelEfficiencyUnit = if (state.useMetric) "L/100km" else "mpg"
         ChartCard(title = "Fuel Efficiency") {
             LineChart(
-                points = state.fuelEfficiencyTrend,
+                points = if (state.useMetric) state.fuelEfficiencyTrend else state.fuelEfficiencyTrend.map {
+                    it.copy(y = UnitConverter.l100kmToMpg(it.y.toDouble()).toFloat())
+                },
                 lineColor = EcoDriveTheme.colors.gaugeOrange,
-                yAxisLabel = "L/100km",
+                yAxisLabel = fuelEfficiencyUnit,
                 xAxisLabels = state.fuelEfficiencyTrend.map { it.label },
                 fillGradient = true,
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Average: %.1f L/100km (EPA: 6.4)".format(state.avgFuelEfficiency),
+                text = "Average: ${UnitConverter.formatFuelEfficiency(state.avgFuelEfficiency, state.useMetric)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -208,11 +212,14 @@ fun AnalyticsScreen(
         // ── Weekly Distance Bar Chart ───────────────────────────
         if (state.weeklyDistances.isNotEmpty()) {
             val gaugeBlue = EcoDriveTheme.colors.gaugeBlue
+            val distanceUnit = if (state.useMetric) "km" else "mi"
             ChartCard(title = "Weekly Distance") {
                 BarChart(
-                    values = state.weeklyDistances,
+                    values = if (state.useMetric) state.weeklyDistances else state.weeklyDistances.map {
+                        it.first to UnitConverter.kmToMiles(it.second.toDouble()).toFloat()
+                    },
                     barColor = { gaugeBlue },
-                    yAxisLabel = "km",
+                    yAxisLabel = distanceUnit,
                 )
             }
         }
@@ -259,9 +266,10 @@ fun AnalyticsScreen(
                     ComparisonItem(
                         label = "🏆 Best Trip",
                         score = trip.ecoScore,
-                        distance = trip.distanceKm,
-                        efficiency = trip.fuelEfficiencyLPer100Km,
+                        distance = if (state.useMetric) trip.distanceKm else UnitConverter.kmToMiles(trip.distanceKm),
+                        efficiency = if (state.useMetric) trip.fuelEfficiencyLPer100Km else UnitConverter.l100kmToMpg(trip.fuelEfficiencyLPer100Km),
                         color = EcoDriveTheme.colors.scoreExcellent,
+                        useMetric = state.useMetric,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -269,9 +277,10 @@ fun AnalyticsScreen(
                     ComparisonItem(
                         label = "📉 Worst Trip",
                         score = trip.ecoScore,
-                        distance = trip.distanceKm,
-                        efficiency = trip.fuelEfficiencyLPer100Km,
+                        distance = if (state.useMetric) trip.distanceKm else UnitConverter.kmToMiles(trip.distanceKm),
+                        efficiency = if (state.useMetric) trip.fuelEfficiencyLPer100Km else UnitConverter.l100kmToMpg(trip.fuelEfficiencyLPer100Km),
                         color = EcoDriveTheme.colors.scorePoor,
+                        useMetric = state.useMetric,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -284,17 +293,20 @@ fun AnalyticsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                FuelStat("Total Used", "%.1f L".format(state.totalFuelLiters), EcoDriveTheme.colors.gaugeOrange)
                 FuelStat(
-                    "Avg L/100km",
-                    "%.1f".format(state.avgFuelEfficiency),
-                    if (state.avgFuelEfficiency < 6.4) EcoDriveTheme.colors.scoreGood else EcoDriveTheme.colors.scoreAverage,
+                    label = "Total Used",
+                    value = UnitConverter.formatFuelVolume(state.totalFuelLiters, state.useMetric),
+                    color = EcoDriveTheme.colors.gaugeOrange
                 )
                 FuelStat(
-                    "vs EPA",
-                    if (state.fuelSavedEstimate > 0) "-%.1f L".format(state.fuelSavedEstimate)
-                    else "+%.1f L".format(-state.fuelSavedEstimate),
-                    if (state.fuelSavedEstimate > 0) EcoDriveTheme.colors.scoreGood else EcoDriveTheme.colors.scorePoor,
+                    label = if (state.useMetric) "Avg L/100km" else "Avg MPG",
+                    value = if (state.useMetric) "%.1f".format(state.avgFuelEfficiency) else "%.1f".format(UnitConverter.l100kmToMpg(state.avgFuelEfficiency)),
+                    color = if (state.avgFuelEfficiency < 6.4) EcoDriveTheme.colors.scoreGood else EcoDriveTheme.colors.scoreAverage,
+                )
+                FuelStat(
+                    label = "Savings Est.",
+                    value = UnitConverter.formatFuelVolume(state.fuelSavedEstimate, state.useMetric),
+                    color = EcoDriveTheme.colors.scoreExcellent
                 )
             }
         }
@@ -385,6 +397,7 @@ private fun ComparisonItem(
     distance: Double,
     efficiency: Double,
     color: Color,
+    useMetric: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -404,8 +417,12 @@ private fun ComparisonItem(
             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurface,
         )
+        
+        val distLabel = if (useMetric) "km" else "mi"
+        val effLabel = if (useMetric) "L/100km" else "mpg"
+        
         Text(
-            text = "%.1f km • %.1f L/100km".format(distance, efficiency),
+            text = "%.1f %s • %.1f %s".format(distance, distLabel, efficiency, effLabel),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

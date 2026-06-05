@@ -20,6 +20,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ecodrive.app.domain.model.DrivingEventType
 import com.ecodrive.app.ui.components.*
 import com.ecodrive.app.ui.theme.*
+import com.ecodrive.app.util.UnitConverter
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -162,7 +163,10 @@ fun TripDetailScreen(
             // ── Trip Summary Header ─────────────────────────────
             item {
                 if (trip != null) {
-                    TripSummaryHeader(trip = trip)
+                    TripSummaryHeader(
+                        trip = trip,
+                        useMetric = state.useMetric
+                    )
                 } else if (state.isLoading) {
                     Box(
                         modifier = Modifier
@@ -185,11 +189,14 @@ fun TripDetailScreen(
             // ── Speed Chart ─────────────────────────────────────
             if (state.speedPoints.isNotEmpty()) {
                 item {
-                    DetailChartCard(title = "Speed", subtitle = "km/h over time") {
+                    val unit = if (state.useMetric) "km/h" else "mph"
+                    DetailChartCard(title = "Speed", subtitle = "$unit over time") {
                         LineChart(
-                            points = state.speedPoints,
+                            points = if (state.useMetric) state.speedPoints else state.speedPoints.map {
+                                it.copy(y = UnitConverter.kmhToMph(it.y.toDouble()).toFloat())
+                            },
                             lineColor = EcoDriveTheme.colors.gaugeBlue,
-                            yAxisLabel = "km/h",
+                            yAxisLabel = unit,
                             minY = 0f,
                         )
                     }
@@ -217,14 +224,17 @@ fun TripDetailScreen(
             // ── Fuel Consumption Chart ──────────────────────────
             if (state.fuelPoints.isNotEmpty()) {
                 item {
+                    val unit = if (state.useMetric) "L/100km" else "mpg"
                     DetailChartCard(
                         title = "Fuel Consumption",
-                        subtitle = "Estimated L/100km",
+                        subtitle = "Estimated $unit",
                     ) {
                         LineChart(
-                            points = state.fuelPoints,
+                            points = if (state.useMetric) state.fuelPoints else state.fuelPoints.map {
+                                it.copy(y = UnitConverter.l100kmToMpg(it.y.toDouble()).toFloat())
+                            },
                             lineColor = EcoDriveTheme.colors.gaugeOrange,
-                            yAxisLabel = "L/100km",
+                            yAxisLabel = unit,
                             minY = 0f,
                         )
                     }
@@ -271,7 +281,10 @@ fun TripDetailScreen(
 }
 
 @Composable
-private fun TripSummaryHeader(trip: com.ecodrive.app.domain.model.Trip) {
+private fun TripSummaryHeader(
+    trip: com.ecodrive.app.domain.model.Trip,
+    useMetric: Boolean,
+) {
     val dateFormatter = remember {
         DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
     }
@@ -319,14 +332,14 @@ private fun TripSummaryHeader(trip: com.ecodrive.app.domain.model.Trip) {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                DetailStat("%.1f km".format(trip.distanceKm), "Distance")
+                DetailStat(UnitConverter.formatDistance(trip.distanceKm, useMetric), "Distance")
                 DetailStat(formatDuration(trip.durationSeconds), "Duration")
-                DetailStat("%.0f km/h".format(trip.averageSpeedKmh), "Avg Speed")
+                DetailStat(UnitConverter.formatSpeed(trip.averageSpeedKmh, useMetric), "Avg Speed")
             }
             Spacer(modifier = Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                DetailStat("%.2f L".format(trip.fuelConsumedLiters), "Fuel")
-                DetailStat("%.0f km/h".format(trip.maxSpeedKmh), "Max Speed")
+                DetailStat(UnitConverter.formatFuelVolume(trip.fuelConsumedLiters, useMetric), "Fuel")
+                DetailStat(UnitConverter.formatSpeed(trip.maxSpeedKmh, useMetric), "Max Speed")
             }
         }
     }

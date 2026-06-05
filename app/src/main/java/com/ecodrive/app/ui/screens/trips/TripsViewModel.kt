@@ -2,6 +2,7 @@ package com.ecodrive.app.ui.screens.trips
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.repository.TripRepository
 import com.ecodrive.app.domain.model.Trip
 import com.google.android.gms.maps.model.LatLng
@@ -19,6 +20,7 @@ import javax.inject.Inject
 @HiltViewModel
 class TripsViewModel @Inject constructor(
     private val tripRepository: TripRepository,
+    private val preferenceManager: PreferenceManager
 ) : ViewModel() {
 
     data class TripsState(
@@ -29,6 +31,7 @@ class TripsViewModel @Inject constructor(
         val weeklyDistance: Double = 0.0,
         val weeklyFuel: Double = 0.0,
         val totalTrips: Int = 0,
+        val useMetric: Boolean = true,
     )
 
     private val _state = MutableStateFlow(TripsState())
@@ -37,6 +40,15 @@ class TripsViewModel @Inject constructor(
     init {
         loadTrips()
         loadWeeklyStats()
+        observePreferences()
+    }
+
+    private fun observePreferences() {
+        preferenceManager.useMetricUnits
+            .onEach { useMetric ->
+                _state.update { it.copy(useMetric = useMetric) }
+            }
+            .launchIn(viewModelScope)
     }
 
     private fun loadTrips() {

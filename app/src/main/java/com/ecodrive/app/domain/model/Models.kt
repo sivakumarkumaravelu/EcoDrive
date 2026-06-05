@@ -209,7 +209,14 @@ enum class SmartcarApiState {
 enum class AppTheme {
     LIGHT,
     DARK,
-    FOLLOW_SYSTEM
+    FOLLOW_SYSTEM;
+
+    fun getDisplayName(): String {
+        return when (this) {
+            FOLLOW_SYSTEM -> "System"
+            else -> name.lowercase().replaceFirstChar { it.uppercase() }
+        }
+    }
 }
 
 /**

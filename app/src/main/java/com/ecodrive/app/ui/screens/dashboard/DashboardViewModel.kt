@@ -2,10 +2,11 @@ package com.ecodrive.app.ui.screens.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ecodrive.app.data.local.PreferenceManager
+import com.ecodrive.app.data.remote.SmartcarApiClient
 import com.ecodrive.app.domain.model.*
 import com.ecodrive.app.domain.recorder.TripRecorder
 import com.ecodrive.app.sensor.SensorDataManager
-import com.ecodrive.app.data.remote.SmartcarApiClient
 import com.ecodrive.app.util.AudioFeedbackManager
 import com.ecodrive.app.util.PermissionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,6 +24,7 @@ class DashboardViewModel @Inject constructor(
     private val smartcarApiClient: SmartcarApiClient,
     private val audioFeedbackManager: AudioFeedbackManager,
     private val tripRecorder: TripRecorder,
+    private val preferenceManager: PreferenceManager,
     val permissionManager: PermissionManager,
 ) : ViewModel() {
 
@@ -45,6 +47,7 @@ class DashboardViewModel @Inject constructor(
         val dataSource: String = "Phone Sensors",
         val needsPermissions: Boolean = false,
         val maxSpeedKmh: Double = 0.0,
+        val useMetric: Boolean = true,
     )
 
     private val _state = MutableStateFlow(DashboardState())
@@ -55,6 +58,15 @@ class DashboardViewModel @Inject constructor(
         observeSensorState()
         observeSmartcarState()
         observeRecorderState()
+        observePreferences()
+    }
+
+    private fun observePreferences() {
+        preferenceManager.useMetricUnits
+            .onEach { useMetric ->
+                _state.update { it.copy(useMetric = useMetric) }
+            }
+            .launchIn(viewModelScope)
     }
 
     // ── Permission Handling ─────────────────────────────────────

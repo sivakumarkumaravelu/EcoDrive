@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -32,6 +33,7 @@ import com.ecodrive.app.data.remote.SmartcarApiClient
 import com.ecodrive.app.domain.model.AppColorPalette
 import com.ecodrive.app.domain.model.AppTheme
 import com.ecodrive.app.ui.theme.*
+import com.ecodrive.app.util.UnitConverter
 
 /**
  * Settings screen with Vehicle API configuration, vehicle info,
@@ -64,7 +66,17 @@ fun SettingsScreen(
         SettingsSection(title = "Display", icon = Icons.Filled.Palette) {
             SettingsRow(
                 label = "Theme & Appearance",
-                subLabel = "${state.appTheme.name.lowercase().replaceFirstChar { it.uppercase() }} • ${state.appPalette.getDisplayName()}",
+                subLabel = "${state.appTheme.getDisplayName()} • ${state.appPalette.getDisplayName()}",
+                onClick = { showAppearanceSheet = true }
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 4.dp),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            SettingsRow(
+                label = "Units of Measurement",
+                subLabel = if (state.useMetric) "Metric (km, liters)" else "Imperial (miles, gallons)",
                 onClick = { showAppearanceSheet = true }
             )
         }
@@ -113,7 +125,7 @@ fun SettingsScreen(
                     SettingsInfoRow("Fuel Level", "%.0f%%".format(it))
                 }
                 state.odometerKm?.let {
-                    SettingsInfoRow("Odometer", "%.0f km".format(it))
+                    SettingsInfoRow("Odometer", UnitConverter.formatDistance(it, state.useMetric))
                 }
                 SettingsInfoRow(
                     "Calibration Factor",
@@ -287,8 +299,10 @@ fun SettingsScreen(
         AppearanceBottomSheet(
             currentTheme = state.appTheme,
             currentPalette = state.appPalette,
+            useMetric = state.useMetric,
             onThemeChange = viewModel::setAppTheme,
             onPaletteChange = viewModel::setColorPalette,
+            onToggleUnits = viewModel::toggleUnits,
             onDismiss = { showAppearanceSheet = false }
         )
     }
@@ -299,8 +313,10 @@ fun SettingsScreen(
 private fun AppearanceBottomSheet(
     currentTheme: AppTheme,
     currentPalette: AppColorPalette,
+    useMetric: Boolean,
     onThemeChange: (AppTheme) -> Unit,
     onPaletteChange: (AppColorPalette) -> Unit,
+    onToggleUnits: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(
@@ -312,8 +328,10 @@ private fun AppearanceBottomSheet(
         AppearanceSelector(
             currentTheme = currentTheme,
             currentPalette = currentPalette,
+            useMetric = useMetric,
             onThemeChange = onThemeChange,
-            onPaletteChange = onPaletteChange
+            onPaletteChange = onPaletteChange,
+            onToggleUnits = onToggleUnits
         )
     }
 }
@@ -323,8 +341,10 @@ private fun AppearanceBottomSheet(
 private fun AppearanceSelector(
     currentTheme: AppTheme,
     currentPalette: AppColorPalette,
+    useMetric: Boolean,
     onThemeChange: (AppTheme) -> Unit,
     onPaletteChange: (AppColorPalette) -> Unit,
+    onToggleUnits: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -334,7 +354,7 @@ private fun AppearanceSelector(
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         Text(
-            text = "Appearance",
+            text = "Appearance & Units",
             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
         )
 
@@ -351,7 +371,34 @@ private fun AppearanceSelector(
                         selected = currentTheme == theme,
                         onClick = { onThemeChange(theme) },
                         shape = SegmentedButtonDefaults.itemShape(index = index, count = AppTheme.entries.size),
-                        label = { Text(theme.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }) }
+                        label = {
+                            Text(
+                                text = theme.getDisplayName(),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    )
+                }
+            }
+        }
+
+        // Unit Selector
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "System of Measurement",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                val options = listOf("Metric", "Imperial")
+                options.forEachIndexed { index, label ->
+                    val isMetric = label == "Metric"
+                    SegmentedButton(
+                        selected = useMetric == isMetric,
+                        onClick = { if (useMetric != isMetric) onToggleUnits() },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                        label = { Text(label) }
                     )
                 }
             }
