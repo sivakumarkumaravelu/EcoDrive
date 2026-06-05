@@ -54,6 +54,7 @@ class SensorDataManager @Inject constructor(
     // Road grade calculation state
     private var previousAltitude: Double? = null
     private var previousDistance: Double = 0.0
+    private var lastTimestampMs: Long = 0L
 
     // IMU readings buffer
     private val imuReadingsBuffer = ArrayDeque<Pair<ImuReading, Long>>()
@@ -101,7 +102,11 @@ class SensorDataManager @Inject constructor(
                     val (bestImu, imuIsFresh) = selectBestImuReading(gpsTimeNs)
                     val imu = bestImu
 
-                    val roadGrade = calculateRoadGrade(gps)
+                    val deltaTimeSec = if (lastTimestampMs > 0) {
+                        (now.toEpochMilli() - lastTimestampMs) / 1000.0
+                    } else 0.0
+                    
+                    val roadGrade = calculateRoadGrade(gps, deltaTimeSec)
 
                     val speedMps = gps.speedKmh / 3.6
                     val accel = if (imuIsFresh && imu != null) imu.longitudinalAccel else 0.0
@@ -121,6 +126,8 @@ class SensorDataManager @Inject constructor(
                     val isIdle = !isMoving && (imu?.longitudinalAccel?.let {
                         kotlin.math.abs(it) < 0.5
                     } ?: true)
+
+                    lastTimestampMs = now.toEpochMilli()
 
                     _metrics.value = DrivingMetrics(
                         timestamp = now,
@@ -156,6 +163,7 @@ class SensorDataManager @Inject constructor(
         _state.value = CollectionState.IDLE
         previousAltitude = null
         previousDistance = 0.0
+        lastTimestampMs = 0L
         imuReadingsBuffer.clear()
         Log.i(TAG, "Sensor data collection stopped")
     }
@@ -195,7 +203,7 @@ class SensorDataManager @Inject constructor(
         return bestReading to bestIsFresh
     }
 
-    private fun calculateRoadGrade(gps: GpsReading): Double {
+    private fun calculateRoadGrade(gps: GpsReading, deltaTimeSec: Double): Double {
         val prevAlt = previousAltitude
         if (gps.altitudeM <= 0.0) {
             previousAltitude = null
@@ -206,7 +214,9 @@ class SensorDataManager @Inject constructor(
             return 0.0
         }
 
-        val distanceIncrement = gps.speedKmh / 3.6 * (Constants.GPS_UPDATE_INTERVAL_MS / 1000.0)
+        if (deltaTimeSec <= 0.0) return 0.0
+
+        val distanceIncrement = gps.speedKmh / 3.6 * deltaTimeSec
         previousDistance += distanceIncrement
 
         return if (previousDistance >= 20.0) {

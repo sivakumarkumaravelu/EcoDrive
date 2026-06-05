@@ -274,6 +274,7 @@ private fun TripCard(
                     GoogleMap(
                         modifier = Modifier.fillMaxSize(),
                         cameraPositionState = cameraPositionState,
+                        googleMapOptionsFactory = { com.google.android.gms.maps.GoogleMapOptions().liteMode(true) },
                         uiSettings = MapUiSettings(
                             zoomControlsEnabled = false,
                             scrollGesturesEnabled = false,

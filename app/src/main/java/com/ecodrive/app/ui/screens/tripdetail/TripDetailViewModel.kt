@@ -64,15 +64,23 @@ class TripDetailViewModel @Inject constructor(
 
     private fun loadDataPoints() {
         viewModelScope.launch {
-            dataPointDao.getDataPointsForTrip(tripId).collect { points ->
-                if (points.isEmpty()) {
+            dataPointDao.getDataPointsForTrip(tripId).collect { allPoints ->
+                if (allPoints.isEmpty()) {
                     _state.update { it.copy(isLoading = false) }
                     return@collect
                 }
 
+                // Sample points if too many (max 500 for charts/map)
+                val points = if (allPoints.size > 500) {
+                    val step = allPoints.size / 500
+                    allPoints.filterIndexed { index, _ -> index % step == 0 }
+                } else {
+                    allPoints
+                }
+
                 val startTime = points.first().timestampEpochMs
 
-                val speedData = points.mapIndexed { i, dp ->
+                val speedData = points.map { dp ->
                     val minutesElapsed = (dp.timestampEpochMs - startTime) / 60000.0
                     ChartPoint(
                         x = minutesElapsed.toFloat(),
@@ -81,7 +89,7 @@ class TripDetailViewModel @Inject constructor(
                     )
                 }
 
-                val accelData = points.mapIndexed { i, dp ->
+                val accelData = points.map { dp ->
                     val minutesElapsed = (dp.timestampEpochMs - startTime) / 60000.0
                     ChartPoint(
                         x = minutesElapsed.toFloat(),
@@ -90,7 +98,7 @@ class TripDetailViewModel @Inject constructor(
                 }
 
                 val fuelData = points.filter { it.fuelConsumptionLPer100Km > 0 }
-                    .mapIndexed { i, dp ->
+                    .map { dp ->
                         val minutesElapsed = (dp.timestampEpochMs - startTime) / 60000.0
                         ChartPoint(
                             x = minutesElapsed.toFloat(),
@@ -98,7 +106,7 @@ class TripDetailViewModel @Inject constructor(
                         )
                     }
 
-                val altData = points.filter { it.altitudeM != 0.0 }.mapIndexed { i, dp ->
+                val altData = points.filter { it.altitudeM != 0.0 }.map { dp ->
                     val minutesElapsed = (dp.timestampEpochMs - startTime) / 60000.0
                     ChartPoint(
                         x = minutesElapsed.toFloat(),
