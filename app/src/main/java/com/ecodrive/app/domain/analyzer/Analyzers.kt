@@ -24,13 +24,15 @@ class DrivingPatternAnalyzer @Inject constructor() {
 
     private var previousMetrics: DrivingMetrics? = null
     private var idleStartTimeMs: Long? = null
-    private var speedHistory = mutableListOf<Double>()
+    private val speedHistory = java.util.Collections.synchronizedList(mutableListOf<Double>())
 
     fun analyze(metrics: DrivingMetrics, tripId: Long): List<DrivingEvent> {
         val events = mutableListOf<DrivingEvent>()
         if (metrics.isMoving) {
             speedHistory.add(metrics.speedKmh)
-            if (speedHistory.size > 120) speedHistory.removeAt(0)
+            synchronized(speedHistory) {
+                while (speedHistory.size > 120) speedHistory.removeAt(0)
+            }
         }
 
         if (metrics.longitudinalAccelMps2 < -Constants.HARD_BRAKE_THRESHOLD) {
@@ -67,10 +69,12 @@ class DrivingPatternAnalyzer @Inject constructor() {
     }
 
     fun getSpeedStdDeviation(): Double {
-        if (speedHistory.size < 10) return 0.0
-        val mean = speedHistory.average()
-        val variance = speedHistory.map { (it - mean) * (it - mean) }.average()
-        return kotlin.math.sqrt(variance)
+        return synchronized(speedHistory) {
+            if (speedHistory.size < 10) return@synchronized 0.0
+            val mean = speedHistory.average()
+            val variance = speedHistory.map { (it - mean) * (it - mean) }.average()
+            kotlin.math.sqrt(variance)
+        }
     }
 
     fun reset() {
@@ -95,7 +99,7 @@ class FuelEstimationEngine @Inject constructor(
     }
 
     private var calibrationFactor = Constants.DEFAULT_CALIBRATION_FACTOR
-    private val calibrationHistory = mutableListOf<FuelCalibrationPoint>()
+    private val calibrationHistory = java.util.Collections.synchronizedList(mutableListOf<FuelCalibrationPoint>())
 
     init {
         loadCalibrationFactorFromDatabase()
@@ -180,21 +184,32 @@ class FuelEstimationEngine @Inject constructor(
     fun addCalibrationPoint(point: FuelCalibrationPoint) {
         if (point.distanceKm < Constants.CALIBRATION_MIN_DISTANCE_KM) return
         if (point.actualFuelLiters <= 0 || point.estimatedFuelLiters <= 0) return
-        calibrationHistory.add(point)
-        while (calibrationHistory.size > Constants.CALIBRATION_WINDOW_TRIPS) {
-            calibrationHistory.removeAt(0)
-        }
-        if (calibrationHistory.size >= 3) {
-            calibrationFactor = calibrationHistory.takeLast(Constants.CALIBRATION_WINDOW_TRIPS).map { it.correctionRatio }.average().coerceIn(0.5, 2.0)
-            persistCalibrationFactorToDatabase()
+        
+        synchronized(calibrationHistory) {
+            calibrationHistory.add(point)
+            while (calibrationHistory.size > Constants.CALIBRATION_WINDOW_TRIPS) {
+                calibrationHistory.removeAt(0)
+            }
+            if (calibrationHistory.size >= 3) {
+                calibrationFactor = calibrationHistory.takeLast(Constants.CALIBRATION_WINDOW_TRIPS)
+                    .map { it.correctionRatio }.average().coerceIn(0.5, 2.0)
+                persistCalibrationFactorToDatabase()
+            }
         }
     }
 
     private fun persistCalibrationFactorToDatabase() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val lastPoint = calibrationHistory.lastOrNull()
-                val entity = FuelCalibrationEntity(tripId = lastPoint?.tripId ?: 0, correctionRatio = calibrationFactor, distanceKm = lastPoint?.distanceKm ?: 0.0, actualFuelLiters = lastPoint?.actualFuelLiters ?: 0.0, estimatedFuelLiters = lastPoint?.estimatedFuelLiters ?: 0.0, timestampEpochMs = System.currentTimeMillis())
+                val lastPoint = synchronized(calibrationHistory) { calibrationHistory.lastOrNull() }
+                val entity = FuelCalibrationEntity(
+                    tripId = lastPoint?.tripId ?: 0,
+                    correctionRatio = calibrationFactor,
+                    distanceKm = lastPoint?.distanceKm ?: 0.0,
+                    actualFuelLiters = lastPoint?.actualFuelLiters ?: 0.0,
+                    estimatedFuelLiters = lastPoint?.estimatedFuelLiters ?: 0.0,
+                    timestampEpochMs = System.currentTimeMillis()
+                )
                 fuelCalibrationDao.insert(entity)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to persist calibration factor: ${e.message}")

@@ -48,7 +48,9 @@ class SensorDataManager @Inject constructor(
     private var collectionJob: Job? = null
 
     // Latest Vehicle API values
+    @Volatile
     private var vehicleFuelPercent: Double? = null
+    @Volatile
     private var vehicleOdometerKm: Double? = null
 
     // Road grade calculation state
@@ -57,7 +59,7 @@ class SensorDataManager @Inject constructor(
     private var lastTimestampMs: Long = 0L
 
     // IMU readings buffer
-    private val imuReadingsBuffer = ArrayDeque<Pair<ImuReading, Long>>()
+    private val imuReadingsBuffer = java.util.Collections.synchronizedList(mutableListOf<Pair<ImuReading, Long>>())
 
     // ── Public API ──────────────────────────────────────────────
 
@@ -87,9 +89,11 @@ class SensorDataManager @Inject constructor(
                     launch {
                         phoneSensorManager.imuFlow().collect { imu ->
                             val now = System.nanoTime()
-                            imuReadingsBuffer.addLast(imu to now)
-                            while (imuReadingsBuffer.size > 10) {
-                                imuReadingsBuffer.removeFirst()
+                            synchronized(imuReadingsBuffer) {
+                                imuReadingsBuffer.add(imu to now)
+                                while (imuReadingsBuffer.size > 10) {
+                                    imuReadingsBuffer.removeAt(0)
+                                }
                             }
                         }
                     }
@@ -176,31 +180,33 @@ class SensorDataManager @Inject constructor(
     // ── Internals ───────────────────────────────────────────────
 
     private fun selectBestImuReading(gpsTimeNs: Long): Pair<ImuReading?, Boolean> {
-        if (imuReadingsBuffer.isEmpty()) return null to false
+        return synchronized(imuReadingsBuffer) {
+            if (imuReadingsBuffer.isEmpty()) return@synchronized null to false
 
-        var bestReading: ImuReading? = null
-        var bestTimeDiffNs = Long.MAX_VALUE
-        var bestIsFresh = false
+            var bestReading: ImuReading? = null
+            var bestTimeDiffNs = Long.MAX_VALUE
+            var bestIsFresh = false
 
-        for ((reading, readingTimeNs) in imuReadingsBuffer) {
-            val timeDiffNs = kotlin.math.abs(gpsTimeNs - readingTimeNs)
-            val isFresh = timeDiffNs < 100_000_000L
+            for ((reading, readingTimeNs) in imuReadingsBuffer) {
+                val timeDiffNs = kotlin.math.abs(gpsTimeNs - readingTimeNs)
+                val isFresh = timeDiffNs < 100_000_000L
 
-            if (timeDiffNs < bestTimeDiffNs && isFresh) {
-                bestReading = reading
-                bestTimeDiffNs = timeDiffNs
-                bestIsFresh = true
+                if (timeDiffNs < bestTimeDiffNs && isFresh) {
+                    bestReading = reading
+                    bestTimeDiffNs = timeDiffNs
+                    bestIsFresh = true
+                }
             }
-        }
 
-        if (bestReading == null && imuReadingsBuffer.isNotEmpty()) {
-            val (latest, latestTimeNs) = imuReadingsBuffer.last()
-            val timeDiffNs = kotlin.math.abs(gpsTimeNs - latestTimeNs)
-            bestReading = latest
-            bestIsFresh = timeDiffNs < 100_000_000L
-        }
+            if (bestReading == null && imuReadingsBuffer.isNotEmpty()) {
+                val (latest, latestTimeNs) = imuReadingsBuffer.last()
+                val timeDiffNs = kotlin.math.abs(gpsTimeNs - latestTimeNs)
+                bestReading = latest
+                bestIsFresh = timeDiffNs < 100_000_000L
+            }
 
-        return bestReading to bestIsFresh
+            bestReading to bestIsFresh
+        }
     }
 
     private fun calculateRoadGrade(gps: GpsReading, deltaTimeSec: Double): Double {

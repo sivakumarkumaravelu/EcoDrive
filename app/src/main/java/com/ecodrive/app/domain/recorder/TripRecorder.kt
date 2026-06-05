@@ -35,16 +35,21 @@ class TripRecorder @Inject constructor(
     val currentEcoScore: StateFlow<EcoScore> = _currentEcoScore.asStateFlow()
 
     private var boundService: SensorForegroundService? = null
+    private var isBound = false
+    private var observationJob: Job? = null
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as SensorForegroundService.LocalBinder
             boundService = binder.getService()
+            isBound = true
             observeService()
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             boundService = null
+            isBound = false
+            observationJob?.cancel()
         }
     }
 
@@ -54,20 +59,41 @@ class TripRecorder @Inject constructor(
     }
 
     private fun bindToService() {
-        val intent = Intent(context, SensorForegroundService::class.java)
-        context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        if (isBound) return
+        try {
+            val intent = Intent(context, SensorForegroundService::class.java)
+            context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to bind to service: ${e.message}")
+        }
+    }
+
+    fun unbindFromService() {
+        if (isBound) {
+            try {
+                context.unbindService(serviceConnection)
+                isBound = false
+                boundService = null
+                observationJob?.cancel()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to unbind service: ${e.message}")
+            }
+        }
     }
 
     private fun observeService() {
-        boundService?.let { service ->
-            scope.launch {
-                service.isRecording.collect { _isRecording.value = it }
-            }
-            scope.launch {
-                service.currentMetrics.collect { _currentMetrics.value = it }
-            }
-            scope.launch {
-                service.currentEcoScore.collect { _currentEcoScore.value = it }
+        observationJob?.cancel()
+        observationJob = scope.launch {
+            boundService?.let { service ->
+                launch {
+                    service.isRecording.collect { _isRecording.value = it }
+                }
+                launch {
+                    service.currentMetrics.collect { _currentMetrics.value = it }
+                }
+                launch {
+                    service.currentEcoScore.collect { _currentEcoScore.value = it }
+                }
             }
         }
     }

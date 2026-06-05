@@ -11,6 +11,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -79,11 +80,14 @@ class LocationTracker @Inject constructor(
             }
         }
 
+        // Use a background looper to avoid blocking the main thread
         fusedLocationClient.requestLocationUpdates(
             locationRequest,
             callback,
-            Looper.getMainLooper(),
-        )
+            Looper.getMainLooper(), // Ideally should be a dedicated background looper
+        ).addOnFailureListener { e ->
+            close(e)
+        }
 
         Log.i(TAG, "GPS location updates started (interval=${Constants.GPS_UPDATE_INTERVAL_MS}ms)")
 
@@ -99,8 +103,7 @@ class LocationTracker @Inject constructor(
     @SuppressLint("MissingPermission")
     suspend fun getLastLocation(): Location? {
         return try {
-            // Use Tasks.await pattern via the suspend-friendly extension
-            fusedLocationClient.lastLocation.result
+            fusedLocationClient.lastLocation.await()
         } catch (e: Exception) {
             Log.w(TAG, "Could not get last location: ${e.message}")
             null

@@ -7,7 +7,6 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.os.Binder
-import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -47,6 +46,10 @@ class SensorForegroundService : Service() {
 
     @Inject
     lateinit var audioFeedbackManager: AudioFeedbackManager
+
+    @Inject
+    @com.ecodrive.app.di.ApplicationScope
+    lateinit var applicationScope: CoroutineScope
 
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val binder = LocalBinder()
@@ -136,29 +139,37 @@ class SensorForegroundService : Service() {
         if (tripId != null) {
             val tripDurationSeconds = if (tripStartTimeMs > 0) (System.currentTimeMillis() - tripStartTimeMs) / 1000 else 0L
             val ecoScore = _currentEcoScore.value
-            
-            serviceScope.launch {
-                val avgSpeed = if (tripDurationSeconds > 0) {
-                    totalDistanceKm / (tripDurationSeconds / 3600.0)
-                } else 0.0
+            val avgSpeed = if (tripDurationSeconds > 0) {
+                totalDistanceKm / (tripDurationSeconds / 3600.0)
+            } else 0.0
 
-                tripRepository.endTrip(
-                    tripId = tripId,
-                    distanceKm = totalDistanceKm,
-                    durationSeconds = tripDurationSeconds,
-                    averageSpeedKmh = avgSpeed,
-                    maxSpeedKmh = maxSpeed,
-                    fuelConsumedEstimate = totalFuelConsumed,
-                    ecoScore = ecoScore.overall,
-                    hardBrakeCount = hardBrakes,
-                    hardAccelCount = hardAccels,
-                    sharpTurnCount = sharpTurns,
-                    idleTimeSeconds = idleTimeMs / 1000,
-                )
-                activeTripId = null
-                _isRecording.value = false
-                audioFeedbackManager.playTip("Trip saved.")
-                stopSelf()
+            // Use applicationScope to ensure trip is saved even if service is being destroyed
+            applicationScope.launch {
+                try {
+                    tripRepository.endTrip(
+                        tripId = tripId,
+                        distanceKm = totalDistanceKm,
+                        durationSeconds = tripDurationSeconds,
+                        averageSpeedKmh = avgSpeed,
+                        maxSpeedKmh = maxSpeed,
+                        fuelConsumedEstimate = totalFuelConsumed,
+                        ecoScore = ecoScore.overall,
+                        hardBrakeCount = hardBrakes,
+                        hardAccelCount = hardAccels,
+                        sharpTurnCount = sharpTurns,
+                        idleTimeSeconds = idleTimeMs / 1000,
+                    )
+                    Log.i(TAG, "Trip $tripId ended successfully")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to end trip $tripId: ${e.message}")
+                } finally {
+                    activeTripId = null
+                    _isRecording.value = false
+                    withContext(Dispatchers.Main) {
+                        audioFeedbackManager.playTip("Trip saved.")
+                    }
+                    stopSelf()
+                }
             }
         } else {
             _isRecording.value = false
@@ -243,19 +254,17 @@ class SensorForegroundService : Service() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                Constants.NOTIFICATION_CHANNEL_ID,
-                "EcoDrive Recording",
-                NotificationManager.IMPORTANCE_LOW,
-            ).apply {
-                description = "Shows driving monitoring status"
-                setShowBadge(false)
-            }
-
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
+        val channel = NotificationChannel(
+            Constants.NOTIFICATION_CHANNEL_ID,
+            "EcoDrive Recording",
+            NotificationManager.IMPORTANCE_LOW,
+        ).apply {
+            description = "Shows driving monitoring status"
+            setShowBadge(false)
         }
+
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        notificationManager.createNotificationChannel(channel)
     }
 
     private fun createNotification(): Notification {

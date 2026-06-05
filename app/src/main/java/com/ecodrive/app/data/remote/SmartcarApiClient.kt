@@ -62,7 +62,9 @@ class SmartcarApiClient @Inject constructor() {
     private val _vehicleData = MutableStateFlow(SmartcarVehicleData())
     val vehicleData: StateFlow<SmartcarVehicleData> = _vehicleData.asStateFlow()
 
+    @Volatile
     private var accessToken: String? = null
+    @Volatile
     private var vehicleId: String? = null
     private var pollingJob: Job? = null
 

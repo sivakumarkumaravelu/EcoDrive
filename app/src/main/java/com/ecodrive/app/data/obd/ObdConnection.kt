@@ -171,7 +171,7 @@ class ObdConnection {
      * Read from the input stream until we get the '>' prompt
      * which indicates the ELM327 is ready for the next command.
      */
-    private fun readResponse(inputStream: InputStream): String {
+    private suspend fun readResponse(inputStream: InputStream): String = withContext(Dispatchers.IO) {
         val buffer = ByteArray(BUFFER_SIZE)
         val response = StringBuilder()
         val startTime = System.currentTimeMillis()
@@ -194,11 +194,11 @@ class ObdConnection {
                     throw IOException("Error reading response: ${e.message}", e)
                 }
             } else {
-                Thread.sleep(10)
+                delay(10)
             }
         }
 
-        return response.toString().trim()
+        response.toString().trim()
     }
 
     /**
