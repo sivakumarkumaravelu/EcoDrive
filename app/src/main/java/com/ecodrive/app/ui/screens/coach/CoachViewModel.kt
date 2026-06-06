@@ -11,7 +11,7 @@ import com.ecodrive.app.domain.model.Badge
 import com.ecodrive.app.domain.model.BadgeType
 import com.ecodrive.app.domain.model.Challenge
 import com.ecodrive.app.domain.model.DrivingEventType
-import com.ecodrive.app.util.AudioFeedbackManager
+import com.ecodrive.app.domain.service.AudioFeedbackManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch

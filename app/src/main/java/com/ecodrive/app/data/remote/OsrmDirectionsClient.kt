@@ -78,9 +78,18 @@ class OsrmDirectionsClient @Inject constructor() : DirectionsClient {
         connection.connectTimeout = 10000
         connection.readTimeout = 10000
         
+        // Add User-Agent as required by some free/open APIs
+        connection.setRequestProperty("User-Agent", "EcoDrive-Android-App")
+        
         if (connection.responseCode != 200) {
-            val errorBody = BufferedReader(InputStreamReader(connection.errorStream)).use { it.readText() }
-            throw Exception("API error: ${connection.responseCode}, Body: $errorBody")
+            val errorBody = try {
+                connection.errorStream?.bufferedReader()?.use { it.readText() }
+            } catch (e: Exception) {
+                null
+            }
+            val message = "OSRM API error: ${connection.responseCode}${if (errorBody != null) ", Body: $errorBody" else ""}"
+            Log.e(TAG, message)
+            throw Exception(message)
         }
         
         return BufferedReader(InputStreamReader(connection.inputStream)).use { it.readText() }

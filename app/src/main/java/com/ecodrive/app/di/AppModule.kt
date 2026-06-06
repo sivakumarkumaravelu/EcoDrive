@@ -17,9 +17,9 @@ import com.ecodrive.app.data.remote.SmartcarApiClient
 import com.ecodrive.app.data.repository.VehicleRepository
 import com.ecodrive.app.domain.analyzer.FuelEstimationEngine
 import com.ecodrive.app.util.AppConfig
-import com.ecodrive.app.sensor.LocationTracker
-import com.ecodrive.app.sensor.PhoneSensorManager
-import com.ecodrive.app.sensor.SensorDataManager
+import com.ecodrive.app.data.sensor.LocationTracker
+import com.ecodrive.app.data.sensor.PhoneSensorManager
+import com.ecodrive.app.data.sensor.SensorDataManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

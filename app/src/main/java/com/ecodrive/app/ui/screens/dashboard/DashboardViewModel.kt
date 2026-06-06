@@ -8,7 +8,7 @@ import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.remote.SmartcarApiClient
 import com.ecodrive.app.domain.model.*
 import com.ecodrive.app.domain.recorder.TripRecorder
-import com.ecodrive.app.sensor.SensorDataManager
+import com.ecodrive.app.data.sensor.SensorDataManager
 import com.ecodrive.app.util.PermissionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*

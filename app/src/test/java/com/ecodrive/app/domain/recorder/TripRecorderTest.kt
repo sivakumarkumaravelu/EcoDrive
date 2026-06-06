@@ -5,8 +5,8 @@ import com.ecodrive.app.TestUtils
 import com.ecodrive.app.data.repository.TripRepository
 import com.ecodrive.app.domain.analyzer.DrivingPatternAnalyzer
 import com.ecodrive.app.domain.analyzer.EcoScoreCalculator
-import com.ecodrive.app.sensor.SensorDataManager
-import com.ecodrive.app.util.AudioFeedbackManager
+import com.ecodrive.app.data.sensor.SensorDataManager
+import com.ecodrive.app.domain.service.AudioFeedbackManager
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi

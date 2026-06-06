@@ -1,4 +1,4 @@
-package com.ecodrive.app.sensor
+package com.ecodrive.app.data.sensor
 
 import android.content.Context
 import android.hardware.Sensor

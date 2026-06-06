@@ -7,7 +7,7 @@ import com.ecodrive.app.data.remote.SmartcarVehicleData
 import com.ecodrive.app.domain.ai.service.AiCoachService
 import com.ecodrive.app.domain.model.*
 import com.ecodrive.app.domain.recorder.TripRecorder
-import com.ecodrive.app.sensor.SensorDataManager
+import com.ecodrive.app.data.sensor.SensorDataManager
 import com.ecodrive.app.util.PermissionManager
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers

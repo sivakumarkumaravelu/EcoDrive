@@ -1,4 +1,4 @@
-package com.ecodrive.app.sensor
+package com.ecodrive.app.data.sensor
 
 import android.util.Log
 import com.ecodrive.app.data.local.PreferenceManager
@@ -12,6 +12,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.time.Clock
 import java.time.Instant
+import java.util.ArrayDeque
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -63,8 +64,8 @@ class SensorDataManager @Inject constructor(
     private var previousDistance: Double = 0.0
     private var lastTimestampMs: Long = 0L
 
-    // IMU readings buffer
-    private val imuReadingsBuffer = java.util.Collections.synchronizedList(mutableListOf<Pair<ImuReading, Long>>())
+    // IMU readings buffer - Performance Optimization: Use ArrayDeque for O(1) removals
+    private val imuReadingsBuffer = ArrayDeque<Pair<ImuReading, Long>>(15)
 
     // ── Public API ──────────────────────────────────────────────
 
@@ -95,9 +96,9 @@ class SensorDataManager @Inject constructor(
                         phoneSensorManager.imuFlow().collect { imu ->
                             val now = System.nanoTime()
                             synchronized(imuReadingsBuffer) {
-                                imuReadingsBuffer.add(imu to now)
-                                while (imuReadingsBuffer.size > 10) {
-                                    imuReadingsBuffer.removeAt(0)
+                                imuReadingsBuffer.addLast(imu to now)
+                                if (imuReadingsBuffer.size > 12) {
+                                    imuReadingsBuffer.removeFirst()
                                 }
                             }
                         }

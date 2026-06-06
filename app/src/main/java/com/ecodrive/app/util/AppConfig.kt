@@ -7,6 +7,9 @@ object AppConfig {
     /**
      * Google Maps API Key for Geocoding, Directions, and Maps SDK.
      * Hardcoded here as per requirement.
+     * 
+     * NOTE: If you get a 403 Forbidden error, ensure that BOTH 'Directions API' 
+     * and 'Elevation API' are enabled in your Google Cloud Console for this key.
      */
     const val MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY_HERE"
 

@@ -22,9 +22,9 @@ import com.ecodrive.app.domain.analyzer.EcoScoreCalculator
 import com.ecodrive.app.domain.model.DrivingEventType
 import com.ecodrive.app.domain.model.DrivingMetrics
 import com.ecodrive.app.domain.model.EcoScore
-import com.ecodrive.app.sensor.SensorDataManager
+import com.ecodrive.app.data.sensor.SensorDataManager
 import com.ecodrive.app.ui.MainActivity
-import com.ecodrive.app.util.AudioFeedbackManager
+import com.ecodrive.app.domain.service.AudioFeedbackManager
 import com.ecodrive.app.util.Constants
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
@@ -106,6 +106,10 @@ class SensorForegroundService : Service() {
     private var dataPointCounter = 0
     private var lastFatigueAlertMs = 0L
 
+    // Performance Optimization: Batching data points
+    private val dataPointBatch = mutableListOf<DrivingMetrics>()
+    private val BATCH_SIZE = 20
+
     inner class LocalBinder : Binder() {
         fun getService(): SensorForegroundService = this@SensorForegroundService
     }
@@ -175,6 +179,15 @@ class SensorForegroundService : Service() {
 
         val tripId = activeTripId
         if (tripId != null) {
+            // Save remaining batched points
+            if (dataPointBatch.isNotEmpty()) {
+                val finalBatch = ArrayList(dataPointBatch)
+                dataPointBatch.clear()
+                applicationScope.launch(Dispatchers.IO) {
+                    tripRepository.saveDataPointBatch(tripId, finalBatch)
+                }
+            }
+
             val tripDurationSeconds = if (tripStartTimeMs > 0) (System.currentTimeMillis() - tripStartTimeMs) / 1000 else 0L
             val ecoScore = _currentEcoScore.value
             val avgSpeed = if (tripDurationSeconds > 0) {
@@ -277,8 +290,17 @@ class SensorForegroundService : Service() {
         }
 
         dataPointCounter++
-        if (dataPointCounter % 5 == 0 && tripId > 0) {
-            tripRepository.saveDataPoint(tripId, metrics)
+        
+        // Performance Optimization: Batch database writes
+        if (tripId > 0) {
+            dataPointBatch.add(metrics)
+            if (dataPointBatch.size >= BATCH_SIZE) {
+                val batchToSave = ArrayList(dataPointBatch)
+                dataPointBatch.clear()
+                serviceScope.launch(Dispatchers.IO) {
+                    tripRepository.saveDataPointBatch(tripId, batchToSave)
+                }
+            }
         }
 
         val tripDuration = if (tripStartTimeMs > 0) (now - tripStartTimeMs) / 1000 else 0L

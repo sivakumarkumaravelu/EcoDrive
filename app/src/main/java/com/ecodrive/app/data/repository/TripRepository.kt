@@ -124,6 +124,28 @@ class TripRepository @Inject constructor(
     // ── Data Point Storage ──────────────────────────────────────
 
     /**
+     * Save a batch of driving metrics snapshots.
+     */
+    suspend fun saveDataPointBatch(tripId: Long, metricsList: List<DrivingMetrics>) {
+        val entities = metricsList.map { metrics ->
+            DataPointEntity(
+                tripId = tripId,
+                timestampEpochMs = metrics.timestamp.toEpochMilli(),
+                speedKmh = metrics.speedKmh,
+                latitude = metrics.latitude,
+                longitude = metrics.longitude,
+                altitudeM = metrics.altitudeM,
+                longitudinalAccelMps2 = metrics.longitudinalAccelMps2,
+                lateralAccelMps2 = metrics.lateralAccelMps2,
+                fuelRateEstimateLPerH = metrics.fuelRateLPerH,
+                fuelConsumptionLPer100Km = metrics.fuelConsumptionLPer100Km,
+                roadGradePercent = metrics.roadGradePercent,
+            )
+        }
+        dataPointDao.insertDataPoints(entities)
+    }
+
+    /**
      * Save a driving metrics snapshot as a data point for later analysis.
      */
     suspend fun saveDataPoint(tripId: Long, metrics: DrivingMetrics) {

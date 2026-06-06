@@ -3,7 +3,7 @@ package com.ecodrive.app.domain.ai.config
 /**
  * Configuration for AI providers.
  * API keys should be provided via build-time secrets or environment variables.
- * Placeholders are used here for demonstration.
+ * For local development, place your keys here.
  */
 object AiConfig {
     const val GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"

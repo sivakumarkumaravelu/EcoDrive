@@ -51,7 +51,7 @@ class GoogleMapsServicesClient @Inject constructor() : DirectionsClient {
                     "&destination=${destination.latitude},${destination.longitude}" +
                     "&alternatives=true&key=$key"
             
-            val response = makeRequest(urlString)
+            val response = makeRequest(urlString, "Directions")
             val json = JSONObject(response)
             
             if (json.getString("status") != "OK") {
@@ -104,7 +104,7 @@ class GoogleMapsServicesClient @Inject constructor() : DirectionsClient {
             val pathStr = sampledPoints.joinToString("|") { "${it.latitude},${it.longitude}" }
             val urlString = "$ELEVATION_BASE_URL?locations=$pathStr&key=$key"
             
-            val response = makeRequest(urlString)
+            val response = makeRequest(urlString, "Elevation")
             val json = JSONObject(response)
             
             if (json.getString("status") != "OK") {
@@ -123,7 +123,7 @@ class GoogleMapsServicesClient @Inject constructor() : DirectionsClient {
         }
     }
 
-    private fun makeRequest(urlString: String): String {
+    private fun makeRequest(urlString: String, apiName: String): String {
         val url = URL(urlString)
         val connection = url.openConnection() as HttpURLConnection
         connection.requestMethod = "GET"
@@ -131,7 +131,14 @@ class GoogleMapsServicesClient @Inject constructor() : DirectionsClient {
         connection.readTimeout = 10000
         
         if (connection.responseCode != 200) {
-            throw Exception("API error: ${connection.responseCode}")
+            val errorBody = try {
+                connection.errorStream?.bufferedReader()?.use { it.readText() }
+            } catch (e: Exception) {
+                null
+            }
+            val message = "Google Maps $apiName API error: ${connection.responseCode}${if (errorBody != null) ", Body: $errorBody" else ""}"
+            Log.e(TAG, message)
+            throw Exception(message)
         }
         
         return BufferedReader(InputStreamReader(connection.inputStream)).use { it.readText() }

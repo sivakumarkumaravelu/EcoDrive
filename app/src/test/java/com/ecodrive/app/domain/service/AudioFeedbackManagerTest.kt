@@ -1,4 +1,4 @@
-package com.ecodrive.app.util
+package com.ecodrive.app.domain.service
 
 import android.content.Context
 import android.speech.tts.TextToSpeech

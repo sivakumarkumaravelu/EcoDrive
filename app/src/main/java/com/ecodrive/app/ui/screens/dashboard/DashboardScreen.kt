@@ -8,7 +8,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Eco
+import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.TurnRight
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,7 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.ecodrive.app.sensor.SensorDataManager
+import com.ecodrive.app.data.sensor.SensorDataManager
 import com.ecodrive.app.ui.components.*
 import com.ecodrive.app.ui.theme.*
 import com.ecodrive.app.util.UnitConverter
@@ -37,6 +46,24 @@ fun DashboardScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
+    // Performance Optimization: Use derivedStateOf for values that don't need to update every frame
+    val connectionStatusText by remember {
+        derivedStateOf {
+            when {
+                state.isRecording -> state.dataSource
+                state.sensorState == SensorDataManager.CollectionState.ERROR ->
+                    state.errorMessage ?: "Sensor Error"
+                else -> "Ready to record"
+            }
+        }
+    }
+    
+    val isConnected by remember {
+        derivedStateOf {
+            state.sensorState == SensorDataManager.CollectionState.COLLECTING
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -46,13 +73,8 @@ fun DashboardScreen(
     ) {
         // ── Connection Status Bar ───────────────────────────────
         ConnectionStatusBar(
-            isConnected = state.sensorState == SensorDataManager.CollectionState.COLLECTING,
-            statusText = when {
-                state.isRecording -> state.dataSource
-                state.sensorState == SensorDataManager.CollectionState.ERROR ->
-                    state.errorMessage ?: "Sensor Error"
-                else -> "Ready to record"
-            },
+            isConnected = isConnected,
+            statusText = connectionStatusText,
         )
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -134,91 +156,19 @@ fun DashboardScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         // ── Live Metric Cards — Row 1 ───────────────────────────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            val speed = if (state.useMetric) state.metrics.speedKmh else UnitConverter.kmhToMph(state.metrics.speedKmh)
-            val speedUnit = if (state.useMetric) "km/h" else "mph"
-            
-            MetricCard(
-                label = "SPEED",
-                value = "%.0f".format(speed),
-                unit = speedUnit,
-                accentColor = EcoDriveTheme.colors.gaugeBlue,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(EcoDriveTheme.colors.cardBackground),
-            )
-            
-            val fuelVal = if (state.useMetric) state.metrics.fuelConsumptionLPer100Km else UnitConverter.l100kmToMpg(state.metrics.fuelConsumptionLPer100Km)
-            val fuelUnit = if (state.useMetric) "L/100km" else "mpg"
-            
-            MetricCard(
-                label = "FUEL EST.",
-                value = if (state.metrics.fuelConsumptionLPer100Km > 0) "%.1f".format(fuelVal) else "—",
-                unit = fuelUnit,
-                accentColor = EcoDriveTheme.colors.gaugeOrange,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(EcoDriveTheme.colors.cardBackground),
-            )
-            MetricCard(
-                label = "G-FORCE",
-                value = "%.1f".format(abs(state.metrics.longitudinalAccelMps2) / 9.81),
-                unit = "g",
-                accentColor = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(EcoDriveTheme.colors.cardBackground),
-            )
-        }
+        MetricsRow1(
+            metrics = state.metrics,
+            useMetric = state.useMetric,
+        )
 
         Spacer(modifier = Modifier.height(12.dp))
 
         // ── Live Metric Cards — Row 2 ───────────────────────────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            MetricCard(
-                label = "LATERAL",
-                value = "%.1f".format(abs(state.metrics.lateralAccelMps2)),
-                unit = "m/s²",
-                accentColor = EcoDriveTheme.colors.gaugePurple,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(EcoDriveTheme.colors.cardBackground),
-            )
-            MetricCard(
-                label = "GRADE",
-                value = "%.1f".format(state.metrics.roadGradePercent),
-                unit = "%",
-                accentColor = EcoDriveTheme.colors.scoreAverage,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(EcoDriveTheme.colors.cardBackground),
-            )
-            MetricCard(
-                label = "FUEL TANK",
-                value = state.metrics.fuelTankPercent?.let { "%.0f".format(it) } ?: "—",
-                unit = if (state.metrics.fuelTankPercent != null) "%" else "N/A",
-                accentColor = EcoDriveTheme.colors.gaugeBlue,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(EcoDriveTheme.colors.cardBackground),
-            )
-        }
+        MetricsRow2(
+            metrics = state.metrics,
+            useMetric = state.useMetric,
+            durationSeconds = state.tripDurationSeconds,
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -319,6 +269,105 @@ fun DashboardScreen(
 }
 
 // ── Sub-components ──────────────────────────────────────────────
+
+/**
+ * Extracted composables for metrics to limit recomposition scope.
+ */
+@Composable
+private fun MetricsRow1(
+    metrics: com.ecodrive.app.domain.model.DrivingMetrics,
+    useMetric: Boolean,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        val speed = if (useMetric) metrics.speedKmh else com.ecodrive.app.util.UnitConverter.kmhToMph(metrics.speedKmh)
+        val speedUnit = if (useMetric) "km/h" else "mph"
+        
+        MetricCard(
+            label = "SPEED",
+            value = "%.0f".format(speed),
+            unit = speedUnit,
+            accentColor = EcoDriveTheme.colors.gaugeBlue,
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(EcoDriveTheme.colors.cardBackground),
+        )
+        
+        val fuelVal = if (useMetric) metrics.fuelConsumptionLPer100Km else com.ecodrive.app.util.UnitConverter.l100kmToMpg(metrics.fuelConsumptionLPer100Km)
+        val fuelUnit = if (useMetric) "L/100km" else "mpg"
+        
+        MetricCard(
+            label = "FUEL EST.",
+            value = if (metrics.fuelConsumptionLPer100Km > 0) "%.1f".format(fuelVal) else "—",
+            unit = fuelUnit,
+            accentColor = EcoDriveTheme.colors.gaugeOrange,
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(EcoDriveTheme.colors.cardBackground),
+        )
+        MetricCard(
+            label = "G-FORCE",
+            value = "%.1f".format(kotlin.math.abs(metrics.longitudinalAccelMps2) / 9.81),
+            unit = "g",
+            accentColor = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(EcoDriveTheme.colors.cardBackground),
+        )
+    }
+}
+
+@Composable
+private fun MetricsRow2(
+    metrics: com.ecodrive.app.domain.model.DrivingMetrics,
+    useMetric: Boolean,
+    durationSeconds: Long,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        MetricCard(
+            label = "TIME",
+            value = formatDuration(durationSeconds),
+            unit = "",
+            accentColor = EcoDriveTheme.colors.gaugePurple,
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(EcoDriveTheme.colors.cardBackground),
+        )
+        MetricCard(
+            label = "ALTITUDE",
+            value = "%.0f".format(metrics.altitudeM),
+            unit = "m",
+            accentColor = EcoDriveTheme.colors.gaugeGreen,
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(EcoDriveTheme.colors.cardBackground),
+        )
+        MetricCard(
+            label = "GRADE",
+            value = "%.1f".format(metrics.roadGradePercent),
+            unit = "%",
+            accentColor = EcoDriveTheme.colors.gaugeOrange,
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(EcoDriveTheme.colors.cardBackground),
+        )
+    }
+}
 
 @Composable
 private fun RecordButton(

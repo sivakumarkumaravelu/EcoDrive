@@ -6,7 +6,7 @@ import com.ecodrive.app.data.repository.TripRepository
 import com.ecodrive.app.domain.ai.service.AiManager
 import com.ecodrive.app.domain.model.DrivingEventType
 import com.ecodrive.app.domain.model.Trip
-import com.ecodrive.app.util.AudioFeedbackManager
+import com.ecodrive.app.domain.service.AudioFeedbackManager
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi

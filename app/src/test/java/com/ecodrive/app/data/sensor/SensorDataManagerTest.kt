@@ -1,4 +1,4 @@
-package com.ecodrive.app.sensor
+package com.ecodrive.app.data.sensor
 
 import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.repository.VehicleRepository
