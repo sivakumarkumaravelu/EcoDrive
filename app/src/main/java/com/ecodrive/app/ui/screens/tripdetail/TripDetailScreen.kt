@@ -36,6 +36,9 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
+import com.ecodrive.app.ui.components.EcoMap
+import com.ecodrive.app.ui.components.EcoMarker
+import com.ecodrive.app.ui.components.EcoPolyline
 
 /**
  * Detailed view of a single trip with speed, acceleration,
@@ -102,62 +105,33 @@ fun TripDetailScreen(
             // ── Route Map ───────────────────────────────────────
             if (state.routePoints.isNotEmpty()) {
                 item {
-                    val cameraPositionState = rememberCameraPositionState {
-                        val firstPoint = state.routePoints.first()
-                        position = CameraPosition.fromLatLngZoom(firstPoint, 14f)
-                    }
-
-                    LaunchedEffect(state.routePoints) {
-                        if (state.routePoints.size > 1) {
-                            val bounds = LatLngBounds.builder().apply {
-                                state.routePoints.forEach { include(it) }
-                            }.build()
-                            cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(bounds, 100))
-                        }
-                    }
-
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(300.dp)
                             .clip(RoundedCornerShape(16.dp))
                     ) {
-                        GoogleMap(
-                            modifier = Modifier.fillMaxSize(),
-                            cameraPositionState = cameraPositionState,
-                            uiSettings = MapUiSettings(
-                                zoomControlsEnabled = true,
-                                scrollGesturesEnabled = true,
-                                zoomGesturesEnabled = true
-                            )
-                        ) {
-                            Polyline(
-                                points = state.routePoints,
-                                color = MaterialTheme.colorScheme.primary,
-                                width = 12f
-                            )
-
-                            // Start and End Markers
-                            Marker(
-                                state = MarkerState(position = state.routePoints.first()),
-                                title = "Start",
-                                snippet = "Trip started"
-                            )
-                            Marker(
-                                state = MarkerState(position = state.routePoints.last()),
-                                title = "End",
-                                snippet = "Trip ended"
-                            )
-
-                            // Event Markers
-                            state.events.filter { it.latitude != 0.0 && it.longitude != 0.0 }.forEach { event ->
-                                Marker(
-                                    state = MarkerState(position = LatLng(event.latitude, event.longitude)),
-                                    title = event.type.name.replace("_", " "),
-                                    snippet = event.description,
-                                )
-                            }
+                        val markers = mutableListOf(
+                            EcoMarker(state.routePoints.first(), "Start"),
+                            EcoMarker(state.routePoints.last(), "End")
+                        )
+                        state.events.filter { it.latitude != 0.0 && it.longitude != 0.0 }.forEach { event ->
+                            markers.add(EcoMarker(LatLng(event.latitude, event.longitude), event.type.name.replace("_", " ")))
                         }
+
+                        EcoMap(
+                            modifier = Modifier.fillMaxSize(),
+                            initialCenter = state.routePoints.first(),
+                            initialZoom = 12f,
+                            markers = markers,
+                            polylines = listOf(
+                                EcoPolyline(
+                                    points = state.routePoints,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    width = 12f
+                                )
+                            )
+                        )
                     }
                 }
             }

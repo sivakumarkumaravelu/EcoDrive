@@ -5,9 +5,11 @@ import com.ecodrive.app.domain.ai.analyzer.RouteInsightGenerator
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ecodrive.app.data.local.PreferenceManager
+import com.ecodrive.app.data.remote.DirectionsClient
 import com.ecodrive.app.data.remote.GoogleMapsServicesClient
 import com.ecodrive.app.data.repository.VehicleRepository
 import com.ecodrive.app.domain.analyzer.RouteOptimizer
+import com.ecodrive.app.domain.model.MapRoute
 import com.ecodrive.app.domain.model.Vehicle
 import com.ecodrive.app.util.AppConfig
 import com.google.android.gms.maps.model.LatLng
@@ -22,7 +24,8 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class RoutePlannerViewModel @Inject constructor(
-    private val mapsClient: GoogleMapsServicesClient,
+    private val directionsClient: DirectionsClient,
+    private val mapsClient: GoogleMapsServicesClient, // Still needed for elevations if using Google
     private val routeOptimizer: RouteOptimizer,
     private val vehicleRepository: VehicleRepository,
     private val preferenceManager: PreferenceManager,
@@ -30,7 +33,7 @@ class RoutePlannerViewModel @Inject constructor(
 ) : ViewModel() {
 
     data class RouteWithMetrics(
-        val route: GoogleMapsServicesClient.RouteOption,
+        val route: MapRoute,
         val metrics: RouteOptimizer.RouteEcoMetrics
     )
 
@@ -66,7 +69,7 @@ class RoutePlannerViewModel @Inject constructor(
     }
 
     fun findRoutes(origin: LatLng, destName: String) {
-        if (AppConfig.MAPS_API_KEY.isBlank() || AppConfig.MAPS_API_KEY == "YOUR_GOOGLE_MAPS_API_KEY_HERE") {
+        if (AppConfig.USE_GOOGLE_MAPS && (AppConfig.MAPS_API_KEY.isBlank() || AppConfig.MAPS_API_KEY == "YOUR_GOOGLE_MAPS_API_KEY_HERE")) {
             _state.update { it.copy(error = "Google Maps API Key not configured in AppConfig") }
             return
         }
@@ -74,7 +77,7 @@ class RoutePlannerViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null, origin = origin) }
             
-            // AI-assisted Geocoding
+            // AI-assisted Geocoding (simplified for now)
             val latLngStr = routeInsightGenerator.resolveDestination(destName, "${origin.latitude},${origin.longitude}")
             val destinationLatLng = if (latLngStr != null && latLngStr != "null") {
                 try {
@@ -89,10 +92,15 @@ class RoutePlannerViewModel @Inject constructor(
             
             val vehicle = vehicleRepository.getDefaultVehicle() ?: Vehicle()
             
-            mapsClient.getRoutes(origin, destinationLatLng, AppConfig.MAPS_API_KEY).onSuccess { routes ->
+            directionsClient.getRoutes(origin, destinationLatLng, AppConfig.MAPS_API_KEY).onSuccess { routes ->
                 val routesWithMetrics = routes.map { route ->
-                    val elevations = mapsClient.getElevations(route.points, AppConfig.MAPS_API_KEY)
-                        .getOrDefault(emptyList())
+                    // Elevation is only fetched if using Google Maps for now, 
+                    // as it requires a Google API key anyway.
+                    val elevations = if (AppConfig.USE_GOOGLE_MAPS) {
+                        mapsClient.getElevations(route.points, AppConfig.MAPS_API_KEY).getOrDefault(emptyList())
+                    } else {
+                        emptyList()
+                    }
                     
                     val metrics = routeOptimizer.calculateEcoMetrics(route, elevations, vehicle)
                     RouteWithMetrics(route, metrics)

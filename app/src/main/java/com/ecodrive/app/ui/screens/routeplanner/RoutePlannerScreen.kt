@@ -19,6 +19,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ecodrive.app.ui.components.EcoMap
+import com.ecodrive.app.ui.components.EcoMarker
+import com.ecodrive.app.ui.components.EcoPolyline
 import com.ecodrive.app.ui.theme.EcoDriveTheme
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -72,44 +75,26 @@ fun RoutePlannerScreen(
 
         // Map Section
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            val cameraPositionState = rememberCameraPositionState {
-                position = CameraPosition.fromLatLngZoom(userLocation, 12f)
-            }
+            val markers = mutableListOf(EcoMarker(userLocation, "Your Location"))
+            state.destinationLatLng?.let { markers.add(EcoMarker(it, "Destination")) }
 
-            GoogleMap(
+            EcoMap(
                 modifier = Modifier.fillMaxSize(),
-                cameraPositionState = cameraPositionState,
-                uiSettings = MapUiSettings(zoomControlsEnabled = false)
-            ) {
-                Marker(
-                    state = rememberMarkerState(position = userLocation),
-                    title = "Your Location"
-                )
-
-                state.routes.forEachIndexed { index, routeWithMetrics ->
-                    Polyline(
+                initialCenter = userLocation,
+                initialZoom = 12f,
+                markers = markers,
+                polylines = state.routes.mapIndexed { index, routeWithMetrics ->
+                    EcoPolyline(
                         points = routeWithMetrics.route.points,
                         color = if (index == state.selectedRouteIndex) {
                             if (index == 0) EcoDriveTheme.colors.scoreExcellent else MaterialTheme.colorScheme.primary
                         } else Color.Gray.copy(alpha = 0.5f),
                         width = 12f,
-                        zIndex = if (index == state.selectedRouteIndex) 1f else 0f,
-                        onClick = { viewModel.selectRoute(index) }
+                        zIndex = if (index == state.selectedRouteIndex) 1f else 0f
                     )
-                }
-
-                state.destinationLatLng?.let {
-                    Marker(
-                        state = rememberMarkerState(position = it),
-                        title = "Destination"
-                    )
-                    
-                    // Auto-zoom to fit route
-                    LaunchedEffect(it) {
-                        cameraPositionState.position = CameraPosition.fromLatLngZoom(it, 11f)
-                    }
-                }
-            }
+                },
+                onPolylineClick = { viewModel.selectRoute(it) }
+            )
 
             if (state.isLoading) {
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f)), contentAlignment = Alignment.Center) {

@@ -2,7 +2,6 @@ package com.ecodrive.app.domain.analyzer
 
 import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.local.dao.FuelCalibrationDao
-import com.ecodrive.app.data.remote.GoogleMapsServicesClient
 import android.location.Location
 import com.ecodrive.app.domain.ai.service.AiManager
 import com.ecodrive.app.domain.ai.analyzer.FuelPredictionModel
@@ -52,7 +51,7 @@ class RouteOptimizerTest {
     @Test
     fun `test calculateEcoMetrics with flat route`() {
         // 1km flat route at 60km/h (60 seconds)
-        val route = GoogleMapsServicesClient.RouteOption(
+        val route = MapRoute(
             polyline = "abc",
             distanceMeters = 1000,
             durationSeconds = 60,
@@ -71,7 +70,7 @@ class RouteOptimizerTest {
 
     @Test
     fun `test calculateEcoMetrics with hilly route`() {
-        val route = GoogleMapsServicesClient.RouteOption(
+        val route = MapRoute(
             polyline = "abc",
             distanceMeters = 1000,
             durationSeconds = 60,
@@ -93,7 +92,7 @@ class RouteOptimizerTest {
 
     @Test
     fun `test calculateEcoMetrics with diesel vehicle impacts co2`() {
-        val route = GoogleMapsServicesClient.RouteOption(
+        val route = MapRoute(
             polyline = "abc",
             distanceMeters = 1000,
             durationSeconds = 60,
@@ -116,7 +115,7 @@ class RouteOptimizerTest {
 
     @Test
     fun `test calculateEcoMetrics with empty points returns zeros`() {
-        val route = GoogleMapsServicesClient.RouteOption(
+        val route = MapRoute(
             polyline = "",
             distanceMeters = 0,
             durationSeconds = 0,

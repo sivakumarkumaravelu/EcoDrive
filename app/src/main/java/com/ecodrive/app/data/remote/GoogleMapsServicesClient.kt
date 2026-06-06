@@ -1,6 +1,7 @@
 package com.ecodrive.app.data.remote
 
 import android.util.Log
+import com.ecodrive.app.domain.model.MapRoute
 import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,7 +18,7 @@ import javax.inject.Singleton
  * Used to calculate predicted fuel consumption for alternative routes.
  */
 @Singleton
-class GoogleMapsServicesClient @Inject constructor() {
+class GoogleMapsServicesClient @Inject constructor() : DirectionsClient {
 
     companion object {
         private const val TAG = "GoogleMapsServicesClient"
@@ -39,15 +40,16 @@ class GoogleMapsServicesClient @Inject constructor() {
     /**
      * Fetch alternative routes between origin and destination.
      */
-    suspend fun getRoutes(
+    override suspend fun getRoutes(
         origin: LatLng,
         destination: LatLng,
-        apiKey: String
-    ): Result<List<RouteOption>> = withContext(Dispatchers.IO) {
+        apiKey: String?
+    ): Result<List<MapRoute>> = withContext(Dispatchers.IO) {
         try {
+            val key = apiKey ?: ""
             val urlString = "$DIRECTIONS_BASE_URL?origin=${origin.latitude},${origin.longitude}" +
                     "&destination=${destination.latitude},${destination.longitude}" +
-                    "&alternatives=true&key=$apiKey"
+                    "&alternatives=true&key=$key"
             
             val response = makeRequest(urlString)
             val json = JSONObject(response)
@@ -57,7 +59,7 @@ class GoogleMapsServicesClient @Inject constructor() {
             }
 
             val routesArray = json.getJSONArray("routes")
-            val routes = mutableListOf<RouteOption>()
+            val routes = mutableListOf<MapRoute>()
 
             for (i in 0 until routesArray.length()) {
                 val routeJson = routesArray.getJSONObject(i)
@@ -69,7 +71,7 @@ class GoogleMapsServicesClient @Inject constructor() {
                 val duration = leg.getJSONObject("duration").getInt("value")
                 val summary = routeJson.getString("summary")
                 
-                routes.add(RouteOption(
+                routes.add(MapRoute(
                     polyline = polyline,
                     distanceMeters = distance,
                     durationSeconds = duration,
@@ -89,9 +91,10 @@ class GoogleMapsServicesClient @Inject constructor() {
      */
     suspend fun getElevations(
         points: List<LatLng>,
-        apiKey: String
+        apiKey: String?
     ): Result<List<Double>> = withContext(Dispatchers.IO) {
         try {
+            val key = apiKey ?: ""
             // Sampling if too many points (API has limits)
             val sampledPoints = if (points.size > 100) {
                 val step = points.size / 100
@@ -99,7 +102,7 @@ class GoogleMapsServicesClient @Inject constructor() {
             } else points
 
             val pathStr = sampledPoints.joinToString("|") { "${it.latitude},${it.longitude}" }
-            val urlString = "$ELEVATION_BASE_URL?locations=$pathStr&key=$apiKey"
+            val urlString = "$ELEVATION_BASE_URL?locations=$pathStr&key=$key"
             
             val response = makeRequest(urlString)
             val json = JSONObject(response)
@@ -124,6 +127,8 @@ class GoogleMapsServicesClient @Inject constructor() {
         val url = URL(urlString)
         val connection = url.openConnection() as HttpURLConnection
         connection.requestMethod = "GET"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
         
         if (connection.responseCode != 200) {
             throw Exception("API error: ${connection.responseCode}")

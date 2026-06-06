@@ -9,4 +9,11 @@ object AppConfig {
      * Hardcoded here as per requirement.
      */
     const val MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY_HERE"
+
+    /**
+     * If true, use Google Maps SDK and Directions API.
+     * If false, use OpenStreetMap (via WebView/Leaflet) and OSRM Routing.
+     * Default set to false as per user request.
+     */
+    const val USE_GOOGLE_MAPS = false
 }

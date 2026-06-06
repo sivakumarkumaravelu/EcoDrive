@@ -22,16 +22,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ecodrive.app.domain.model.EcoRating
 import com.ecodrive.app.domain.model.Trip
+import com.ecodrive.app.ui.components.EcoMap
+import com.ecodrive.app.ui.components.EcoMarker
+import com.ecodrive.app.ui.components.EcoPolyline
 import com.ecodrive.app.ui.theme.*
 import com.ecodrive.app.util.UnitConverter
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.LatLngBounds
-import com.google.maps.android.compose.*
 
 /**
  * Trip History screen showing past trips with eco scores,
@@ -257,48 +256,24 @@ private fun TripCard(
         Column {
             // ── Route Map Preview ───────────────────────────────
             if (routePoints.isNotEmpty()) {
-                val cameraPositionState = rememberCameraPositionState {
-                    position = CameraPosition.fromLatLngZoom(routePoints.first(), 12f)
-                }
-                
-                LaunchedEffect(routePoints) {
-                    if (routePoints.size > 1) {
-                        val bounds = LatLngBounds.builder().apply {
-                            routePoints.forEach { include(it) }
-                        }.build()
-                        cameraPositionState.move(CameraUpdateFactory.newLatLngBounds(bounds, 50))
-                    }
-                }
-
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(120.dp)
                         .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                 ) {
-                    GoogleMap(
+                    EcoMap(
                         modifier = Modifier.fillMaxSize(),
-                        cameraPositionState = cameraPositionState,
-                        googleMapOptionsFactory = { com.google.android.gms.maps.GoogleMapOptions().liteMode(true) },
-                        uiSettings = MapUiSettings(
-                            zoomControlsEnabled = false,
-                            scrollGesturesEnabled = false,
-                            zoomGesturesEnabled = false,
-                            tiltGesturesEnabled = false,
-                            rotationGesturesEnabled = false,
-                            myLocationButtonEnabled = false,
-                            compassEnabled = false
-                        ),
-                        properties = MapProperties(
-                            isMyLocationEnabled = false
+                        initialCenter = routePoints.first(),
+                        initialZoom = 12f,
+                        polylines = listOf(
+                            EcoPolyline(
+                                points = routePoints,
+                                color = MaterialTheme.colorScheme.primary,
+                                width = 6f
+                            )
                         )
-                    ) {
-                        Polyline(
-                            points = routePoints,
-                            color = MaterialTheme.colorScheme.primary,
-                            width = 6f
-                        )
-                    }
+                    )
                     
                     // Overlay to capture clicks and prevent map interaction
                     Box(

@@ -34,6 +34,7 @@ import com.ecodrive.app.domain.ai.config.AiConfig
 import com.ecodrive.app.domain.model.AppColorPalette
 import com.ecodrive.app.domain.model.AppTheme
 import com.ecodrive.app.ui.theme.*
+import com.ecodrive.app.util.AppConfig
 import com.ecodrive.app.util.UnitConverter
 
 /**
@@ -79,6 +80,16 @@ fun SettingsScreen(
                 label = "Units of Measurement",
                 subLabel = if (state.useMetric) "Metric (km, liters)" else "Imperial (miles, gallons)",
                 onClick = { showAppearanceSheet = true }
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 4.dp),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            SettingsCheckRow(
+                label = "Use Google Maps",
+                checked = AppConfig.USE_GOOGLE_MAPS,
+                enabled = false, // Controlled via AppConfig for now
             )
         }
 

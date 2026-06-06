@@ -1,7 +1,7 @@
 package com.ecodrive.app.domain.analyzer
 
 import android.location.Location
-import com.ecodrive.app.data.remote.GoogleMapsServicesClient
+import com.ecodrive.app.domain.model.MapRoute
 import com.ecodrive.app.domain.model.Vehicle
 import com.google.android.gms.maps.model.LatLng
 import javax.inject.Inject
@@ -30,7 +30,7 @@ class RouteOptimizer @Inject constructor(
      * Estimates eco-metrics for a given route option.
      */
     fun calculateEcoMetrics(
-        route: GoogleMapsServicesClient.RouteOption,
+        route: MapRoute,
         elevations: List<Double>,
         vehicle: Vehicle
     ): RouteEcoMetrics {

@@ -10,9 +10,13 @@ import androidx.room.Room
 import com.ecodrive.app.data.local.EcoDriveDatabase
 import com.ecodrive.app.data.local.dao.*
 import com.ecodrive.app.data.obd.ObdConnection
+import com.ecodrive.app.data.remote.DirectionsClient
+import com.ecodrive.app.data.remote.GoogleMapsServicesClient
+import com.ecodrive.app.data.remote.OsrmDirectionsClient
 import com.ecodrive.app.data.remote.SmartcarApiClient
 import com.ecodrive.app.data.repository.VehicleRepository
 import com.ecodrive.app.domain.analyzer.FuelEstimationEngine
+import com.ecodrive.app.util.AppConfig
 import com.ecodrive.app.sensor.LocationTracker
 import com.ecodrive.app.sensor.PhoneSensorManager
 import com.ecodrive.app.sensor.SensorDataManager
@@ -139,6 +143,21 @@ object AppModule {
     @Provides
     @Singleton
     fun provideSmartcarApiClient(): SmartcarApiClient = SmartcarApiClient()
+
+    // ── Directions ─────────────────────────────────────────────
+
+    @Provides
+    @Singleton
+    fun provideDirectionsClient(
+        googleMapsServicesClient: GoogleMapsServicesClient,
+        osrmDirectionsClient: OsrmDirectionsClient
+    ): DirectionsClient {
+        return if (AppConfig.USE_GOOGLE_MAPS) {
+            googleMapsServicesClient
+        } else {
+            osrmDirectionsClient
+        }
+    }
 
     // ── OBD-II (Optional Pro Feature) ───────────────────────────
 
