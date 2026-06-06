@@ -49,7 +49,8 @@ class CoachViewModel @Inject constructor(
     data class ChatMessage(
         val text: String,
         val isUser: Boolean,
-        val timestamp: Instant = Instant.now()
+        val timestamp: Instant = Instant.now(),
+        val providerName: String? = null
     )
 
     private val _chatHistory = MutableStateFlow<List<ChatMessage>>(emptyList())
@@ -261,8 +262,19 @@ class CoachViewModel @Inject constructor(
             // Build message list for multi-turn context
             val allMessages = _chatHistory.value.map { msg -> msg.text to msg.isUser }
 
-            val response = aiManager.generateConversationalResponse(allMessages, systemPrompt)
-                ?: "I'm having trouble connecting right now. Please try again later."
+            val aiResponse = aiManager.generateConversationalResponse(allMessages, systemPrompt)
+            
+            if (aiResponse == null) {
+                val errorMsg = ChatMessage(
+                    "I'm having trouble connecting right now. Please try again later.",
+                    isUser = false
+                )
+                _chatHistory.update { it + errorMsg }
+                _isAskingAi.value = false
+                return@launch
+            }
+
+            val (response, providerName) = aiResponse
 
             // Extract suggestions if provided
             val (responseText, suggestions) = extractSuggestions(response)
@@ -270,7 +282,7 @@ class CoachViewModel @Inject constructor(
                 _suggestedQuestions.value = suggestions
             }
 
-            val aiMsg = ChatMessage(responseText, isUser = false)
+            val aiMsg = ChatMessage(responseText, isUser = false, providerName = providerName)
             _chatHistory.update { it + aiMsg }
             _isAskingAi.value = false
         }

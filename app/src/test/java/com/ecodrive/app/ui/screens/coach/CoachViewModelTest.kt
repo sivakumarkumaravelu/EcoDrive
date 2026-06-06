@@ -13,6 +13,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -96,22 +97,57 @@ class CoachViewModelTest {
     }
 
     @Test
-    fun `test personalized tip for high eco score`() = runTest {
+    fun `test askQuestion updates chat history with model attribution`() = runTest {
         // Given
-        val perfectTrip = Trip(
-            id = 1,
-            startTime = Instant.now(),
-            ecoScore = 95,
-            isActive = false
-        )
-        tripsFlow.value = listOf(perfectTrip)
+        val question = "How can I drive better?"
+        val aiResponse = "Drive smoother."
+        val providerName = "GEMINI"
+        
+        coEvery { 
+            aiManager.generateConversationalResponse(any(), any()) 
+        } returns (aiResponse to providerName)
+        
+        val collectJob = launch { viewModel.state.collect {} }
         
         // When
+        viewModel.askQuestion(question)
         advanceUntilIdle()
-        val state = viewModel.state.first { !it.isLoading }
         
         // Then
-        assertTrue("Expected tip to contain 'Outstanding driving', but was: ${state.personalizedTip}", 
-            state.personalizedTip.contains("Outstanding driving"))
+        val history = viewModel.state.value.chatHistory
+        assertEquals("History size mismatch", 2, history.size)
+        
+        // User message
+        assertEquals(question, history[0].text)
+        assertTrue(history[0].isUser)
+        
+        // AI message
+        assertEquals(aiResponse, history[1].text)
+        assertTrue(!history[1].isUser)
+        assertEquals(providerName, history[1].providerName)
+        
+        collectJob.cancel()
+    }
+
+    @Test
+    fun `test askQuestion handles error with no attribution`() = runTest {
+        // Given
+        coEvery { 
+            aiManager.generateConversationalResponse(any(), any()) 
+        } returns null
+        
+        val collectJob = launch { viewModel.state.collect {} }
+        
+        // When
+        viewModel.askQuestion("Test")
+        advanceUntilIdle()
+        
+        // Then
+        val history = viewModel.state.value.chatHistory
+        assertEquals("History size mismatch on error", 2, history.size)
+        assertTrue("Error message text missing", history[1].text.contains("trouble connecting"))
+        assertEquals(null, history[1].providerName)
+        
+        collectJob.cancel()
     }
 }

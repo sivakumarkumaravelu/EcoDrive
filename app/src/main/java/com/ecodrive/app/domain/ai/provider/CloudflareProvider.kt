@@ -24,12 +24,12 @@ class CloudflareProvider @Inject constructor() : AiProvider {
         private const val MODEL_ID = "@cf/meta/llama-3-8b-instruct"
     }
 
-    override suspend fun generateRealTimeTip(prompt: String): String? = generate(prompt)
-    override suspend fun generateTripInsight(prompt: String): String? = generate(prompt)
-    override suspend fun generateWeeklyReport(prompt: String): String? = generate(prompt)
-    override suspend fun generateAnalyticsSummary(prompt: String): String? = generate(prompt)
+    override suspend fun generateRealTimeTip(prompt: String, model: String?): String? = generate(prompt, 0.7f, 512, model)
+    override suspend fun generateTripInsight(prompt: String, model: String?): String? = generate(prompt, 0.4f, 1024, model)
+    override suspend fun generateWeeklyReport(prompt: String, model: String?): String? = generate(prompt, 0.4f, 1024, model)
+    override suspend fun generateAnalyticsSummary(prompt: String, model: String?): String? = generate(prompt, 0.4f, 1024, model)
 
-    private suspend fun generate(prompt: String): String? = withContext(Dispatchers.IO) {
+    private suspend fun generate(prompt: String, temp: Float, maxTokens: Int, modelName: String? = null): String? = withContext(Dispatchers.IO) {
         val apiKey = AiConfig.CLOUDFLARE_API_KEY
         val accountId = AiConfig.CLOUDFLARE_ACCOUNT_ID
         if (apiKey.isBlank() || apiKey.startsWith("YOUR_") || accountId.isBlank() || accountId.startsWith("YOUR_")) return@withContext null

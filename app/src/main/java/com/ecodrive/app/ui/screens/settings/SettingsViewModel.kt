@@ -1,5 +1,6 @@
 package com.ecodrive.app.ui.screens.settings
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ecodrive.app.data.local.PreferenceManager
@@ -9,9 +10,14 @@ import com.ecodrive.app.util.PermissionManager
 import com.ecodrive.app.domain.model.AppColorPalette
 import com.ecodrive.app.domain.model.AppTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
+
+import com.ecodrive.app.domain.ai.service.AiManager
 
 /**
  * ViewModel for the Settings screen.
@@ -21,6 +27,7 @@ class SettingsViewModel @Inject constructor(
     private val smartcarApiClient: SmartcarApiClient,
     private val fuelEngine: FuelEstimationEngine,
     private val preferenceManager: PreferenceManager,
+    private val aiManager: AiManager,
     val permissionManager: PermissionManager,
 ) : ViewModel() {
 
@@ -39,14 +46,22 @@ class SettingsViewModel @Inject constructor(
         val isObdEnabled: Boolean = false,
         val autoRecordEnabled: Boolean = false,
         val selectedAiProvider: String = "GEMINI",
+        val selectedModel: String = "",
+        val availableModels: List<String> = emptyList(),
+        val isLoadingModels: Boolean = false,
+        val validProviders: List<String> = listOf("LOCAL"),
+        val isValidatingProviders: Boolean = false,
     )
 
     private val _state = MutableStateFlow(SettingsState())
     val state: StateFlow<SettingsState> = _state.asStateFlow()
 
+    private val providerModelsCache = ConcurrentHashMap<String, List<String>>()
+
     init {
         observeSmartcarState()
-        observePreferences()
+        observeGeneralPreferences()
+        validateProvidersAndObserveAiPrefs()
     }
 
     private fun observeSmartcarState() {
@@ -74,25 +89,114 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private fun observePreferences() {
+    private fun observeGeneralPreferences() {
         viewModelScope.launch {
             combine(
                 preferenceManager.autoRecordEnabled,
                 preferenceManager.useMetricUnits,
                 preferenceManager.appTheme,
-                preferenceManager.colorPalette,
-                preferenceManager.selectedAiProvider
-            ) { args: Array<Any> ->
+                preferenceManager.colorPalette
+            ) { autoRecord, useMetric, theme, palette ->
                 _state.update {
                     it.copy(
-                        autoRecordEnabled = args[0] as Boolean,
-                        useMetric = args[1] as Boolean,
-                        appTheme = args[2] as AppTheme,
-                        appPalette = args[3] as AppColorPalette,
-                        selectedAiProvider = args[4] as String
+                        autoRecordEnabled = autoRecord,
+                        useMetric = useMetric,
+                        appTheme = theme,
+                        appPalette = palette
                     )
                 }
             }.collect()
+        }
+    }
+
+    private fun validateProvidersAndObserveAiPrefs() {
+        viewModelScope.launch {
+            _state.update { it.copy(isValidatingProviders = true) }
+            val allProviders = aiManager.getAllProviders()
+            
+            // Validate each non-LOCAL provider in parallel
+            val jobs = allProviders.filter { it.name != "LOCAL" }.map { provider ->
+                async {
+                    try {
+                        val models = provider.getAvailableModels()
+                        if (!models.isNullOrEmpty()) {
+                            provider.name to models
+                        } else {
+                            null
+                        }
+                    } catch (e: Exception) {
+                        Log.e("SettingsViewModel", "Error validating provider ${provider.name}", e)
+                        null
+                    }
+                }
+            }
+            
+            val results = jobs.awaitAll().filterNotNull()
+            
+            // Populate cache
+            results.forEach { (name, models) ->
+                providerModelsCache[name] = models
+            }
+            
+            val workingProviderNames = results.map { it.first }
+            val validList = listOf("LOCAL") + workingProviderNames
+            
+            _state.update {
+                it.copy(
+                    validProviders = validList,
+                    isValidatingProviders = false
+                )
+            }
+            
+            // Start observing AI preferences after validation
+            observeAiPreferences(validList)
+        }
+    }
+
+    private fun observeAiPreferences(validList: List<String>) {
+        viewModelScope.launch {
+            preferenceManager.selectedAiProvider.collectLatest { providerName ->
+                // Check if selected provider is still valid, fallback if not
+                if (!validList.contains(providerName)) {
+                    val fallback = if (validList.contains("GEMINI")) "GEMINI" else "LOCAL"
+                    setSelectedAiProvider(fallback)
+                    return@collectLatest
+                }
+
+                _state.update { it.copy(selectedAiProvider = providerName) }
+                fetchModelsForProvider(providerName)
+                
+                preferenceManager.getSelectedModel(providerName).collect { modelName ->
+                    val defaultModel = aiManager.getProviderByName(providerName).defaultModel
+                    _state.update { it.copy(selectedModel = modelName ?: defaultModel) }
+                }
+            }
+        }
+    }
+
+    private fun fetchModelsForProvider(providerName: String) {
+        if (providerName == "LOCAL") {
+            _state.update { it.copy(availableModels = emptyList(), isLoadingModels = false) }
+            return
+        }
+        val cachedModels = providerModelsCache[providerName]
+        if (cachedModels != null) {
+            _state.update { it.copy(availableModels = cachedModels, isLoadingModels = false) }
+            return
+        }
+        
+        viewModelScope.launch {
+            _state.update { it.copy(isLoadingModels = true, availableModels = emptyList()) }
+            val provider = aiManager.getProviderByName(providerName)
+            val models = try {
+                provider.getAvailableModels() ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+            if (models.isNotEmpty()) {
+                providerModelsCache[providerName] = models
+            }
+            _state.update { it.copy(isLoadingModels = false, availableModels = models) }
         }
     }
 
@@ -159,6 +263,12 @@ class SettingsViewModel @Inject constructor(
     fun setSelectedAiProvider(provider: String) {
         viewModelScope.launch {
             preferenceManager.setSelectedAiProvider(provider)
+        }
+    }
+
+    fun setSelectedModel(model: String) {
+        viewModelScope.launch {
+            preferenceManager.setSelectedModel(_state.value.selectedAiProvider, model)
         }
     }
 }

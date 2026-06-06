@@ -19,7 +19,7 @@ class LocalProvider @Inject constructor(
 
     override val name: String = "LOCAL"
 
-    override suspend fun generateRealTimeTip(prompt: String): String? {
+    override suspend fun generateRealTimeTip(prompt: String, model: String?): String? {
         // Parse key metrics from the prompt using simple regex
         val speed = extractDouble(prompt, "Speed: (\\d+\\.?\\d*) km/h") ?: 60.0
         val accel = extractDouble(prompt, "Acceleration: (-?\\d+\\.?\\d*) m/s") ?: 0.0
@@ -35,7 +35,7 @@ class LocalProvider @Inject constructor(
         )
     }
 
-    override suspend fun generateTripInsight(prompt: String): String? {
+    override suspend fun generateTripInsight(prompt: String, model: String?): String? {
         // For trip insight, extract score and return a structured local response
         val score = extractInt(prompt, "Eco Score: (\\d+)/100") ?: 70
         val brakes = extractInt(prompt, "Hard Brakes: (\\d+)") ?: 0
@@ -64,7 +64,7 @@ class LocalProvider @Inject constructor(
         }
     }
 
-    override suspend fun generateWeeklyReport(prompt: String): String? {
+    override suspend fun generateWeeklyReport(prompt: String, model: String?): String? {
         val score = extractInt(prompt, "Recent Eco Score: (\\d+)/100") ?: 70
         val trend = extractDouble(prompt, "Trend: (-?\\d+\\.?\\d*) pts") ?: 0.0
         val brakes = extractInt(prompt, "HARD_BRAKE=(\\d+)") ?: 0
@@ -79,7 +79,7 @@ class LocalProvider @Inject constructor(
         )
     }
 
-    override suspend fun generateAnalyticsSummary(prompt: String): String? {
+    override suspend fun generateAnalyticsSummary(prompt: String, model: String?): String? {
         val avgScore = extractInt(prompt, "Average Eco Score: (\\d+)/100") ?: 70
         val totalTrips = extractInt(prompt, "Total Trips: (\\d+)") ?: 0
         val fuelSaved = extractDouble(prompt, "Fuel Saved.*?: (-?\\d+\\.?\\d*) L") ?: 0.0
@@ -109,6 +109,7 @@ class LocalProvider @Inject constructor(
     override suspend fun generateConversationalResponse(
         messages: List<Pair<String, Boolean>>,
         systemPrompt: String,
+        model: String?
     ): String? {
         val lastUserMessage = messages.lastOrNull { it.second }?.first ?: return null
         return when {

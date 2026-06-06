@@ -90,4 +90,14 @@ class PreferenceManager @Inject constructor(
     suspend fun setSelectedAiProvider(provider: String) {
         dataStore.edit { it[AI_PROVIDER] = provider }
     }
+
+    fun getSelectedModel(provider: String): Flow<String?> {
+        val key = stringPreferencesKey("selected_model_${provider.uppercase()}")
+        return dataStore.data.map { it[key] }
+    }
+
+    suspend fun setSelectedModel(provider: String, model: String) {
+        val key = stringPreferencesKey("selected_model_${provider.uppercase()}")
+        dataStore.edit { it[key] = model }
+    }
 }

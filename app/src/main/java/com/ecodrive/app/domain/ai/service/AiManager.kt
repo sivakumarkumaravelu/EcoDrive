@@ -28,11 +28,12 @@ class AiManager @Inject constructor(
         if (now - lastCoachingCallMs < COACHING_RATE_LIMIT_MS) return null
 
         val provider = getSelectedProvider()
-        var tip = provider.generateRealTimeTip(prompt)
+        val model = getSelectedModel(provider.name)
+        var tip = provider.generateRealTimeTip(prompt, model)
         
         if (tip == null && provider !is LocalProvider) {
             Log.d(TAG, "Primary provider failed, falling back to LocalProvider")
-            tip = getLocalProvider().generateRealTimeTip(prompt)
+            tip = getLocalProvider().generateRealTimeTip(prompt, null)
         }
 
         if (tip != null) lastCoachingCallMs = System.currentTimeMillis()
@@ -41,17 +42,20 @@ class AiManager @Inject constructor(
 
     suspend fun generateTripInsight(prompt: String): String? {
         val provider = getSelectedProvider()
-        return provider.generateTripInsight(prompt) ?: getLocalProvider().generateTripInsight(prompt)
+        val model = getSelectedModel(provider.name)
+        return provider.generateTripInsight(prompt, model) ?: getLocalProvider().generateTripInsight(prompt, null)
     }
 
     suspend fun generateWeeklyReport(prompt: String): String? {
         val provider = getSelectedProvider()
-        return provider.generateWeeklyReport(prompt) ?: getLocalProvider().generateWeeklyReport(prompt)
+        val model = getSelectedModel(provider.name)
+        return provider.generateWeeklyReport(prompt, model) ?: getLocalProvider().generateWeeklyReport(prompt, null)
     }
 
     suspend fun generateAnalyticsSummary(prompt: String): String? {
         val provider = getSelectedProvider()
-        return provider.generateAnalyticsSummary(prompt) ?: getLocalProvider().generateAnalyticsSummary(prompt)
+        val model = getSelectedModel(provider.name)
+        return provider.generateAnalyticsSummary(prompt, model) ?: getLocalProvider().generateAnalyticsSummary(prompt, null)
     }
 
     /**
@@ -59,7 +63,8 @@ class AiManager @Inject constructor(
      */
     suspend fun generatePrediction(prompt: String): String? {
         val provider = getSelectedProvider()
-        return provider.generatePrediction(prompt) ?: getLocalProvider().generatePrediction(prompt)
+        val model = getSelectedModel(provider.name)
+        return provider.generatePrediction(prompt, model) ?: getLocalProvider().generatePrediction(prompt, null)
     }
 
     /**
@@ -68,20 +73,43 @@ class AiManager @Inject constructor(
      *
      * @param messages Ordered list of (text, isUser) message pairs.
      * @param systemPrompt System-level coaching context injected at the start.
+     * @return A pair of (response text, provider name) or null if all providers fail.
      */
     suspend fun generateConversationalResponse(
         messages: List<Pair<String, Boolean>>,
         systemPrompt: String,
-    ): String? {
+    ): Pair<String, String>? {
         val provider = getSelectedProvider()
-        return provider.generateConversationalResponse(messages, systemPrompt)
-            ?: getLocalProvider().generateConversationalResponse(messages, systemPrompt)
+        val model = getSelectedModel(provider.name)
+        val response = provider.generateConversationalResponse(messages, systemPrompt, model)
+        
+        if (response != null) {
+            return response to provider.name
+        }
+
+        val localProvider = getLocalProvider()
+        val localResponse = localProvider.generateConversationalResponse(messages, systemPrompt, null)
+        
+        return if (localResponse != null) {
+            localResponse to localProvider.name
+        } else {
+            null
+        }
     }
 
     private suspend fun getSelectedProvider(): AiProvider {
         val selected = preferenceManager.selectedAiProvider.first()
         return getProviderByName(selected)
     }
+
+    private suspend fun getSelectedModel(providerName: String): String? {
+        return preferenceManager.getSelectedModel(providerName).first()
+    }
+
+    /**
+     * Gets all registered AI providers.
+     */
+    fun getAllProviders(): List<AiProvider> = providers.toList()
 
     /**
      * Maps a string name to a provider instance.

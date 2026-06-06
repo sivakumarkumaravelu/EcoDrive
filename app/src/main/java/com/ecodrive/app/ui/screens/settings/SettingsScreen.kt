@@ -324,7 +324,7 @@ fun SettingsScreen(
             
             Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedCard(
-                    onClick = { showProviderMenu = true },
+                    onClick = { if (!state.isValidatingProviders) showProviderMenu = true },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
@@ -336,9 +336,9 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Selected Provider",
+                                text = if (state.isValidatingProviders) "Checking AI Providers..." else "Selected Provider",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -347,16 +347,20 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
                             )
                         }
-                        Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+                        if (state.isValidatingProviders) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+                        }
                     }
                 }
 
                 DropdownMenu(
-                    expanded = showProviderMenu,
+                    expanded = showProviderMenu && !state.isValidatingProviders,
                     onDismissRequest = { showProviderMenu = false },
                     modifier = Modifier.fillMaxWidth(0.9f)
                 ) {
-                    val providers = AiConfig.UI_PROVIDERS
+                    val providers = state.validProviders
                     providers.forEach { provider ->
                         DropdownMenuItem(
                             text = { Text(provider.lowercase().replaceFirstChar { it.uppercase() }) },
@@ -370,6 +374,78 @@ fun SettingsScreen(
                                 }
                             }
                         )
+                    }
+                }
+            }
+
+            if (state.selectedAiProvider != "LOCAL") {
+                Spacer(modifier = Modifier.height(16.dp))
+
+                var showModelMenu by remember { mutableStateOf(false) }
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedCard(
+                        onClick = { showModelMenu = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Selected Model",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                if (state.isLoadingModels) {
+                                    Text(
+                                        text = "Loading models...",
+                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
+                                    )
+                                } else {
+                                    Text(
+                                        text = state.selectedModel.ifBlank { "Default Model" },
+                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            if (state.isLoadingModels) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+                            }
+                        }
+                    }
+
+                    if (state.availableModels.isNotEmpty()) {
+                        DropdownMenu(
+                            expanded = showModelMenu,
+                            onDismissRequest = { showModelMenu = false },
+                            modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 300.dp)
+                        ) {
+                            state.availableModels.forEach { model ->
+                                DropdownMenuItem(
+                                    text = { Text(model) },
+                                    onClick = {
+                                        viewModel.setSelectedModel(model)
+                                        showModelMenu = false
+                                    },
+                                    trailingIcon = {
+                                        if (state.selectedModel == model) {
+                                            Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }

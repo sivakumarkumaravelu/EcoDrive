@@ -12,30 +12,41 @@ interface AiProvider {
     val name: String
 
     /**
+     * Default model to use if none is selected.
+     */
+    val defaultModel: String get() = ""
+
+    /**
+     * Fetches a list of available models from this provider.
+     * Returns null if fetching is not supported or fails.
+     */
+    suspend fun getAvailableModels(): List<String>? = null
+
+    /**
      * Generates a short real-time tip.
      */
-    suspend fun generateRealTimeTip(prompt: String): String?
+    suspend fun generateRealTimeTip(prompt: String, model: String? = null): String?
 
     /**
      * Generates a detailed trip insight.
      */
-    suspend fun generateTripInsight(prompt: String): String?
+    suspend fun generateTripInsight(prompt: String, model: String? = null): String?
 
     /**
      * Generates a multi-paragraph weekly report.
      */
-    suspend fun generateWeeklyReport(prompt: String): String?
+    suspend fun generateWeeklyReport(prompt: String, model: String? = null): String?
 
     /**
      * Generates an analytics summary.
      */
-    suspend fun generateAnalyticsSummary(prompt: String): String?
+    suspend fun generateAnalyticsSummary(prompt: String, model: String? = null): String?
 
     /**
      * Generates an eco-score prediction or any short predictive content.
      * Defaults to [generateRealTimeTip] for providers that don't implement it.
      */
-    suspend fun generatePrediction(prompt: String): String? = generateRealTimeTip(prompt)
+    suspend fun generatePrediction(prompt: String, model: String? = null): String? = generateRealTimeTip(prompt, model)
 
     /**
      * Generates a conversational response with multi-turn history context.
@@ -46,6 +57,7 @@ interface AiProvider {
     suspend fun generateConversationalResponse(
         messages: List<Pair<String, Boolean>>,
         systemPrompt: String,
+        model: String? = null
     ): String? {
         // Default: build a contextual single-turn prompt from history
         val historyContext = messages.dropLast(1).joinToString("\n") { (text, isUser) ->
@@ -61,6 +73,6 @@ interface AiProvider {
             append("\n\nUser: $lastMessage")
             append("\n\nCoach:")
         }
-        return generateTripInsight(fullPrompt)
+        return generateTripInsight(fullPrompt, model)
     }
 }

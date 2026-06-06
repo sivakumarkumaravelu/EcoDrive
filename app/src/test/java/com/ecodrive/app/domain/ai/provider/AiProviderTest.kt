@@ -9,19 +9,19 @@ class AiProviderTest {
     private class TestProvider : AiProvider {
         override val name: String = "TestProvider"
 
-        override suspend fun generateRealTimeTip(prompt: String): String? {
+        override suspend fun generateRealTimeTip(prompt: String, model: String?): String? {
             return "Tip: $prompt"
         }
 
-        override suspend fun generateTripInsight(prompt: String): String? {
+        override suspend fun generateTripInsight(prompt: String, model: String?): String? {
             return "Insight: $prompt"
         }
 
-        override suspend fun generateWeeklyReport(prompt: String): String? {
+        override suspend fun generateWeeklyReport(prompt: String, model: String?): String? {
             return "Report: $prompt"
         }
 
-        override suspend fun generateAnalyticsSummary(prompt: String): String? {
+        override suspend fun generateAnalyticsSummary(prompt: String, model: String?): String? {
             return "Summary: $prompt"
         }
     }

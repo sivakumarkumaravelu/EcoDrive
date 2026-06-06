@@ -55,6 +55,7 @@ fun CoachScreen(
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
+            .imePadding()
     ) {
         Text(
             text = "Driving Coach",
@@ -253,18 +254,31 @@ private fun AskTheCoachSection(
                                      else MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)
                     val alignment = if (message.isUser) Alignment.End else Alignment.Start
                     
-                    Box(
-                        modifier = Modifier
-                            .align(alignment)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(background)
-                            .padding(12.dp)
+                    Column(
+                        modifier = Modifier.align(alignment),
+                        horizontalAlignment = alignment
                     ) {
-                        Text(
-                            text = message.text,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(background)
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = message.text,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        
+                        if (!message.isUser && message.providerName != null) {
+                            Text(
+                                text = "via ${message.providerName}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
+                            )
+                        }
                     }
                 }
             }

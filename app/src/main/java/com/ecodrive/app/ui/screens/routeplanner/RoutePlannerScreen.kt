@@ -41,7 +41,10 @@ fun RoutePlannerScreen(
     // Mock user location for demo
     val userLocation = LatLng(37.422, -122.084)
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(modifier = Modifier
+        .fillMaxSize()
+        .background(MaterialTheme.colorScheme.background)
+        .imePadding()) {
         // Top Bar
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),

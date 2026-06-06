@@ -8,6 +8,8 @@ import com.ecodrive.app.domain.analyzer.FuelEstimationEngine
 import com.ecodrive.app.domain.model.AppColorPalette
 import com.ecodrive.app.domain.model.AppTheme
 import com.ecodrive.app.util.PermissionManager
+import com.ecodrive.app.domain.ai.service.AiManager
+import com.ecodrive.app.domain.ai.provider.AiProvider
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -24,7 +26,9 @@ class SettingsViewModelTest {
     private val smartcarApiClient: SmartcarApiClient = mockk(relaxed = true)
     private val fuelEngine: FuelEstimationEngine = mockk(relaxed = true)
     private val preferenceManager: PreferenceManager = mockk(relaxed = true)
+    private val aiManager: AiManager = mockk(relaxed = true)
     private val permissionManager: PermissionManager = mockk(relaxed = true)
+    private val mockProvider: AiProvider = mockk(relaxed = true)
 
     private val testDispatcher = StandardTestDispatcher()
 
@@ -34,6 +38,8 @@ class SettingsViewModelTest {
     private val useMetricFlow = MutableStateFlow(true)
     private val appThemeFlow = MutableStateFlow(AppTheme.DARK)
     private val colorPaletteFlow = MutableStateFlow(AppColorPalette.ECO_GREEN)
+    private val selectedAiProviderFlow = MutableStateFlow("GEMINI")
+    private val selectedModelFlow = MutableStateFlow<String?>("gemini-2.0-flash")
 
     private lateinit var viewModel: SettingsViewModel
 
@@ -48,6 +54,15 @@ class SettingsViewModelTest {
         every { preferenceManager.useMetricUnits } returns useMetricFlow
         every { preferenceManager.appTheme } returns appThemeFlow
         every { preferenceManager.colorPalette } returns colorPaletteFlow
+        every { preferenceManager.selectedAiProvider } returns selectedAiProviderFlow
+        every { preferenceManager.getSelectedModel(any()) } returns selectedModelFlow
+        
+        every { aiManager.getProviderByName(any()) } returns mockProvider
+        every { aiManager.getAllProviders() } returns listOf(mockProvider)
+        every { mockProvider.name } returns "GEMINI"
+        every { mockProvider.defaultModel } returns "gemini-2.0-flash"
+        coEvery { mockProvider.getAvailableModels() } returns listOf("gemini-2.0-flash")
+
         every { fuelEngine.getCalibrationFactor() } returns 1.05
         every { permissionManager.hasBluetoothPermissions() } returns false
         every { permissionManager.hasBackgroundLocationPermission() } returns false
@@ -56,7 +71,7 @@ class SettingsViewModelTest {
         mockkObject(com.ecodrive.app.ui.MainActivity.Companion)
         every { com.ecodrive.app.ui.MainActivity.authCodeFlow } returns MutableStateFlow(null)
 
-        viewModel = SettingsViewModel(smartcarApiClient, fuelEngine, preferenceManager, permissionManager)
+        viewModel = SettingsViewModel(smartcarApiClient, fuelEngine, preferenceManager, aiManager, permissionManager)
     }
 
     @After
@@ -159,5 +174,56 @@ class SettingsViewModelTest {
         advanceUntilIdle()
         assertEquals(75.0, viewModel.state.value.fuelTankPercent)
         assertEquals(12345.0, viewModel.state.value.odometerKm)
+    }
+
+    @Test
+    fun `test provider validation filters working and non-working providers`() = runTest {
+        val workingProvider = mockk<AiProvider>(relaxed = true) {
+            every { name } returns "MISTRAL"
+            coEvery { getAvailableModels() } returns listOf("mistral-small")
+        }
+        val brokenProvider = mockk<AiProvider>(relaxed = true) {
+            every { name } returns "DEEPSEEK"
+            coEvery { getAvailableModels() } returns null
+        }
+        
+        every { aiManager.getAllProviders() } returns listOf(mockProvider, workingProvider, brokenProvider)
+        
+        // Recreate viewModel to run init validation with these providers
+        viewModel = SettingsViewModel(smartcarApiClient, fuelEngine, preferenceManager, aiManager, permissionManager)
+        
+        advanceUntilIdle()
+        
+        val validProviders = viewModel.state.value.validProviders
+        assertTrue(validProviders.contains("LOCAL"))
+        assertTrue(validProviders.contains("GEMINI"))
+        assertTrue(validProviders.contains("MISTRAL"))
+        assertFalse(validProviders.contains("DEEPSEEK"))
+    }
+
+    @Test
+    fun `test selected provider falls back when invalid`() = runTest {
+        selectedAiProviderFlow.value = "GROQ"
+        
+        val workingProvider = mockk<AiProvider>(relaxed = true) {
+            every { name } returns "GEMINI"
+            coEvery { getAvailableModels() } returns listOf("gemini-model")
+        }
+        val brokenProvider = mockk<AiProvider>(relaxed = true) {
+            every { name } returns "GROQ"
+            coEvery { getAvailableModels() } returns null
+        }
+        
+        every { aiManager.getAllProviders() } returns listOf(workingProvider, brokenProvider)
+        every { aiManager.getProviderByName("GEMINI") } returns workingProvider
+        every { aiManager.getProviderByName("GROQ") } returns brokenProvider
+        
+        // Recreate viewModel
+        viewModel = SettingsViewModel(smartcarApiClient, fuelEngine, preferenceManager, aiManager, permissionManager)
+        
+        advanceUntilIdle()
+        
+        // It should call setSelectedAiProvider to fall back to GEMINI
+        coVerify { preferenceManager.setSelectedAiProvider("GEMINI") }
     }
 }

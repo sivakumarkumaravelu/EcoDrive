@@ -16,27 +16,53 @@ import javax.inject.Singleton
 @Singleton
 class CohereProvider @Inject constructor() : AiProvider {
     override val name: String = "COHERE"
+    override val defaultModel: String = "command-r-08-2024"
     private val client = OkHttpClient()
     private val json = Json { ignoreUnknownKeys = true }
     
     companion object {
         private const val TAG = "CohereProvider"
         private const val API_URL = "https://api.cohere.ai/v1/chat"
-        private const val MODEL_NAME = "command-r"
+        private const val MODELS_URL = "https://api.cohere.ai/v1/models"
     }
 
-    override suspend fun generateRealTimeTip(prompt: String): String? = generate(prompt, 0.7f, 512)
-    override suspend fun generateTripInsight(prompt: String): String? = generate(prompt, 0.4f, 1024)
-    override suspend fun generateWeeklyReport(prompt: String): String? = generate(prompt, 0.4f, 1024)
-    override suspend fun generateAnalyticsSummary(prompt: String): String? = generate(prompt, 0.4f, 1024)
+    override suspend fun getAvailableModels(): List<String>? = withContext(Dispatchers.IO) {
+        val apiKey = AiConfig.COHERE_API_KEY
+        if (apiKey.isBlank() || apiKey.startsWith("YOUR_")) return@withContext null
 
-    private suspend fun generate(prompt: String, temp: Float, maxTokens: Int): String? = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url(MODELS_URL)
+            .addHeader("Authorization", "Bearer $apiKey")
+            .get()
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val body = response.body?.string() ?: return@withContext null
+                val jsonResponse = json.parseToJsonElement(body).jsonObject
+                jsonResponse["models"]?.jsonArray?.mapNotNull { 
+                    it.jsonObject["name"]?.jsonPrimitive?.content 
+                }?.sorted()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Cohere models fetch failed: ${e.message}")
+            null
+        }
+    }
+
+    override suspend fun generateRealTimeTip(prompt: String, model: String?): String? = generate(prompt, 0.7f, 512, model)
+    override suspend fun generateTripInsight(prompt: String, model: String?): String? = generate(prompt, 0.4f, 1024, model)
+    override suspend fun generateWeeklyReport(prompt: String, model: String?): String? = generate(prompt, 0.4f, 1024, model)
+    override suspend fun generateAnalyticsSummary(prompt: String, model: String?): String? = generate(prompt, 0.4f, 1024, model)
+
+    private suspend fun generate(prompt: String, temp: Float, maxTokens: Int, model: String?): String? = withContext(Dispatchers.IO) {
         val apiKey = AiConfig.COHERE_API_KEY
         if (apiKey.isBlank() || apiKey.startsWith("YOUR_")) return@withContext null
 
         val requestBodyJson = buildJsonObject {
             put("message", prompt)
-            put("model", MODEL_NAME)
+            put("model", model ?: defaultModel)
             put("temperature", temp)
             put("max_tokens", maxTokens)
         }
