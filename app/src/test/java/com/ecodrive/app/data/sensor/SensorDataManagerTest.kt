@@ -159,7 +159,7 @@ class SensorDataManagerTest {
     }
 
     @Test
-    fun `test isIdle flag based on speed and accel`() = runTest {
+    fun `test isIdle flag based on speed thresholds`() = runTest {
         val gpsFlow = MutableSharedFlow<GpsReading>()
         val imuFlow = MutableSharedFlow<ImuReading>()
 
@@ -170,22 +170,22 @@ class SensorDataManagerTest {
         sensorDataManager.startCollection()
         sensorDataManager.state.first { it == SensorDataManager.CollectionState.COLLECTING }
 
-        // 1. Not moving, low accel -> IDLE
-        imuFlow.emit(createImuReading(longAccel = 0.1))
-        gpsFlow.emit(createGpsReading(speedKmh = 0.0))
+        // 1. Speed below idle threshold (2.0 km/h) -> IDLE
+        gpsFlow.emit(createGpsReading(speedKmh = 1.0))
         sensorDataManager.metrics.first { it.isIdle }
         assertTrue(sensorDataManager.metrics.value.isIdle)
 
-        // 2. Not moving, but high accel -> NOT IDLE (maybe starting)
-        imuFlow.emit(createImuReading(longAccel = 1.5))
-        gpsFlow.emit(createGpsReading(speedKmh = 0.0))
-        sensorDataManager.metrics.first { !it.isIdle }
+        // 2. Speed above idle threshold but below moving threshold (2.5 km/h) -> NOT IDLE and NOT MOVING
+        gpsFlow.emit(createGpsReading(speedKmh = 2.5))
+        sensorDataManager.metrics.first { !it.isIdle && !it.isMoving }
         assertFalse(sensorDataManager.metrics.value.isIdle)
+        assertFalse(sensorDataManager.metrics.value.isMoving)
 
-        // 3. Moving -> NOT IDLE
+        // 3. Speed above moving threshold (3.0 km/h) -> MOVING
         gpsFlow.emit(createGpsReading(speedKmh = 10.0))
         sensorDataManager.metrics.first { it.speedKmh == 10.0 }
         assertFalse(sensorDataManager.metrics.value.isIdle)
+        assertTrue(sensorDataManager.metrics.value.isMoving)
 
         sensorDataManager.stopCollection()
     }

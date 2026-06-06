@@ -133,9 +133,7 @@ class SensorDataManager @Inject constructor(
                     } else 0.0
 
                     val isMoving = gps.speedKmh >= Constants.MOVING_SPEED_THRESHOLD_KMH
-                    val isIdle = !isMoving && (imu?.longitudinalAccel?.let {
-                        kotlin.math.abs(it) < 0.5
-                    } ?: true)
+                    val isIdle = gps.speedKmh < Constants.IDLE_SPEED_THRESHOLD_KMH
 
                     lastTimestampMs = now.toEpochMilli()
 
