@@ -1,5 +1,6 @@
 package com.ecodrive.app.ui.components
 
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Box
@@ -133,11 +134,37 @@ fun OsmMapView(
                 webViewClient = WebViewClient()
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
-                loadDataWithBaseURL("https://openstreetmap.org", htmlContent, "text/html", "UTF-8", null)
+                // Allow WebView to load external resources (Leaflet CSS/JS from unpkg.com
+                // and OpenStreetMap tiles) when content is loaded via loadDataWithBaseURL.
+                @Suppress("SetJavaScriptEnabled")
+                settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                settings.useWideViewPort = true
+                settings.loadWithOverviewMode = true
+                settings.setSupportZoom(false)
+                // Store the loaded HTML as a tag so `update` can diff against it.
+                tag = htmlContent
+                loadDataWithBaseURL(
+                    "https://openstreetmap.org",
+                    htmlContent,
+                    "text/html",
+                    "UTF-8",
+                    null
+                )
             }
         },
         update = { webView ->
-            webView.loadDataWithBaseURL("https://openstreetmap.org", htmlContent, "text/html", "UTF-8", null)
+            // Only reload when content actually changed — avoids interrupting
+            // tile loading on unrelated recompositions (e.g. AI insight arriving).
+            if (webView.tag != htmlContent) {
+                webView.tag = htmlContent
+                webView.loadDataWithBaseURL(
+                    "https://openstreetmap.org",
+                    htmlContent,
+                    "text/html",
+                    "UTF-8",
+                    null
+                )
+            }
         }
     )
 }

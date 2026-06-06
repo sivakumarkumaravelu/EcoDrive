@@ -37,6 +37,24 @@ class TripRecorder @Inject constructor(
     private val _latestTip = MutableStateFlow<String?>(null)
     val latestTip: StateFlow<String?> = _latestTip.asStateFlow()
 
+    private val _tripDurationSeconds = MutableStateFlow(0L)
+    val tripDurationSeconds: StateFlow<Long> = _tripDurationSeconds.asStateFlow()
+
+    private val _tripDistanceKm = MutableStateFlow(0.0)
+    val tripDistanceKm: StateFlow<Double> = _tripDistanceKm.asStateFlow()
+
+    private val _fuelConsumedEstimate = MutableStateFlow(0.0)
+    val fuelConsumedEstimate: StateFlow<Double> = _fuelConsumedEstimate.asStateFlow()
+
+    private val _hardBrakeCount = MutableStateFlow(0)
+    val hardBrakeCount: StateFlow<Int> = _hardBrakeCount.asStateFlow()
+
+    private val _hardAccelCount = MutableStateFlow(0)
+    val hardAccelCount: StateFlow<Int> = _hardAccelCount.asStateFlow()
+
+    private val _sharpTurnCount = MutableStateFlow(0)
+    val sharpTurnCount: StateFlow<Int> = _sharpTurnCount.asStateFlow()
+
     private var boundService: SensorForegroundService? = null
     private var isBound = false
     private var observationJob: Job? = null
@@ -99,6 +117,24 @@ class TripRecorder @Inject constructor(
                 }
                 launch {
                     service.latestTip.collect { _latestTip.value = it }
+                }
+                launch {
+                    service.tripDurationSeconds.collect { _tripDurationSeconds.value = it }
+                }
+                launch {
+                    service.tripDistanceKm.collect { _tripDistanceKm.value = it }
+                }
+                launch {
+                    service.fuelConsumedEstimate.collect { _fuelConsumedEstimate.value = it }
+                }
+                launch {
+                    service.hardBrakeCount.collect { _hardBrakeCount.value = it }
+                }
+                launch {
+                    service.hardAccelCount.collect { _hardAccelCount.value = it }
+                }
+                launch {
+                    service.sharpTurnCount.collect { _sharpTurnCount.value = it }
                 }
             }
         }

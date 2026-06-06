@@ -168,6 +168,36 @@ class DashboardViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            tripRecorder.tripDurationSeconds.collect { duration ->
+                _state.update { it.copy(tripDurationSeconds = duration) }
+            }
+        }
+        viewModelScope.launch {
+            tripRecorder.tripDistanceKm.collect { distance ->
+                _state.update { it.copy(tripDistanceKm = distance) }
+            }
+        }
+        viewModelScope.launch {
+            tripRecorder.fuelConsumedEstimate.collect { fuel ->
+                _state.update { it.copy(fuelConsumedEstimate = fuel) }
+            }
+        }
+        viewModelScope.launch {
+            tripRecorder.hardBrakeCount.collect { count ->
+                _state.update { it.copy(hardBrakeCount = count) }
+            }
+        }
+        viewModelScope.launch {
+            tripRecorder.hardAccelCount.collect { count ->
+                _state.update { it.copy(hardAccelCount = count) }
+            }
+        }
+        viewModelScope.launch {
+            tripRecorder.sharpTurnCount.collect { count ->
+                _state.update { it.copy(sharpTurnCount = count) }
+            }
+        }
     }
 
     // ── User Actions ────────────────────────────────────────────

@@ -117,35 +117,75 @@ fun TripDetailScreen(
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
             // ── Route Map ───────────────────────────────────────
-            if (state.routePoints.isNotEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(300.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                    ) {
-                        val markers = mutableListOf(
-                            EcoMarker(state.routePoints.first(), "Start"),
-                            EcoMarker(state.routePoints.last(), "End")
-                        )
-                        state.events.filter { it.latitude != 0.0 && it.longitude != 0.0 }.forEach { event ->
-                            markers.add(EcoMarker(LatLng(event.latitude, event.longitude), event.type.name.replace("_", " ")))
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(300.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                ) {
+                    when {
+                        state.isLoading -> {
+                            // Skeleton placeholder while data points load from Room
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(32.dp),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
 
-                        EcoMap(
-                            modifier = Modifier.fillMaxSize(),
-                            initialCenter = state.routePoints.first(),
-                            initialZoom = 12f,
-                            markers = markers,
-                            polylines = listOf(
-                                EcoPolyline(
-                                    points = state.routePoints,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    width = 12f
+                        state.routePoints.isNotEmpty() -> {
+                            val markers = mutableListOf(
+                                EcoMarker(state.routePoints.first(), "Start"),
+                                EcoMarker(state.routePoints.last(), "End")
+                            )
+                            state.events
+                                .filter { it.latitude != 0.0 && it.longitude != 0.0 }
+                                .forEach { event ->
+                                    markers.add(
+                                        EcoMarker(
+                                            LatLng(event.latitude, event.longitude),
+                                            event.type.name.replace("_", " ")
+                                        )
+                                    )
+                                }
+
+                            EcoMap(
+                                modifier = Modifier.fillMaxSize(),
+                                initialCenter = state.routePoints.first(),
+                                initialZoom = 13f,
+                                markers = markers,
+                                polylines = listOf(
+                                    EcoPolyline(
+                                        points = state.routePoints,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        width = 12f
+                                    )
                                 )
                             )
-                        )
+                        }
+
+                        else -> {
+                            // Trip loaded but no GPS coordinates were recorded
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No GPS route data recorded for this trip",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
             }

@@ -40,6 +40,12 @@ class DashboardViewModelTest {
     private val currentMetricsFlow = MutableStateFlow(DrivingMetrics())
     private val currentEcoScoreFlow = MutableStateFlow(EcoScore(overall = 0))
     private val latestTipFlow = MutableStateFlow<String?>(null)
+    private val tripDurationSecondsFlow = MutableStateFlow(0L)
+    private val tripDistanceKmFlow = MutableStateFlow(0.0)
+    private val fuelConsumedEstimateFlow = MutableStateFlow(0.0)
+    private val hardBrakeCountFlow = MutableStateFlow(0)
+    private val hardAccelCountFlow = MutableStateFlow(0)
+    private val sharpTurnCountFlow = MutableStateFlow(0)
 
     private lateinit var viewModel: DashboardViewModel
 
@@ -56,6 +62,12 @@ class DashboardViewModelTest {
         every { tripRecorder.currentMetrics } returns currentMetricsFlow
         every { tripRecorder.currentEcoScore } returns currentEcoScoreFlow
         every { tripRecorder.latestTip } returns latestTipFlow
+        every { tripRecorder.tripDurationSeconds } returns tripDurationSecondsFlow
+        every { tripRecorder.tripDistanceKm } returns tripDistanceKmFlow
+        every { tripRecorder.fuelConsumedEstimate } returns fuelConsumedEstimateFlow
+        every { tripRecorder.hardBrakeCount } returns hardBrakeCountFlow
+        every { tripRecorder.hardAccelCount } returns hardAccelCountFlow
+        every { tripRecorder.sharpTurnCount } returns sharpTurnCountFlow
         every { permissionManager.hasRequiredPermissions() } returns true
         every { preferenceManager.useMetricUnits } returns flowOf(true)
 

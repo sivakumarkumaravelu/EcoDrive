@@ -90,6 +90,25 @@ class SensorForegroundService : Service() {
     private val _latestTip = MutableStateFlow<String?>(null)
     val latestTip: StateFlow<String?> = _latestTip.asStateFlow()
 
+    // Live trip stat flows
+    private val _tripDurationSeconds = MutableStateFlow(0L)
+    val tripDurationSeconds: StateFlow<Long> = _tripDurationSeconds.asStateFlow()
+
+    private val _tripDistanceKm = MutableStateFlow(0.0)
+    val tripDistanceKm: StateFlow<Double> = _tripDistanceKm.asStateFlow()
+
+    private val _fuelConsumedEstimate = MutableStateFlow(0.0)
+    val fuelConsumedEstimate: StateFlow<Double> = _fuelConsumedEstimate.asStateFlow()
+
+    private val _hardBrakeCount = MutableStateFlow(0)
+    val hardBrakeCount: StateFlow<Int> = _hardBrakeCount.asStateFlow()
+
+    private val _hardAccelCount = MutableStateFlow(0)
+    val hardAccelCount: StateFlow<Int> = _hardAccelCount.asStateFlow()
+
+    private val _sharpTurnCount = MutableStateFlow(0)
+    val sharpTurnCount: StateFlow<Int> = _sharpTurnCount.asStateFlow()
+
     // Trip State
     private var activeTripId: Long? = null
     private var vehicleType: com.ecodrive.app.domain.model.VehicleType = com.ecodrive.app.domain.model.VehicleType.ICE
@@ -254,6 +273,13 @@ class SensorForegroundService : Service() {
         analyzer.reset()
         _currentEcoScore.value = EcoScore(overall = 0)
         _currentMetrics.value = DrivingMetrics()
+        // Reset live stat flows
+        _tripDurationSeconds.value = 0L
+        _tripDistanceKm.value = 0.0
+        _fuelConsumedEstimate.value = 0.0
+        _hardBrakeCount.value = 0
+        _hardAccelCount.value = 0
+        _sharpTurnCount.value = 0
     }
 
     private suspend fun processMetrics(metrics: DrivingMetrics) {
@@ -278,9 +304,9 @@ class SensorForegroundService : Service() {
         for (event in events) {
             audioFeedbackManager.playEventFeedback(event)
             when (event.type) {
-                DrivingEventType.HARD_BRAKE -> hardBrakes++
-                DrivingEventType.HARD_ACCELERATION -> hardAccels++
-                DrivingEventType.SHARP_TURN -> sharpTurns++
+                DrivingEventType.HARD_BRAKE -> { hardBrakes++; _hardBrakeCount.value = hardBrakes }
+                DrivingEventType.HARD_ACCELERATION -> { hardAccels++; _hardAccelCount.value = hardAccels }
+                DrivingEventType.SHARP_TURN -> { sharpTurns++; _sharpTurnCount.value = sharpTurns }
                 else -> {}
             }
         }
@@ -307,6 +333,11 @@ class SensorForegroundService : Service() {
         val idlePercent = if (tripDuration > 0) {
             (idleTimeMs / 1000.0 / tripDuration) * 100.0
         } else 0.0
+
+        // Emit live stat updates
+        _tripDurationSeconds.value = tripDuration
+        _tripDistanceKm.value = totalDistanceKm
+        _fuelConsumedEstimate.value = totalFuelConsumed
 
         val weights = adaptiveScoreWeights.getWeightsForVehicle(vehicleType)
         val ecoScore = ecoScoreCalculator.calculate(
