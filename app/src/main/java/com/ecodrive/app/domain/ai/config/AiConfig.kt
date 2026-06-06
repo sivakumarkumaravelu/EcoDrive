@@ -1,23 +1,25 @@
 package com.ecodrive.app.domain.ai.config
 
+import com.ecodrive.app.BuildConfig
+
 /**
  * Configuration for AI providers.
- * API keys should be provided via build-time secrets or environment variables.
- * For local development, place your keys here.
+ * API keys are provided via local.properties (local development) or environment variables (CI/CD).
+ * These are accessed through the generated BuildConfig class.
  */
 object AiConfig {
-    const val GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"
-    const val GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE"
-    const val MISTRAL_API_KEY = "YOUR_MISTRAL_API_KEY_HERE"
-    const val OPENROUTER_API_KEY = "YOUR_OPENROUTER_API_KEY_HERE"
-    const val SAMBANOVA_API_KEY = "YOUR_SAMBANOVA_API_KEY_HERE"
-    const val DEEPSEEK_API_KEY = "YOUR_DEEPSEEK_API_KEY_HERE"
-    const val COHERE_API_KEY = "YOUR_COHERE_API_KEY_HERE"
-    const val CLOUDFLARE_API_KEY = "YOUR_CLOUDFLARE_API_TOKEN_HERE"
-    const val CLOUDFLARE_ACCOUNT_ID = "YOUR_CLOUDFLARE_ACCOUNT_ID_HERE"
+    val GEMINI_API_KEY: String = BuildConfig.GEMINI_API_KEY
+    val GROQ_API_KEY: String = BuildConfig.GROQ_API_KEY
+    val MISTRAL_API_KEY: String = BuildConfig.MISTRAL_API_KEY
+    val OPENROUTER_API_KEY: String = BuildConfig.OPENROUTER_API_KEY
+    val SAMBANOVA_API_KEY: String = BuildConfig.SAMBANOVA_API_KEY
+    val DEEPSEEK_API_KEY: String = BuildConfig.DEEPSEEK_API_KEY
+    val COHERE_API_KEY: String = BuildConfig.COHERE_API_KEY
+    val CLOUDFLARE_API_KEY: String = BuildConfig.CLOUDFLARE_API_KEY
+    val CLOUDFLARE_ACCOUNT_ID: String = BuildConfig.CLOUDFLARE_ACCOUNT_ID
     
-    // Select exactly 3 to show in UI. 
-    val UI_PROVIDERS = listOf("GEMINI", "GROQ", "LOCAL")
+    // Providers to show in the settings UI.
+    val UI_PROVIDERS = listOf("GEMINI", "GROQ", "MISTRAL", "SAMBANOVA", "DEEPSEEK", "LOCAL")
 
     // Default provider used if none is specified or available
     const val DEFAULT_PROVIDER = "GEMINI"
