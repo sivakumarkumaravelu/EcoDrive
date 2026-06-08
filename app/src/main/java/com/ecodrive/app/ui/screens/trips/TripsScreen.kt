@@ -299,7 +299,8 @@ private fun TripCard(
                                 color = MaterialTheme.colorScheme.primary,
                                 width = 6f
                             )
-                        )
+                        ),
+                        autoFit = true
                     )
                     
                     // Overlay to capture clicks and prevent map interaction

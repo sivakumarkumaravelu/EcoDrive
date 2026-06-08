@@ -120,6 +120,9 @@ dependencies {
     implementation("com.google.maps.android:maps-compose:6.1.2")
     implementation("com.google.android.gms:play-services-maps:19.0.0")
 
+    // MapLibre SDK
+    implementation("org.maplibre.gl:android-sdk:10.0.2")
+
     // Google Fonts
     implementation("androidx.compose.ui:ui-text-google-fonts:1.7.5")
 

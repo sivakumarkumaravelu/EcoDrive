@@ -21,6 +21,7 @@ class AiCoachServiceTest {
 
     @Before
     fun setup() {
+        every { preferenceManager.useMetricUnits } returns flowOf(true)
         aiCoachService = AiCoachService(aiManager, preferenceManager, weatherApiClient)
     }
 

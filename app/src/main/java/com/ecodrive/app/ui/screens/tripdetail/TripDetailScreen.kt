@@ -167,7 +167,8 @@ fun TripDetailScreen(
                                         color = MaterialTheme.colorScheme.primary,
                                         width = 12f
                                     )
-                                )
+                                ),
+                                autoFit = true
                             )
                         }
 

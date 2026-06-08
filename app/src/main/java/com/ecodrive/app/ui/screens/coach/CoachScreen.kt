@@ -33,6 +33,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -48,12 +49,26 @@ fun CoachScreen(
     viewModel: CoachViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val scrollState = rememberScrollState()
+    var isTextFieldFocused by remember { mutableStateOf(false) }
+
+    LaunchedEffect(state.chatHistory.size) {
+        if (state.chatHistory.isNotEmpty()) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+
+    LaunchedEffect(scrollState.maxValue, isTextFieldFocused) {
+        if (isTextFieldFocused) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(16.dp)
             .imePadding()
     ) {
@@ -208,6 +223,7 @@ fun CoachScreen(
         AskTheCoachSection(
             history = state.chatHistory,
             isAsking = state.isAskingAi,
+            onFocusChanged = { isTextFieldFocused = it },
             onAsk = { viewModel.askQuestion(it) }
         )
 
@@ -219,6 +235,7 @@ fun CoachScreen(
 private fun AskTheCoachSection(
     history: List<CoachViewModel.ChatMessage>,
     isAsking: Boolean,
+    onFocusChanged: (Boolean) -> Unit,
     onAsk: (String) -> Unit
 ) {
     var text by remember { mutableStateOf("") }
@@ -302,7 +319,11 @@ private fun AskTheCoachSection(
             value = text,
             onValueChange = { text = it },
             placeholder = { Text("How can I improve my score?") },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { focusState ->
+                    onFocusChanged(focusState.isFocused)
+                },
             trailingIcon = {
                 IconButton(
                     onClick = {

@@ -1,6 +1,15 @@
 package com.ecodrive.app.util
 
 /**
+ * Supported map engine providers.
+ */
+enum class MapProvider {
+    GOOGLE_MAPS,
+    OPEN_STREET_MAP, // Existing Leaflet WebView
+    MAPLIBRE         // New Native Vector SDK
+}
+
+/**
  * Global application configuration and hard-coded API keys.
  */
 object AppConfig {
@@ -14,9 +23,14 @@ object AppConfig {
     const val MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY_HERE"
 
     /**
-     * If true, use Google Maps SDK and Directions API.
-     * If false, use OpenStreetMap (via WebView/Leaflet) and OSRM Routing.
-     * Default set to false as per user request.
+     * Switch here to select the map engine you want to use.
+     * Can be set to MapProvider.GOOGLE_MAPS, MapProvider.OPEN_STREET_MAP, or MapProvider.MAPLIBRE.
      */
-    const val USE_GOOGLE_MAPS = false
+    var ACTIVE_MAP_PROVIDER = MapProvider.MAPLIBRE
+
+    /**
+     * Read-only property for backward compatibility with other features.
+     */
+    val USE_GOOGLE_MAPS: Boolean
+        get() = ACTIVE_MAP_PROVIDER == MapProvider.GOOGLE_MAPS
 }
