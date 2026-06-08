@@ -165,6 +165,11 @@ fun OsmMapView(
                 
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
+                
+                // OSM Tile Usage Policy requires a descriptive User-Agent.
+                // Standard mobile browsers are sometimes blocked if they don't identify the app.
+                settings.userAgentString = "EcoDrive-Android/1.3.2 (com.ecodrive.app; contact: support@ecodrive.example.com)"
+
                 @Suppress("SetJavaScriptEnabled")
                 settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 settings.useWideViewPort = true
