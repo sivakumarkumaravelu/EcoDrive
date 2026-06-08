@@ -1,5 +1,6 @@
 package com.ecodrive.app.ui.screens.tripdetail
 
+import android.util.Log
 import com.ecodrive.app.domain.ai.service.AiManager
 
 import androidx.lifecycle.SavedStateHandle
@@ -266,6 +267,8 @@ class TripDetailViewModel @Inject constructor(
                 val routeData = points.filter { it.latitude != 0.0 && it.longitude != 0.0 }.map { dp ->
                     LatLng(dp.latitude, dp.longitude)
                 }
+
+                Log.d("TripDetailViewModel", "Loaded ${points.size} data points, ${routeData.size} route points for trip $tripId")
 
                 _state.update {
                     it.copy(

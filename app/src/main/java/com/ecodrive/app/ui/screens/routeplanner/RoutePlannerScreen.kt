@@ -4,11 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,6 +26,7 @@ import com.ecodrive.app.ui.components.EcoMap
 import com.ecodrive.app.ui.components.EcoMarker
 import com.ecodrive.app.ui.components.EcoPolyline
 import com.ecodrive.app.ui.theme.EcoDriveTheme
+import com.ecodrive.app.util.UnitConverter
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
@@ -38,8 +41,7 @@ fun RoutePlannerScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     
-    // Mock user location for demo
-    val userLocation = LatLng(37.422, -122.084)
+    val userLocation = state.origin ?: LatLng(37.422, -122.084) // Default fallback
 
     Column(modifier = Modifier
         .fillMaxSize()
@@ -56,31 +58,91 @@ fun RoutePlannerScreen(
             Text(
                 text = "Plan Eco-Route",
                 style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(start = 8.dp)
+                modifier = Modifier.padding(start = 8.dp).weight(1f)
             )
+            
+            IconButton(onClick = viewModel::loadCurrentLocation) {
+                Icon(Icons.Default.MyLocation, contentDescription = "My Location", tint = MaterialTheme.colorScheme.primary)
+            }
         }
 
-        // Search Bar
-        OutlinedTextField(
-            value = state.destination,
-            onValueChange = viewModel::updateDestination,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            placeholder = { Text("Enter destination") },
-            trailingIcon = {
-                IconButton(onClick = { viewModel.findRoutes(userLocation, state.destination) }) {
-                    Icon(Icons.Default.Search, contentDescription = "Search")
+        // Search Bar with Suggestions
+        Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            Column {
+                OutlinedTextField(
+                    value = state.destination,
+                    onValueChange = viewModel::updateDestination,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Enter destination") },
+                    trailingIcon = {
+                        IconButton(onClick = { 
+                            if (state.destination.isNotBlank()) {
+                                viewModel.findRoutes(userLocation, state.destination) 
+                            }
+                        }) {
+                            Icon(Icons.Default.Search, contentDescription = "Search")
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                if (state.suggestions.isNotEmpty()) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp)
+                            .heightIn(max = 200.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shadowElevation = 8.dp
+                    ) {
+                        LazyColumn {
+                            items(state.suggestions) { suggestion ->
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { viewModel.selectSuggestion(suggestion) }
+                                        .padding(16.dp)
+                                ) {
+                                    Text(
+                                        text = suggestion.name,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = suggestion.description,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                            }
+                        }
+                    }
                 }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp)
-        )
+            }
+            
+            if (state.isSearchingSuggestions) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 12.dp)
+                        .height(2.dp)
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
         // Map Section
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            val markers = mutableListOf(EcoMarker(userLocation, "Your Location"))
-            state.destinationLatLng?.let { markers.add(EcoMarker(it, "Destination")) }
+            val markers = remember(userLocation, state.destinationLatLng) {
+                val list = mutableListOf(EcoMarker(userLocation, "Your Location"))
+                state.destinationLatLng?.let { list.add(EcoMarker(it, "Destination")) }
+                list
+            }
 
             EcoMap(
                 modifier = Modifier.fillMaxSize(),
@@ -155,6 +217,7 @@ fun RoutePlannerScreen(
                     routeWithMetrics = routeWithMetrics,
                     isSelected = index == state.selectedRouteIndex,
                     isGreenest = index == 0,
+                    useMetric = state.useMetric,
                     onClick = { viewModel.selectRoute(index) }
                 )
             }
@@ -167,6 +230,7 @@ private fun RouteOptionCard(
     routeWithMetrics: RoutePlannerViewModel.RouteWithMetrics,
     isSelected: Boolean,
     isGreenest: Boolean,
+    useMetric: Boolean,
     onClick: () -> Unit
 ) {
     val metrics = routeWithMetrics.metrics
@@ -212,14 +276,14 @@ private fun RouteOptionCard(
                     }
                 }
                 Text(
-                    text = "${metrics.distanceKm} km • ${metrics.durationMinutes} min",
+                    text = "${UnitConverter.formatDistance(metrics.distanceKm, useMetric)} • ${metrics.durationMinutes} min",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = "%.2f L".format(metrics.estimatedFuelLiters),
+                    text = UnitConverter.formatFuelVolume(metrics.estimatedFuelLiters, useMetric),
                     style = MaterialTheme.typography.titleMedium,
                     color = if (isGreenest) EcoDriveTheme.colors.scoreExcellent else MaterialTheme.colorScheme.onSurface
                 )

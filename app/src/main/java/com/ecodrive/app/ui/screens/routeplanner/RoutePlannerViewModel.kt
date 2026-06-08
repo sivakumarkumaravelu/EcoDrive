@@ -1,5 +1,6 @@
 package com.ecodrive.app.ui.screens.routeplanner
 
+import com.ecodrive.app.data.sensor.LocationTracker
 import com.ecodrive.app.domain.ai.analyzer.RouteInsightGenerator
 
 import android.content.Context
@@ -19,6 +20,8 @@ import com.google.android.gms.maps.model.LatLng
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -39,7 +42,14 @@ class RoutePlannerViewModel @Inject constructor(
     private val vehicleRepository: VehicleRepository,
     private val preferenceManager: PreferenceManager,
     private val routeInsightGenerator: com.ecodrive.app.domain.ai.analyzer.RouteInsightGenerator,
+    private val locationTracker: LocationTracker,
 ) : ViewModel() {
+
+    data class PlaceSuggestion(
+        val name: String,
+        val description: String,
+        val latLng: LatLng? = null
+    )
 
     data class RouteWithMetrics(
         val route: MapRoute,
@@ -50,9 +60,11 @@ class RoutePlannerViewModel @Inject constructor(
         val origin: LatLng? = null,
         val destination: String = "",
         val destinationLatLng: LatLng? = null,
+        val suggestions: List<PlaceSuggestion> = emptyList(),
         val routes: List<RouteWithMetrics> = emptyList(),
         val selectedRouteIndex: Int = 0,
         val isLoading: Boolean = false,
+        val isSearchingSuggestions: Boolean = false,
         val error: String? = null,
         val useMetric: Boolean = true,
         val aiRouteInsight: String? = null,
@@ -61,8 +73,11 @@ class RoutePlannerViewModel @Inject constructor(
     private val _state = MutableStateFlow(RoutePlannerState())
     val state: StateFlow<RoutePlannerState> = _state.asStateFlow()
 
+    private var suggestionJob: Job? = null
+
     init {
         observePreferences()
+        loadCurrentLocation()
     }
 
     private fun observePreferences() {
@@ -73,11 +88,88 @@ class RoutePlannerViewModel @Inject constructor(
         }
     }
 
-    fun updateDestination(dest: String) {
-        _state.update { it.copy(destination = dest) }
+    fun loadCurrentLocation() {
+        viewModelScope.launch {
+            val location = locationTracker.getLastLocation()
+            if (location != null) {
+                _state.update { it.copy(origin = LatLng(location.latitude, location.longitude)) }
+            } else {
+                // Fallback to a default if absolutely necessary, but ideally we should wait for a fix
+                _state.update { it.copy(origin = LatLng(37.422, -122.084)) } // Googleplex
+            }
+        }
     }
 
-    fun findRoutes(origin: LatLng, destName: String) {
+    fun updateDestination(dest: String) {
+        _state.update { it.copy(destination = dest) }
+        
+        // Debounced suggestions
+        suggestionJob?.cancel()
+        if (dest.length >= 3) {
+            suggestionJob = viewModelScope.launch {
+                delay(500)
+                fetchSuggestions(dest)
+            }
+        } else {
+            _state.update { it.copy(suggestions = emptyList()) }
+        }
+    }
+
+    private suspend fun fetchSuggestions(query: String) {
+        _state.update { it.copy(isSearchingSuggestions = true) }
+        try {
+            val encoded = URLEncoder.encode(query, "UTF-8")
+            val url = java.net.URL(
+                "https://nominatim.openstreetmap.org/search?q=$encoded&format=json&limit=5"
+            )
+            val connection = withContext(Dispatchers.IO) {
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.setRequestProperty("User-Agent", "EcoDrive-Android/1.0")
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                conn
+            }
+
+            if (connection.responseCode == 200) {
+                val body = withContext(Dispatchers.IO) {
+                    connection.inputStream.bufferedReader().use { it.readText() }
+                }
+                val arr = JSONArray(body)
+                val suggestions = mutableListOf<PlaceSuggestion>()
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    suggestions.add(
+                        PlaceSuggestion(
+                            name = obj.optString("display_name").split(",").firstOrNull() ?: query,
+                            description = obj.optString("display_name"),
+                            latLng = LatLng(obj.getDouble("lat"), obj.getDouble("lon"))
+                        )
+                    )
+                }
+                _state.update { it.copy(suggestions = suggestions, isSearchingSuggestions = false) }
+            } else {
+                _state.update { it.copy(isSearchingSuggestions = false) }
+            }
+        } catch (e: Exception) {
+            _state.update { it.copy(isSearchingSuggestions = false) }
+        }
+    }
+
+    fun selectSuggestion(suggestion: PlaceSuggestion) {
+        _state.update { it.copy(
+            destination = suggestion.name,
+            destinationLatLng = suggestion.latLng,
+            suggestions = emptyList()
+        ) }
+        
+        // If we have both origin and destination latlng, we could auto-trigger findRoutes
+        val origin = state.value.origin
+        if (origin != null && suggestion.latLng != null) {
+            findRoutes(origin, suggestion.latLng)
+        }
+    }
+
+    fun findRoutes(origin: LatLng, destination: Any) {
         if (AppConfig.USE_GOOGLE_MAPS && (AppConfig.MAPS_API_KEY.isBlank() || AppConfig.MAPS_API_KEY == "YOUR_GOOGLE_MAPS_API_KEY_HERE")) {
             _state.update { it.copy(error = "Google Maps API Key not configured in AppConfig") }
             return
@@ -86,18 +178,25 @@ class RoutePlannerViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null, origin = origin) }
 
-            // Step 1: Android system Geocoder (fast, no API key)
-            // Step 2: Nominatim/OSM  (free, no API key, same ecosystem as OSRM)
-            // Step 3: AI model      (last resort, handles fuzzy/colloquial names)
-            val destinationLatLng = geocodeWithAndroid(destName)
-                ?: geocodeWithNominatim(destName)
-                ?: geocodeWithAi(destName, origin)
+            val destinationLatLng = when (destination) {
+                is LatLng -> destination
+                is String -> {
+                    // Step 1: Android system Geocoder (fast, no API key)
+                    // Step 2: Nominatim/OSM  (free, no API key, same ecosystem as OSRM)
+                    // Step 3: AI model      (last resort, handles fuzzy/colloquial names)
+                    geocodeWithAndroid(destination)
+                        ?: geocodeWithNominatim(destination)
+                        ?: geocodeWithAi(destination, origin)
+                }
+                else -> null
+            }
 
             if (destinationLatLng == null) {
+                val destName = if (destination is String) "\"$destination\"" else "destination"
                 _state.update {
                     it.copy(
                         isLoading = false,
-                        error = "Could not find \"$destName\". Please check the address and try again."
+                        error = "Could not find $destName. Please check the address and try again."
                     )
                 }
                 return@launch

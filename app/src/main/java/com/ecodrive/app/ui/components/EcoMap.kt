@@ -1,5 +1,8 @@
 package com.ecodrive.app.ui.components
 
+import android.util.Log
+import android.webkit.ConsoleMessage
+import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -12,6 +15,8 @@ import com.ecodrive.app.util.AppConfig
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
+
+private const val TAG = "EcoMap"
 
 /**
  * A hybrid map component that switches between Google Maps and OpenStreetMap (Leaflet).
@@ -107,20 +112,37 @@ fun OsmMapView(
             <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
             <style>
                 body { margin: 0; padding: 0; background: #121212; }
-                #map { height: 100vh; width: 100vw; }
+                #map { height: 100vh; width: 100vw; min-height: 300px; }
                 .leaflet-container { background: #121212; }
             </style>
         </head>
         <body>
             <div id="map"></div>
             <script>
-                var map = L.map('map').setView([${center.latitude}, ${center.longitude}], ${zoom});
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; OpenStreetMap contributors'
-                }).addTo(map);
-                
-                $markersJs
-                $polylinesJs
+                window.onerror = function(message, source, lineno, colno, error) {
+                    console.log("JS Error: " + message + " at " + source + ":" + lineno + ":" + colno);
+                    return true;
+                };
+
+                try {
+                    console.log("Initializing map at [${center.latitude}, ${center.longitude}] with zoom ${zoom}");
+                    var map = L.map('map').setView([${center.latitude}, ${center.longitude}], ${zoom});
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; OpenStreetMap contributors'
+                    }).addTo(map);
+                    
+                    $markersJs
+                    $polylinesJs
+
+                    // Important: invalidateSize() ensures Leaflet recalculates dimensions 
+                    // after the container is ready.
+                    setTimeout(function() {
+                        map.invalidateSize();
+                        console.log("Map size invalidated");
+                    }, 500);
+                } catch (e) {
+                    console.log("Map Init Error: " + e.message);
+                }
             </script>
         </body>
         </html>
@@ -132,16 +154,23 @@ fun OsmMapView(
         factory = { context ->
             WebView(context).apply {
                 webViewClient = WebViewClient()
+                webChromeClient = object : WebChromeClient() {
+                    override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                        consoleMessage?.let {
+                            Log.d(TAG, "WebView Console [${it.messageLevel()}]: ${it.message()} -- From line ${it.lineNumber()} of ${it.sourceId()}")
+                        }
+                        return true
+                    }
+                }
+                
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
-                // Allow WebView to load external resources (Leaflet CSS/JS from unpkg.com
-                // and OpenStreetMap tiles) when content is loaded via loadDataWithBaseURL.
                 @Suppress("SetJavaScriptEnabled")
                 settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 settings.useWideViewPort = true
                 settings.loadWithOverviewMode = true
                 settings.setSupportZoom(false)
-                // Store the loaded HTML as a tag so `update` can diff against it.
+                
                 tag = htmlContent
                 loadDataWithBaseURL(
                     "https://openstreetmap.org",
@@ -153,8 +182,6 @@ fun OsmMapView(
             }
         },
         update = { webView ->
-            // Only reload when content actually changed — avoids interrupting
-            // tile loading on unrelated recompositions (e.g. AI insight arriving).
             if (webView.tag != htmlContent) {
                 webView.tag = htmlContent
                 webView.loadDataWithBaseURL(
