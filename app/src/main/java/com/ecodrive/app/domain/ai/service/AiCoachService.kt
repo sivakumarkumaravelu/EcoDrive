@@ -47,6 +47,7 @@ class AiCoachService @Inject constructor(
      * Returns null if AI is unavailable, rate-limited, or no key is set.
      */
     suspend fun getRealTimeTip(metrics: DrivingMetrics, ecoScore: EcoScore): String? {
+        val useMetric = preferenceManager.useMetricUnits.first()
         val avgSpeed = if (contextWindow.isNotEmpty()) contextWindow.map { it.speedKmh }.average() else metrics.speedKmh
         val maxAccel = contextWindow.mapNotNull { it.longitudinalAccelMps2.takeIf { v -> v > 0 } }.maxOrNull() ?: 0.0
         val minAccel = contextWindow.map { it.longitudinalAccelMps2 }.minOrNull() ?: 0.0
@@ -54,6 +55,10 @@ class AiCoachService @Inject constructor(
         // Weather context — refresh periodically using last known location
         val weather = getWeatherContext(metrics.latitude, metrics.longitude)
         val weatherTag = weather.safetyContext
+
+        val unitLabel = if (useMetric) "km/h" else "mph"
+        val displaySpeed = if (useMetric) metrics.speedKmh else com.ecodrive.app.util.UnitConverter.kmhToMph(metrics.speedKmh)
+        val displayAvgSpeed = if (useMetric) avgSpeed else com.ecodrive.app.util.UnitConverter.kmhToMph(avgSpeed)
 
         val weatherSection = if (weatherTag.isNotBlank()) {
             "\nWeather/Environment:\n" +
@@ -66,16 +71,17 @@ class AiCoachService @Inject constructor(
             You are a real-time Eco-Driving Coach. Provide a SINGLE, concise (max 15 words) tip 
             for the driver based on their current behavior.
             
-            CRITICAL: Do NOT include any emojis, markdown, or special symbols in your response. 
+            CRITICAL: Use $unitLabel for speed and provide advice in the context of the ${if (useMetric) "Metric" else "Imperial"} system.
+            Do NOT include any emojis, markdown, or special symbols in your response. 
             The output will be read aloud by Text-to-Speech.
             
             Current Metrics:
-            - Speed: ${"%.1f".format(metrics.speedKmh)} km/h
+            - Speed: ${"%.1f".format(displaySpeed)} $unitLabel
             - Acceleration: ${"%.2f".format(metrics.longitudinalAccelMps2)} m/s²
             - Eco Score: ${ecoScore.overall}/100
             
             Last 60s Context:
-            - Avg Speed: ${"%.1f".format(avgSpeed)} km/h
+            - Avg Speed: ${"%.1f".format(displayAvgSpeed)} $unitLabel
             - Max Accel: ${"%.2f".format(maxAccel)} m/s²
             - Hardest Brake: ${"%.2f".format(minAccel)} m/s²
             $weatherSection

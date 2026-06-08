@@ -165,7 +165,7 @@ class AnalyticsViewModel @Inject constructor(
 
     private suspend fun generateAiSummary(s: AnalyticsState) {
         _state.update { it.copy(isAiLoading = true) }
-        val response = analyticsInsightGenerator.generateSummary(s)
+        val response = analyticsInsightGenerator.generateSummary(s, s.useMetric)
         _state.update { it.copy(aiSummary = response, isAiLoading = false) }
     }
 

@@ -225,7 +225,7 @@ class RoutePlannerViewModel @Inject constructor(
 
     private fun generateAiRouteInsight(routes: List<RouteWithMetrics>) {
         viewModelScope.launch {
-            val insight = routeInsightGenerator.generateComparison(routes)
+            val insight = routeInsightGenerator.generateComparison(routes, state.value.useMetric)
             _state.update { it.copy(aiRouteInsight = insight) }
         }
     }

@@ -137,25 +137,42 @@ class TripDetailViewModel @Inject constructor(
                 } else ""
             } else ""
 
+            val useMetric = state.value.useMetric
+            val distanceUnit = if (useMetric) "km" else "miles"
+            val speedUnit = if (useMetric) "km/h" else "mph"
+            val fuelEfficiencyUnit = if (useMetric) "L/100km" else "mpg"
+            val fuelUnit = if (useMetric) "L" else "gallons"
+
+            val displayDistance = if (useMetric) trip.distanceKm else com.ecodrive.app.util.UnitConverter.kmToMiles(trip.distanceKm)
+            val displayFuel = if (useMetric) trip.fuelConsumedLiters else com.ecodrive.app.util.UnitConverter.litersToGallons(trip.fuelConsumedLiters)
+            val displayEfficiency = if (useMetric) trip.fuelEfficiencyLPer100Km else com.ecodrive.app.util.UnitConverter.l100kmToMpg(trip.fuelEfficiencyLPer100Km)
+            val displayAvgEfficiency = if (useMetric) (avgEfficiency ?: trip.fuelEfficiencyLPer100Km) else com.ecodrive.app.util.UnitConverter.l100kmToMpg(avgEfficiency ?: trip.fuelEfficiencyLPer100Km)
+            val displayMaxSpeed = if (useMetric) maxSpeed else com.ecodrive.app.util.UnitConverter.kmhToMph(maxSpeed.toDouble()).toFloat()
+
             val prompt = """
                 You are an expert Eco-Driving Coach. Analyze the following trip data and provide a rich, 
                 encouraging, and actionable insight for the driver.
                 
+                CRITICAL: Use $distanceUnit, $speedUnit, $fuelEfficiencyUnit, and $fuelUnit for all mentions of distance, speed, efficiency, and fuel volume.
+                
                 Trip Summary:
                 - Eco Score: ${trip.ecoScore}/100 (Your 30-day average: ${"%.1f".format(avgScore ?: trip.ecoScore.toDouble())})
-                - Distance: ${"%.1f".format(trip.distanceKm) } km
+                - Distance: ${"%.1f".format(displayDistance) } $distanceUnit
                 - Duration: ${trip.durationSeconds / 60} minutes
-                - Fuel Consumed: ${"%.2f".format(trip.fuelConsumedLiters)} L
-                - Efficiency: ${"%.2f".format(trip.fuelEfficiencyLPer100Km)} L/100km (Avg: ${"%.2f".format(avgEfficiency ?: trip.fuelEfficiencyLPer100Km)} L/100km)
+                - Fuel Consumed: ${"%.2f".format(displayFuel)} $fuelUnit
+                - Efficiency: ${"%.2f".format(displayEfficiency)} $fuelEfficiencyUnit (Avg: ${"%.2f".format(displayAvgEfficiency)} $fuelEfficiencyUnit)
                 $similarTripsContext
                 
                 Telemetry Highlights:
-                - Max Speed: ${"%.1f".format(maxSpeed)} km/h
+                - Max Speed: ${"%.1f".format(displayMaxSpeed)} $speedUnit
                 - Max Acceleration: ${"%.2f".format(maxAccel)} m/s²
                 - Strongest Braking: ${"%.2f".format(maxBrake)} m/s²
                 
                 Driving Events:
-                ${events.joinToString("\n") { "- ${it.type.name} at ${it.speedAtEvent} km/h: ${it.description}" }}
+                ${events.joinToString("\n") { 
+                    val eventSpeed = if (useMetric) it.speedAtEvent else com.ecodrive.app.util.UnitConverter.kmhToMph(it.speedAtEvent)
+                    "- ${it.type.name} at ${"%.1f".format(eventSpeed)} $speedUnit: ${it.description}" 
+                }}
                 
                 Context:
                 The trip was taken on ${trip.startTime.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("EEEE, MMMM d 'at' HH:mm"))}.
