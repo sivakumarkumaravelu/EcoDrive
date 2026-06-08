@@ -45,6 +45,12 @@ val LocalEcoDriveColors = staticCompositionLocalOf {
     )
 }
 
+/**
+ * CompositionLocal that exposes whether the current app theme is dark.
+ * Consume via [LocalIsDarkTheme.current] in any composable.
+ */
+val LocalIsDarkTheme = staticCompositionLocalOf { true }
+
 object EcoDriveTheme {
     val colors: EcoDriveColors
         @Composable
@@ -173,7 +179,10 @@ fun EcoDriveTheme(
         }
     }
 
-    CompositionLocalProvider(LocalEcoDriveColors provides semanticColors) {
+    CompositionLocalProvider(
+        LocalEcoDriveColors provides semanticColors,
+        LocalIsDarkTheme provides darkTheme,
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = EcoDriveTypography,

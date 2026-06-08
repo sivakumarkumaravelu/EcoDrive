@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import com.ecodrive.app.ui.theme.LocalIsDarkTheme
 import com.ecodrive.app.util.AppConfig
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -88,7 +89,15 @@ fun OsmMapView(
     polylines: List<EcoPolyline>,
     markers: List<EcoMarker>
 ) {
-    val htmlContent = remember(center, zoom, polylines, markers) {
+    val isDarkTheme = LocalIsDarkTheme.current
+
+    // Pick tile layer based on current app theme:
+    //  dark_all  → CARTO Dark Matter  (suits the app's dark UI)
+    //  light_all → CARTO Positron     (clean, minimal light tiles)
+    val tileVariant = if (isDarkTheme) "dark_all" else "light_all"
+    val mapBgColor  = if (isDarkTheme) "#121212" else "#f0f0f0"
+
+    val htmlContent = remember(center, zoom, polylines, markers, isDarkTheme) {
         val markersJs = markers.joinToString("\n") { 
             "L.marker([${it.position.latitude}, ${it.position.longitude}]).addTo(map);" 
         }
@@ -111,9 +120,9 @@ fun OsmMapView(
             <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
             <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
             <style>
-                body { margin: 0; padding: 0; background: #121212; }
+                body { margin: 0; padding: 0; background: $mapBgColor; }
                 #map { height: 100vh; width: 100vw; min-height: 300px; }
-                .leaflet-container { background: #121212; }
+                .leaflet-container { background: $mapBgColor; }
             </style>
         </head>
         <body>
@@ -127,10 +136,9 @@ fun OsmMapView(
                 try {
                     console.log("Initializing map at [${center.latitude}, ${center.longitude}] with zoom ${zoom}");
                     var map = L.map('map').setView([${center.latitude}, ${center.longitude}], ${zoom});
-                    // Using CARTO Dark Matter tiles — free to use without an API key,
-                    // and explicitly permitted for mobile app usage (unlike OSM volunteer servers).
-                    // Attribution: © OpenStreetMap contributors, © CARTO
-                    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    // Tile layer switches between CARTO Dark Matter and CARTO Positron
+                    // based on the app theme selection in Settings.
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/$tileVariant/{z}/{x}/{y}{r}.png', {
                         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
                         subdomains: 'abcd',
                         maxZoom: 20
