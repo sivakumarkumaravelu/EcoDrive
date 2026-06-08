@@ -128,8 +128,11 @@ class SensorDataManager @Inject constructor(
                         vehicle = activeVehicle
                     )
                     
-                    val fuelConsumption = if (gps.speedKmh > 1.0) {
-                        (fuelRateLPerH / gps.speedKmh) * 100.0
+                    // Only compute instantaneous L/100km when moving at a meaningful speed.
+                    // At very low speeds (< 5 km/h) the ratio explodes even with tiny fuel rates.
+                    // Cap at 40 L/100km — a realistic worst case (heavy traffic, large engine).
+                    val fuelConsumption = if (gps.speedKmh >= 5.0) {
+                        ((fuelRateLPerH / gps.speedKmh) * 100.0).coerceIn(0.0, 40.0)
                     } else 0.0
 
                     val isMoving = gps.speedKmh >= Constants.MOVING_SPEED_THRESHOLD_KMH

@@ -129,6 +129,9 @@ class SensorForegroundService : Service() {
     private val dataPointBatch = mutableListOf<DrivingMetrics>()
     private val BATCH_SIZE = 20
 
+    // Fuel rate smoothing: rolling average over last 5 samples prevents single-spike inflation.
+    private val fuelRateBuffer = ArrayDeque<Double>(5)
+
     inner class LocalBinder : Binder() {
         fun getService(): SensorForegroundService = this@SensorForegroundService
     }
@@ -270,6 +273,7 @@ class SensorForegroundService : Service() {
         lastTimestampMs = 0L
         idleTimeMs = 0L
         dataPointCounter = 0
+        fuelRateBuffer.clear()
         analyzer.reset()
         _currentEcoScore.value = EcoScore(overall = 0)
         _currentMetrics.value = DrivingMetrics()
@@ -286,10 +290,19 @@ class SensorForegroundService : Service() {
         val now = metrics.timestamp.toEpochMilli()
 
         if (lastTimestampMs > 0) {
-            val deltaTimeSec = (now - lastTimestampMs) / 1000.0
+            // Cap delta time at 10 seconds to guard against stale-timer spikes
+            // (e.g. when the app is paused/resumed or GPS lags).
+            val deltaTimeSec = ((now - lastTimestampMs) / 1000.0).coerceAtMost(10.0)
             val avgSpeed = (metrics.speedKmh + lastSpeedKmh) / 2.0
             totalDistanceKm += (avgSpeed * deltaTimeSec) / 3600.0
-            totalFuelConsumed += metrics.fuelRateLPerH * (deltaTimeSec / 3600.0)
+
+            // Use a 5-sample rolling average of fuelRateLPerH before accumulating,
+            // so a single high-spike reading does not materially inflate the trip total.
+            fuelRateBuffer.addLast(metrics.fuelRateLPerH)
+            if (fuelRateBuffer.size > 5) fuelRateBuffer.removeFirst()
+            val smoothedFuelRate = fuelRateBuffer.average()
+            totalFuelConsumed += smoothedFuelRate * (deltaTimeSec / 3600.0)
+
             if (metrics.isIdle) idleTimeMs += (deltaTimeSec * 1000).toLong()
         } else {
             tripStartTimeMs = now

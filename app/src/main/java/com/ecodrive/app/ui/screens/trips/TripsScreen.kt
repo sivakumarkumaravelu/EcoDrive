@@ -396,9 +396,11 @@ private fun TripCard(
                         color = if (trip.sharpTurnCount > 3) EcoDriveTheme.colors.scoreAverage else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
-                    // Fuel efficiency
-                    if (trip.distanceKm > 0) {
-                        val efficiency = (trip.fuelConsumedLiters / trip.distanceKm) * 100
+                    // Use the stored efficiency field (authoritative) rather than
+                    // recalculating from raw fuel values which may be near-zero for older trips.
+                    // Only display if the value is in a realistic range (0.5–40 L/100km).
+                    val efficiency = trip.fuelEfficiencyLPer100Km
+                    if (trip.distanceKm > 0 && efficiency in 0.5..40.0) {
                         Text(
                             text = UnitConverter.formatFuelEfficiency(efficiency, useMetric),
                             style = MaterialTheme.typography.labelSmall,

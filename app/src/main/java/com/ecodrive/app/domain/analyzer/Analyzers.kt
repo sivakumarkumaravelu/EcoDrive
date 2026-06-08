@@ -162,14 +162,16 @@ class FuelEstimationEngine @Inject constructor(
             vehicle = vehicle
         )
 
-        // 1. Idle estimation
+        // 1. Idle estimation — engine always burns fuel when running
+        // Minimum floor: ~0.4 L/h per liter of displacement at idle (e.g. 0.8 L/h for a 2.0L engine)
+        val displacementL = vehicle.engineDisplacementCc / 1000.0
+        val idleFloorLPerH = displacementL * 0.4
+
         if (speedMps < 0.2) {
-            // Idle consumption roughly proportional to displacement: ~0.2 L/h per liter of displacement
-            return (vehicle.engineDisplacementCc / 1000.0) * 0.4 * calibrationFactor * mlCorrectionFactor
+            return idleFloorLPerH * calibrationFactor * mlCorrectionFactor
         }
 
-        // 2. Physics-based Power (VSP) calculation (Watts per kg)
-        // ... (rest of the VSP calculation)
+        // 2. Physics-based Power (VSP) calculation (Watts)
         val g = Constants.GRAVITY
         val rho = Constants.AIR_DENSITY
         val eps = Constants.ROTATING_MASS_FACTOR
@@ -181,34 +183,49 @@ class FuelEstimationEngine @Inject constructor(
             g * vehicle.rollingResistance * cos(theta)
         ) + (0.5 * rho * vehicle.dragCoefficient * vehicle.frontalAreaM2 * speedMps.pow(3)) / vehicle.massKg
 
-        // 3. Convert VSP to Total Power (Watts)
-        val powerWatts = (vsp * vehicle.massKg).coerceAtLeast(0.0)
+        // 3. Convert VSP to Total Power (Watts).
+        // Add a fixed auxiliary / friction load that is always present when engine runs.
+        // This represents alternator, HVAC, power steering, and internal friction — typically 1–3 kW.
+        val auxLoadWatts = displacementL * 500.0  // ~1000W for a 2.0L engine
+        val powerWatts = (vsp * vehicle.massKg).coerceAtLeast(0.0) + auxLoadWatts
 
-        // 4. Efficiency Factor (eta)
-        // Powertrain efficiency varies by type and load.
-        var eta = when (vehicle.vehicleType) {
-            VehicleType.ICE -> 0.25
-            VehicleType.HYBRID -> 0.35
-            VehicleType.PLUG_IN_HYBRID -> 0.35
-            VehicleType.ELECTRIC -> 0.85
-        }
-
-        // Apply low-speed efficiency penalty for ICE, bonus for hybrids
-        if (vehicle.vehicleType == VehicleType.ICE && speedKmh < 40) {
-            eta *= (0.6 + 0.4 * (speedKmh / 40.0)) // Efficiency drops at low speeds
-        } else if ((vehicle.vehicleType == VehicleType.HYBRID || vehicle.vehicleType == VehicleType.PLUG_IN_HYBRID) && speedKmh < 40) {
-            eta *= 1.2 // Hybrid advantage in city
+        // 4. Speed/load-dependent efficiency factor (eta).
+        // Real ICE engines are least efficient at light loads (city coasting = ~15% thermal efficiency)
+        // and approach their best efficiency (~25%) only at moderate-to-high cruise loads.
+        // Using a fixed eta=0.25 at all loads was the key bug — it made light-load fuel look too low.
+        val eta = when (vehicle.vehicleType) {
+            VehicleType.ICE -> when {
+                speedKmh < 20  -> 0.14  // Very low load — worst efficiency, most fuel per kWh
+                speedKmh < 40  -> 0.17  // City stop-and-go
+                speedKmh < 70  -> 0.20  // Mixed/suburban
+                speedKmh < 100 -> 0.24  // Highway — approaching peak efficiency
+                else           -> 0.26  // High-speed cruise
+            }
+            VehicleType.HYBRID -> when {
+                speedKmh < 40  -> 0.38  // Hybrid advantage: uses motor more in city
+                speedKmh < 90  -> 0.33
+                else           -> 0.30
+            }
+            VehicleType.PLUG_IN_HYBRID -> when {
+                speedKmh < 40  -> 0.40
+                speedKmh < 90  -> 0.34
+                else           -> 0.30
+            }
+            VehicleType.ELECTRIC -> 0.88  // Battery-to-wheel efficiency
         }
 
         // 5. Fuel Consumption Rate (L/h)
-        // Rate = (Power * 3600) / (eta * EnergyDensity_MJ_per_L * 1,000,000)
+        // Rate = (Power * 3600) / (eta * EnergyDensity_J_per_L)
         val energyDensityJperL = vehicle.fuelType.energyDensityMJperL * 1_000_000.0
         if (energyDensityJperL <= 0) return 0.0
 
         val fuelRateLPerH = (powerWatts * 3600.0) / (eta * energyDensityJperL)
 
-        // Apply calibration factor, AI correction, and ML correction
-        return fuelRateLPerH * calibrationFactor * aiCorrectionFactor * mlCorrectionFactor
+        // 6. Apply calibration, AI and ML corrections, then enforce the idle floor.
+        // The floor ensures the model never reports less fuel than an idling engine burns,
+        // which was the primary cause of 1000+ MPG readings on flat constant-speed segments.
+        val rawRate = fuelRateLPerH * calibrationFactor * aiCorrectionFactor * mlCorrectionFactor
+        return rawRate.coerceAtLeast(idleFloorLPerH)
     }
 
     fun updateAiCorrection(newFactor: Double) {

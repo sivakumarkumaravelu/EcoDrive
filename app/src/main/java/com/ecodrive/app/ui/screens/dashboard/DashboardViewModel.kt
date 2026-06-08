@@ -223,11 +223,14 @@ class DashboardViewModel @Inject constructor(
     }
 
     private fun generateDrivingTip(metrics: DrivingMetrics, ecoScore: EcoScore): String {
+        val useMetric = _state.value.useMetric
         return when {
             !_state.value.isRecording ->
                 "Tap Start to begin monitoring your drive"
-            metrics.speedKmh > 110 ->
-                "🐢 Slow down! Fuel consumption increases exponentially above 110 km/h."
+            metrics.speedKmh > 110 -> {
+                val limit = if (useMetric) "110 km/h" else "70 mph"
+                "🐢 Slow down! Fuel consumption increases exponentially above $limit."
+            }
             metrics.longitudinalAccelMps2 > 2.5 ->
                 "🦶 Ease off! Gentle acceleration saves up to 30% fuel."
             metrics.longitudinalAccelMps2 < -2.5 ->

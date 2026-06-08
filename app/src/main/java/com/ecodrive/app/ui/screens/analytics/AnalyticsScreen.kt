@@ -151,7 +151,7 @@ fun AnalyticsScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "🎉 Estimated %.1f L saved!".format(state.fuelSavedEstimate),
+                            text = "🎉 Estimated ${UnitConverter.formatFuelVolume(state.fuelSavedEstimate, state.useMetric)} saved!",
                             style = MaterialTheme.typography.titleSmall.copy(
                                 fontWeight = FontWeight.Bold,
                             ),

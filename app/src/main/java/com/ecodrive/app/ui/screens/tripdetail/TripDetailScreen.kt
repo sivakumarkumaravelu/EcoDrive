@@ -299,14 +299,21 @@ fun TripDetailScreen(
             // ── Altitude Profile ────────────────────────────────
             if (state.altitudePoints.size > 3) {
                 item {
+                    val unit = if (state.useMetric) "m" else "ft"
+                    val subtitle = if (state.useMetric) "Meters above sea level" else "Feet above sea level"
+                    val points = if (state.useMetric) {
+                        state.altitudePoints
+                    } else {
+                        state.altitudePoints.map { it.copy(y = it.y * 3.28084f) }
+                    }
                     DetailChartCard(
                         title = "Elevation Profile",
-                        subtitle = "Meters above sea level",
+                        subtitle = subtitle,
                     ) {
                         LineChart(
-                            points = state.altitudePoints,
+                            points = points,
                             lineColor = MaterialTheme.colorScheme.secondary,
-                            yAxisLabel = "m",
+                            yAxisLabel = unit,
                             fillGradient = true,
                         )
                     }
@@ -326,7 +333,7 @@ fun TripDetailScreen(
                 }
 
                 items(state.events.take(50)) { event ->
-                    EventTimelineItem(event = event)
+                    EventTimelineItem(event = event, useMetric = state.useMetric)
                 }
             }
 
@@ -637,7 +644,10 @@ private fun DetailChartCard(
 }
 
 @Composable
-private fun EventTimelineItem(event: com.ecodrive.app.domain.model.DrivingEvent) {
+private fun EventTimelineItem(
+    event: com.ecodrive.app.domain.model.DrivingEvent,
+    useMetric: Boolean,
+) {
     val (icon, color) = when (event.type) {
         DrivingEventType.HARD_BRAKE -> Icons.Filled.Warning to EcoDriveTheme.colors.scorePoor
         DrivingEventType.HARD_ACCELERATION -> Icons.Filled.Speed to EcoDriveTheme.colors.scoreAverage
@@ -674,7 +684,7 @@ private fun EventTimelineItem(event: com.ecodrive.app.domain.model.DrivingEvent)
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                text = "at %.0f km/h".format(event.speedAtEvent),
+                text = "at ${com.ecodrive.app.util.UnitConverter.formatSpeed(event.speedAtEvent, useMetric)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

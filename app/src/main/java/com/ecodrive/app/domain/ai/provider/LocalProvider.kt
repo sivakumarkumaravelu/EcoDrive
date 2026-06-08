@@ -21,17 +21,22 @@ class LocalProvider @Inject constructor(
 
     override suspend fun generateRealTimeTip(prompt: String, model: String?): String? {
         // Parse key metrics from the prompt using simple regex
-        val speed = extractDouble(prompt, "Speed: (\\d+\\.?\\d*) km/h") ?: 60.0
+        // AiCoachService embeds the unit system label in the prompt
+        val useMetric = !prompt.contains("Imperial", ignoreCase = true)
+        val speed = extractDouble(prompt, "Speed: (\\d+\\.?\\d*) (?:km/h|mph)") ?: 60.0
+        // Convert back to km/h if the speed was displayed in mph
+        val speedKmh = if (useMetric) speed else com.ecodrive.app.util.UnitConverter.mphToKmh(speed)
         val accel = extractDouble(prompt, "Acceleration: (-?\\d+\\.?\\d*) m/s") ?: 0.0
         val ecoScore = extractInt(prompt, "Eco Score: (\\d+)/100") ?: 70
-        val isIdle = prompt.contains("idle", ignoreCase = true) || speed < 2.0
+        val isIdle = prompt.contains("idle", ignoreCase = true) || speedKmh < 2.0
 
         return localEcoCoach.getRealTimeTip(
-            speedKmh = speed,
+            speedKmh = speedKmh,
             longitudinalAccelMps2 = accel,
             lateralAccelMps2 = 0.0,
             ecoScore = ecoScore,
             isIdle = isIdle,
+            useMetric = useMetric,
         )
     }
 
@@ -82,7 +87,10 @@ class LocalProvider @Inject constructor(
     override suspend fun generateAnalyticsSummary(prompt: String, model: String?): String? {
         val avgScore = extractInt(prompt, "Average Eco Score: (\\d+)/100") ?: 70
         val totalTrips = extractInt(prompt, "Total Trips: (\\d+)") ?: 0
-        val fuelSaved = extractDouble(prompt, "Fuel Saved.*?: (-?\\d+\\.?\\d*) L") ?: 0.0
+        // AnalyticsInsightGenerator embeds the fuel unit in the prompt
+        val useMetric = !prompt.contains("gallons", ignoreCase = true)
+        val fuelUnit = if (useMetric) "litres" else "gallons"
+        val fuelSaved = extractDouble(prompt, "Fuel Saved.*?: (-?\\d+\\.?\\d*) (?:L|gallons)") ?: 0.0
         val brakes = extractInt(prompt, "Hard Brakes: (\\d+)") ?: 0
 
         return buildString {
@@ -94,7 +102,7 @@ class LocalProvider @Inject constructor(
             }
             append("Your $label average eco score of $avgScore/100 across $totalTrips trips shows ")
             if (fuelSaved > 0) {
-                append("you've saved approximately ${"%.1f".format(fuelSaved)} litres of fuel vs an average vehicle — great progress! ")
+                append("you've saved approximately ${"%.1f".format(fuelSaved)} $fuelUnit of fuel vs an average vehicle — great progress! ")
             } else {
                 append("consistent driving habits. ")
             }

@@ -348,8 +348,8 @@ private fun MetricsRow2(
         )
         MetricCard(
             label = "ALTITUDE",
-            value = "%.0f".format(metrics.altitudeM),
-            unit = "m",
+            value = "%.0f".format(if (useMetric) metrics.altitudeM else metrics.altitudeM * 3.28084),
+            unit = if (useMetric) "m" else "ft",
             accentColor = EcoDriveTheme.colors.gaugeGreen,
             modifier = Modifier
                 .weight(1f)

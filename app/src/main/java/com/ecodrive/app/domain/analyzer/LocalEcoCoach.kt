@@ -33,19 +33,25 @@ class LocalEcoCoach @Inject constructor() {
         lateralAccelMps2: Double,
         ecoScore: Int,
         isIdle: Boolean,
+        useMetric: Boolean = true,
     ): String {
+        // Prepare display speed and unit label once
+        val displaySpeed = if (useMetric) speedKmh else com.ecodrive.app.util.UnitConverter.kmhToMph(speedKmh)
+        val speedUnit = if (useMetric) "km/h" else "mph"
+
+        // Speed thresholds converted to km/h internally; display values in user's unit
         return when {
             isIdle ->
                 "Engine idling burns fuel. If stopped for >30s, consider switching off."
 
             speedKmh > 115 ->
-                "Above 115 km/h, aerodynamic drag doubles fuel use. Ease back to 110."
+                "Above ${"%.0f".format(if (useMetric) 115.0 else 71.0)} $speedUnit, aerodynamic drag doubles fuel use. Ease back."
 
             speedKmh > 100 ->
-                "Highway efficiency peaks at 80-100 km/h. You're slightly above the sweet spot."
+                "Highway efficiency peaks at ${if (useMetric) "80-100 km/h" else "50-62 mph"}. You're slightly above the sweet spot."
 
             longitudinalAccelMps2 > 2.5 ->
-                "Gentle acceleration — aim for 0-100 km/h in 15+ seconds for best efficiency."
+                "Gentle acceleration — aim for 0-${if (useMetric) "100 km/h" else "60 mph"} in 15+ seconds for best efficiency."
 
             longitudinalAccelMps2 > 1.5 ->
                 "Smooth starts save up to 25% fuel. Imagine an egg under the pedal."
@@ -54,7 +60,7 @@ class LocalEcoCoach @Inject constructor() {
                 "Hard braking wastes kinetic energy. Look further ahead and coast to red lights."
 
             longitudinalAccelMps2 < -2.0 ->
-                "Anticipate stops — start coasting 100m before junctions."
+                "Anticipate stops — start coasting before junctions."
 
             abs(lateralAccelMps2) > 2.5 ->
                 "Sharp cornering uses extra fuel. Slow before the turn, not during it."
@@ -81,7 +87,7 @@ class LocalEcoCoach @Inject constructor() {
     /**
      * Generates a rich multi-factor insight after a trip completes.
      */
-    fun getInsight(trip: Trip, events: List<DrivingEvent>): String {
+    fun getInsight(trip: Trip, events: List<DrivingEvent>, useMetric: Boolean = true): String {
         val hardBrakes = events.count { it.type == DrivingEventType.HARD_BRAKE }
         val hardAccels = events.count { it.type == DrivingEventType.HARD_ACCELERATION }
         val sharpTurns = events.count { it.type == DrivingEventType.SHARP_TURN }
@@ -91,10 +97,10 @@ class LocalEcoCoach @Inject constructor() {
 
         return when {
             trip.ecoScore >= 95 ->
-                buildExcellentInsight(trip)
+                buildExcellentInsight(trip, useMetric)
 
             trip.ecoScore >= 85 ->
-                buildGoodInsight(trip, hardBrakes, hardAccels)
+                buildGoodInsight(trip, hardBrakes, hardAccels, useMetric)
 
             hardBrakes > 4 ->
                 buildBrakingInsight(trip, hardBrakes, tripMinutes)
@@ -109,7 +115,7 @@ class LocalEcoCoach @Inject constructor() {
                 buildCorneringInsight(trip, sharpTurns)
 
             trip.fuelEfficiencyLPer100Km > 10.0 ->
-                buildFuelInsight(trip)
+                buildFuelInsight(trip, useMetric)
 
             trip.ecoScore < 60 ->
                 buildLowScoreInsight(trip, hardBrakes, hardAccels, idleSeconds)
@@ -165,18 +171,21 @@ class LocalEcoCoach @Inject constructor() {
 
     // ── Private Insight Builders ─────────────────────────────────
 
-    private fun buildExcellentInsight(trip: Trip): String =
-        "🌟 Exceptional trip! Your ${trip.ecoScore}/100 score puts you in the elite tier of eco-drivers. " +
-        "Fuel efficiency of ${"%.1f".format(trip.fuelEfficiencyLPer100Km)} L/100km is outstanding. " +
+    private fun buildExcellentInsight(trip: Trip, useMetric: Boolean = true): String {
+        val effStr = com.ecodrive.app.util.UnitConverter.formatFuelEfficiency(trip.fuelEfficiencyLPer100Km, useMetric)
+        return "🌟 Exceptional trip! Your ${trip.ecoScore}/100 score puts you in the elite tier of eco-drivers. " +
+        "Fuel efficiency of $effStr is outstanding. " +
         "You're already at the top — focus on consistency to keep this standard every trip."
+    }
 
-    private fun buildGoodInsight(trip: Trip, hardBrakes: Int, hardAccels: Int): String {
+    private fun buildGoodInsight(trip: Trip, hardBrakes: Int, hardAccels: Int, useMetric: Boolean = true): String {
         val minor = when {
             hardBrakes > 2 -> "Reducing the $hardBrakes hard brake${if (hardBrakes > 1) "s" else ""} could push you into the 90+ club."
             hardAccels > 2 -> "Smoother starts — you had $hardAccels rapid acceleration${if (hardAccels > 1) "s" else ""}."
             else -> "Maintain this level and you'll consistently hit 90+ scores."
         }
-        return "✅ Great trip at ${trip.ecoScore}/100! $minor Your efficiency of ${"%.1f".format(trip.fuelEfficiencyLPer100Km)} L/100km is above average."
+        val effStr = com.ecodrive.app.util.UnitConverter.formatFuelEfficiency(trip.fuelEfficiencyLPer100Km, useMetric)
+        return "✅ Great trip at ${trip.ecoScore}/100! $minor Your efficiency of $effStr is above average."
     }
 
     private fun buildBrakingInsight(trip: Trip, hardBrakes: Int, tripMinutes: Int): String =
@@ -202,10 +211,13 @@ class LocalEcoCoach @Inject constructor() {
         "The key to smooth cornering is 'slow in, fast out': brake before the apex, not during the turn. " +
         "This also reduces tire wear and is safer in wet conditions."
 
-    private fun buildFuelInsight(trip: Trip): String =
-        "Your efficiency was ${"%.1f".format(trip.fuelEfficiencyLPer100Km)} L/100km this trip (score: ${trip.ecoScore}/100). " +
+    private fun buildFuelInsight(trip: Trip, useMetric: Boolean = true): String {
+        val effStr = com.ecodrive.app.util.UnitConverter.formatFuelEfficiency(trip.fuelEfficiencyLPer100Km, useMetric)
+        val speedThreshold = if (useMetric) "100 km/h" else "62 mph"
+        return "Your efficiency was $effStr this trip (score: ${trip.ecoScore}/100). " +
         "High fuel use often points to excessive speed or aggressive driving. " +
-        "Try staying below 100 km/h on highways — every 10 km/h over 100 adds ~8% fuel consumption."
+        "Try staying below $speedThreshold on highways — every 10 ${if (useMetric) "km/h" else "mph"} over that adds ~8% fuel consumption."
+    }
 
     private fun buildLowScoreInsight(trip: Trip, brakes: Int, accels: Int, idleSeconds: Long): String {
         val issues = buildList {

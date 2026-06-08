@@ -200,7 +200,7 @@ class TripDetailViewModel @Inject constructor(
                 _state.update { it.copy(aiInsight = response, isAiLoading = false) }
             } else {
                 // Fallback to local insight on error or null response
-                val localInsight = localEcoCoach.getInsight(trip, events)
+                val localInsight = localEcoCoach.getInsight(trip, events, useMetric)
                 _state.update { 
                     it.copy(
                         aiInsight = localInsight, 
@@ -247,7 +247,11 @@ class TripDetailViewModel @Inject constructor(
                     )
                 }
 
-                val fuelData = points.filter { it.fuelConsumptionLPer100Km > 0 }
+                // Filter to a physically realistic L/100km range before charting.
+                // Values < 0.5 (> ~470 MPG) or > 40 (extreme crawl) are sensor artifacts
+                // and would collapse or blow out the graph axis.
+                val fuelData = points
+                    .filter { it.fuelConsumptionLPer100Km in 0.5..40.0 }
                     .map { dp ->
                         val minutesElapsed = (dp.timestampEpochMs - startTime) / 60000.0
                         ChartPoint(
