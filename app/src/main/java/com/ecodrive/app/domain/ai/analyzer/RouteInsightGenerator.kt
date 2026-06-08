@@ -27,25 +27,22 @@ class RouteInsightGenerator @Inject constructor(
         val fuelUnit = if (useMetric) "L" else "gallons"
 
         val prompt = """
-            You are an Eco-Driving Route Analyst. Compare these route options and explain the efficiency trade-offs.
+            You are an Eco-Driving Route Analyst. Compare these routes and recommend the greenest.
             
-            CRITICAL: Use $distanceUnit and $fuelUnit for all mentions of distance and fuel volume.
+            CRITICAL RULES:
+            - Use $distanceUnit for distance and $fuelUnit for fuel.
+            - Reply with EXACTLY 1-2 SHORT sentences. Maximum 150 characters total.
+            - Be specific: mention route name and exact savings.
             
-            Options:
-            ${routes.mapIndexed { i, r -> 
+            Routes:
+            ${routes.mapIndexed { i, r ->
                 val displayDistance = if (useMetric) r.metrics.distanceKm else com.ecodrive.app.util.UnitConverter.kmToMiles(r.metrics.distanceKm)
                 val displayFuel = if (useMetric) r.metrics.estimatedFuelLiters else com.ecodrive.app.util.UnitConverter.litersToGallons(r.metrics.estimatedFuelLiters)
                 "Route ${i + 1} (${r.route.summary}): ${"%.1f".format(displayDistance)}$distanceUnit, " +
-                "${r.metrics.durationMinutes}min, ${"%.2f".format(displayFuel)}$fuelUnit fuel, " +
-                "Score: ${r.metrics.ecoScore}"
+                "${r.metrics.durationMinutes}min, ${"%.2f".format(displayFuel)}$fuelUnit fuel"
             }.joinToString("\n")}
             
-            Consider:
-            - Fuel savings vs time trade-off.
-            - Road type (implied by summary).
-            - Hilliness (if fuel consumption is high for short distance).
-            
-            Provide a 2-sentence recommendation. Be specific about the benefit (e.g., "Route 2 saves 0.4$fuelUnit despite being 3 minutes longer because it avoids the steep hill on Oak St").
+            Example output (follow this length): "Route 1 saves 0.3L vs Route 2. It's slightly longer but avoids highway fuel burn."
         """.trimIndent()
 
         return aiManager.generateTripInsight(prompt)
