@@ -67,7 +67,13 @@ class AudioFeedbackManager @Inject constructor(
 
     fun playTip(tip: String) {
         if (!_isAudioEnabled.value || !isTtsReady) return
-        tts?.speak(tip, TextToSpeech.QUEUE_FLUSH, null, "EcoTip")
+        
+        // Use a more aggressive regex to strip emojis and symbols
+        val sanitizedTip = tip.replace(Regex("[^\\p{L}\\p{N}\\p{P}\\p{Z}]"), "").trim()
+
+        if (sanitizedTip.isNotEmpty()) {
+            tts?.speak(sanitizedTip, TextToSpeech.QUEUE_FLUSH, null, "EcoTip")
+        }
     }
 
     fun shutdown() {

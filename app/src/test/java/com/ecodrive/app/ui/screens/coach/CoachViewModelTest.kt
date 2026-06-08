@@ -102,10 +102,11 @@ class CoachViewModelTest {
         val question = "How can I drive better?"
         val aiResponse = "Drive smoother."
         val providerName = "GEMINI"
+        val modelName = "gemini-2.0-flash"
         
         coEvery { 
             aiManager.generateConversationalResponse(any(), any()) 
-        } returns (aiResponse to providerName)
+        } returns Triple(aiResponse, providerName, modelName)
         
         val collectJob = launch { viewModel.state.collect {} }
         
@@ -125,6 +126,7 @@ class CoachViewModelTest {
         assertEquals(aiResponse, history[1].text)
         assertTrue(!history[1].isUser)
         assertEquals(providerName, history[1].providerName)
+        assertEquals(modelName, history[1].modelName)
         
         collectJob.cancel()
     }

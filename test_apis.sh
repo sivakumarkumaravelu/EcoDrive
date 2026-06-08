@@ -9,7 +9,7 @@ SAMBANOVA_API_KEY=$(grep SAMBANOVA_API_KEY local.defaults.properties | cut -d'='
 DEEPSEEK_API_KEY=$(grep DEEPSEEK_API_KEY local.defaults.properties | cut -d'=' -f2)
 COHERE_API_KEY=$(grep COHERE_API_KEY local.defaults.properties | cut -d'=' -f2)
 
-echo "DEBUG: MISTRAL_API_KEY=${MISTRAL_API_KEY:0:5}..."
+echo "DEBUG: MISTRAL_API_KEY=${MISTRAL_API_KEY:0:5}...     nnnnnm  "
 
 echo "Testing Mistral..."
 curl -s -X POST "https://api.mistral.ai/v1/chat/completions" \

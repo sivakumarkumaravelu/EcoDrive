@@ -342,8 +342,10 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
+                            val providerDisplayName = state.selectedAiProvider.lowercase().replaceFirstChar { it.uppercase() }
+                            val modelDisplayName = if (state.selectedModel.isNotBlank()) " (${state.selectedModel})" else ""
                             Text(
-                                text = state.selectedAiProvider.lowercase().replaceFirstChar { it.uppercase() },
+                                text = "$providerDisplayName$modelDisplayName",
                                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
                             )
                         }

@@ -50,7 +50,8 @@ class CoachViewModel @Inject constructor(
         val text: String,
         val isUser: Boolean,
         val timestamp: Instant = Instant.now(),
-        val providerName: String? = null
+        val providerName: String? = null,
+        val modelName: String? = null
     )
 
     private val _chatHistory = MutableStateFlow<List<ChatMessage>>(emptyList())
@@ -274,7 +275,7 @@ class CoachViewModel @Inject constructor(
                 return@launch
             }
 
-            val (response, providerName) = aiResponse
+            val (response, providerName, modelName) = aiResponse
 
             // Extract suggestions if provided
             val (responseText, suggestions) = extractSuggestions(response)
@@ -282,7 +283,12 @@ class CoachViewModel @Inject constructor(
                 _suggestedQuestions.value = suggestions
             }
 
-            val aiMsg = ChatMessage(responseText, isUser = false, providerName = providerName)
+            val aiMsg = ChatMessage(
+                text = responseText,
+                isUser = false,
+                providerName = providerName,
+                modelName = modelName
+            )
             _chatHistory.update { it + aiMsg }
             _isAskingAi.value = false
         }

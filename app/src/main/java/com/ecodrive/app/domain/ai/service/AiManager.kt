@@ -73,25 +73,25 @@ class AiManager @Inject constructor(
      *
      * @param messages Ordered list of (text, isUser) message pairs.
      * @param systemPrompt System-level coaching context injected at the start.
-     * @return A pair of (response text, provider name) or null if all providers fail.
+     * @return A Triple of (response text, provider name, model name) or null if all providers fail.
      */
     suspend fun generateConversationalResponse(
         messages: List<Pair<String, Boolean>>,
         systemPrompt: String,
-    ): Pair<String, String>? {
+    ): Triple<String, String, String?>? {
         val provider = getSelectedProvider()
         val model = getSelectedModel(provider.name)
         val response = provider.generateConversationalResponse(messages, systemPrompt, model)
         
         if (response != null) {
-            return response to provider.name
+            return Triple(response, provider.name, model ?: provider.defaultModel)
         }
 
         val localProvider = getLocalProvider()
         val localResponse = localProvider.generateConversationalResponse(messages, systemPrompt, null)
         
         return if (localResponse != null) {
-            localResponse to localProvider.name
+            Triple(localResponse, localProvider.name, localProvider.defaultModel)
         } else {
             null
         }

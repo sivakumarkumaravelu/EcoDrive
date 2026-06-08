@@ -272,8 +272,13 @@ private fun AskTheCoachSection(
                         }
                         
                         if (!message.isUser && message.providerName != null) {
+                            val attribution = if (message.modelName != null) {
+                                "via ${message.providerName} (${message.modelName})"
+                            } else {
+                                "via ${message.providerName}"
+                            }
                             Text(
-                                text = "via ${message.providerName}",
+                                text = attribution,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                 modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)

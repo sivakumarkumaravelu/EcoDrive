@@ -62,6 +62,28 @@ class AudioFeedbackManagerTest {
         verify(exactly = 0) { anyConstructed<TextToSpeech>().speak(any(), any(), any(), any()) }
     }
 
+    @Test
+    fun `test playTip sanitizes emojis before speaking`() {
+        // Arrange
+        val tipWithEmoji = "🤖 Slow down! 🐢"
+        val expectedSanitizedTip = "Slow down!"
+        
+        // Act
+        // Simulate tts being ready by calling onInit directly
+        audioFeedbackManager.onInit(TextToSpeech.SUCCESS)
+        audioFeedbackManager.playTip(tipWithEmoji)
+
+        // Assert
+        verify(exactly = 1) { 
+            anyConstructed<TextToSpeech>().speak(
+                eq(expectedSanitizedTip),
+                any(), 
+                any(), 
+                any()
+            ) 
+        }
+    }
+
     private fun buildEvent(type: DrivingEventType) = DrivingEvent(
         id = 1L,
         tripId = 1L,

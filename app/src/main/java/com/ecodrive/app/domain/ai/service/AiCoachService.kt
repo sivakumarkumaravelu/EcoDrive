@@ -66,6 +66,9 @@ class AiCoachService @Inject constructor(
             You are a real-time Eco-Driving Coach. Provide a SINGLE, concise (max 15 words) tip 
             for the driver based on their current behavior.
             
+            CRITICAL: Do NOT include any emojis, markdown, or special symbols in your response. 
+            The output will be read aloud by Text-to-Speech.
+            
             Current Metrics:
             - Speed: ${"%.1f".format(metrics.speedKmh)} km/h
             - Acceleration: ${"%.2f".format(metrics.longitudinalAccelMps2)} m/s²
