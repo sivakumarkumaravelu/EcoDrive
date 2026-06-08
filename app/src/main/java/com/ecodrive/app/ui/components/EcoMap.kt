@@ -127,8 +127,13 @@ fun OsmMapView(
                 try {
                     console.log("Initializing map at [${center.latitude}, ${center.longitude}] with zoom ${zoom}");
                     var map = L.map('map').setView([${center.latitude}, ${center.longitude}], ${zoom});
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        attribution: '&copy; OpenStreetMap contributors'
+                    // Using CARTO Dark Matter tiles — free to use without an API key,
+                    // and explicitly permitted for mobile app usage (unlike OSM volunteer servers).
+                    // Attribution: © OpenStreetMap contributors, © CARTO
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                        subdomains: 'abcd',
+                        maxZoom: 20
                     }).addTo(map);
                     
                     $markersJs
@@ -168,7 +173,7 @@ fun OsmMapView(
                 
                 // OSM Tile Usage Policy requires a descriptive User-Agent.
                 // Standard mobile browsers are sometimes blocked if they don't identify the app.
-                settings.userAgentString = "EcoDrive-Android/1.3.2 (com.ecodrive.app; contact: support@ecodrive.example.com)"
+                settings.userAgentString = "EcoDrive-Android/1.3.3 (com.ecodrive.app; contact: support@ecodrive.example.com)"
 
                 @Suppress("SetJavaScriptEnabled")
                 settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
