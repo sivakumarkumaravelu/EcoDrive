@@ -26,7 +26,7 @@ object AppConfig {
      * Switch here to select the map engine you want to use.
      * Can be set to MapProvider.GOOGLE_MAPS, MapProvider.OPEN_STREET_MAP, or MapProvider.MAPLIBRE.
      */
-    var ACTIVE_MAP_PROVIDER = MapProvider.MAPLIBRE
+    var ACTIVE_MAP_PROVIDER = MapProvider.OPEN_STREET_MAP
 
     /**
      * Read-only property for backward compatibility with other features.
