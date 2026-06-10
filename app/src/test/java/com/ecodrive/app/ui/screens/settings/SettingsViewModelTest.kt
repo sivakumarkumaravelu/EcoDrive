@@ -40,6 +40,9 @@ class SettingsViewModelTest {
     private val colorPaletteFlow = MutableStateFlow(AppColorPalette.ECO_GREEN)
     private val selectedAiProviderFlow = MutableStateFlow("GEMINI")
     private val selectedModelFlow = MutableStateFlow<String?>("gemini-2.0-flash")
+    private val useGoogleMapsFlow = MutableStateFlow(false)
+    private val smartcarClientIdFlow = MutableStateFlow("")
+    private val smartcarClientSecretFlow = MutableStateFlow("")
 
     private lateinit var viewModel: SettingsViewModel
 
@@ -56,6 +59,9 @@ class SettingsViewModelTest {
         every { preferenceManager.colorPalette } returns colorPaletteFlow
         every { preferenceManager.selectedAiProvider } returns selectedAiProviderFlow
         every { preferenceManager.getSelectedModel(any()) } returns selectedModelFlow
+        every { preferenceManager.useGoogleMaps } returns useGoogleMapsFlow
+        every { preferenceManager.smartcarClientId } returns smartcarClientIdFlow
+        every { preferenceManager.smartcarClientSecret } returns smartcarClientSecretFlow
         
         every { aiManager.getProviderByName(any()) } returns mockProvider
         every { aiManager.getAllProviders() } returns listOf(mockProvider)
@@ -72,6 +78,7 @@ class SettingsViewModelTest {
         every { com.ecodrive.app.ui.MainActivity.authCodeFlow } returns MutableStateFlow(null)
 
         viewModel = SettingsViewModel(smartcarApiClient, fuelEngine, preferenceManager, aiManager, permissionManager)
+        testDispatcher.scheduler.advanceUntilIdle()
     }
 
     @After
@@ -90,6 +97,7 @@ class SettingsViewModelTest {
         assertTrue(state.useMetric)
         assertEquals(AppTheme.DARK, state.appTheme)
         assertEquals(AppColorPalette.ECO_GREEN, state.appPalette)
+        assertFalse(state.useGoogleMaps)
     }
 
     @Test
@@ -143,6 +151,13 @@ class SettingsViewModelTest {
         viewModel.toggleAutoRecord()
         advanceUntilIdle()
         coVerify { preferenceManager.setAutoRecordEnabled(true) } // false -> true
+    }
+
+    @Test
+    fun `test toggleUseGoogleMaps calls preferenceManager`() = runTest {
+        viewModel.toggleUseGoogleMaps()
+        advanceUntilIdle()
+        coVerify { preferenceManager.setUseGoogleMaps(true) } // false -> true
     }
 
     @Test
@@ -225,5 +240,83 @@ class SettingsViewModelTest {
         
         // It should call setSelectedAiProvider to fall back to GEMINI
         coVerify { preferenceManager.setSelectedAiProvider("GEMINI") }
+    }
+
+    @Test
+    fun `test credentials loaded on init`() = runTest {
+        smartcarClientIdFlow.value = "client_saved"
+        smartcarClientSecretFlow.value = "secret_saved"
+
+        // Recreate viewModel to test init block load
+        viewModel = SettingsViewModel(smartcarApiClient, fuelEngine, preferenceManager, aiManager, permissionManager)
+        advanceUntilIdle()
+
+        assertEquals("client_saved", viewModel.state.value.smartcarClientId)
+        assertEquals("secret_saved", viewModel.state.value.smartcarClientSecret)
+    }
+
+    @Test
+    fun `test getAuthUrl trims credentials and persists them`() = runTest {
+        viewModel.updateClientId("  client_123   ")
+        viewModel.updateClientSecret("   secret_456  ")
+
+        every { smartcarApiClient.getAuthUrl("client_123") } returns "https://auth.example.com?client_id=client_123"
+
+        val url = viewModel.getAuthUrl()
+
+        assertEquals("https://auth.example.com?client_id=client_123", url)
+        assertEquals("client_123", viewModel.state.value.smartcarClientId)
+        assertEquals("secret_456", viewModel.state.value.smartcarClientSecret)
+
+        advanceUntilIdle()
+
+        coVerify { preferenceManager.setSmartcarClientId("client_123") }
+        coVerify { preferenceManager.setSmartcarClientSecret("secret_456") }
+    }
+
+    @Test
+    fun `test handleAuthCallback trims credentials before exchange`() = runTest {
+        viewModel.updateClientId("  client_123   ")
+        viewModel.updateClientSecret("   secret_456  ")
+
+        viewModel.handleAuthCallback("auth_code_xyz")
+
+        advanceUntilIdle()
+
+        coVerify { smartcarApiClient.exchangeCode("auth_code_xyz", "client_123", "secret_456") }
+    }
+
+    @Test
+    fun `test disconnect clears credentials and VM state`() = runTest {
+        viewModel.updateClientId("client_123")
+        viewModel.updateClientSecret("secret_456")
+
+        viewModel.disconnectSmartcar()
+
+        advanceUntilIdle()
+
+        verify { smartcarApiClient.disconnect() }
+        coVerify { preferenceManager.setSmartcarClientId("") }
+        coVerify { preferenceManager.setSmartcarClientSecret("") }
+        assertEquals("", viewModel.state.value.smartcarClientId)
+        assertEquals("", viewModel.state.value.smartcarClientSecret)
+    }
+
+    @Test
+    fun `test deep link authCodeFlow triggers handleAuthCallback`() = runTest {
+        val authCodeFlow = MutableStateFlow<String?>(null)
+        every { com.ecodrive.app.ui.MainActivity.authCodeFlow } returns authCodeFlow
+
+        // Recreate viewModel to observe our custom flow
+        viewModel = SettingsViewModel(smartcarApiClient, fuelEngine, preferenceManager, aiManager, permissionManager)
+        advanceUntilIdle()
+        viewModel.updateClientId("client_123")
+        viewModel.updateClientSecret("secret_456")
+
+        authCodeFlow.value = "deep_link_code_abc"
+        advanceUntilIdle()
+
+        coVerify { smartcarApiClient.exchangeCode("deep_link_code_abc", "client_123", "secret_456") }
+        assertNull(authCodeFlow.value) // Reset after consumption
     }
 }

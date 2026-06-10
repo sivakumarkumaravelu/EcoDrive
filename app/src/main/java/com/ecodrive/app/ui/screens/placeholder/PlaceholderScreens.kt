@@ -115,7 +115,7 @@ private fun PlaceholderContent(
         Text(
             text = title,
             style = MaterialTheme.typography.headlineMedium,
-            color = DarkOnSurface,
+            color = MaterialTheme.colorScheme.onSurface,
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -137,7 +137,7 @@ private fun PlaceholderContent(
         Text(
             text = description,
             style = MaterialTheme.typography.bodyMedium,
-            color = DarkOnSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 16.dp),
         )
@@ -149,20 +149,20 @@ private fun PlaceholderContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
-                .background(DarkCard)
+                .background(EcoDriveTheme.colors.cardBackground)
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
                 text = "Planned Features",
                 style = MaterialTheme.typography.titleSmall,
-                color = DarkOnSurface,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             features.forEach { feature ->
                 Text(
                     text = feature,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = DarkOnSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

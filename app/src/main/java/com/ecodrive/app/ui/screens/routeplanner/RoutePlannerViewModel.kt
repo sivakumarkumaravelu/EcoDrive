@@ -118,38 +118,34 @@ class RoutePlannerViewModel @Inject constructor(
     private suspend fun fetchSuggestions(query: String) {
         _state.update { it.copy(isSearchingSuggestions = true) }
         try {
-            val encoded = URLEncoder.encode(query, "UTF-8")
-            val url = java.net.URL(
-                "https://nominatim.openstreetmap.org/search?q=$encoded&format=json&limit=5"
-            )
-            val connection = withContext(Dispatchers.IO) {
+            val suggestions = withContext(Dispatchers.IO) {
+                val encoded = URLEncoder.encode(query, "UTF-8")
+                val url = java.net.URL(
+                    "https://nominatim.openstreetmap.org/search?q=$encoded&format=json&limit=5"
+                )
                 val conn = url.openConnection() as java.net.HttpURLConnection
                 conn.setRequestProperty("User-Agent", "EcoDrive-Android/1.0")
                 conn.connectTimeout = 5000
                 conn.readTimeout = 5000
-                conn
-            }
 
-            if (connection.responseCode == 200) {
-                val body = withContext(Dispatchers.IO) {
-                    connection.inputStream.bufferedReader().use { it.readText() }
-                }
-                val arr = JSONArray(body)
-                val suggestions = mutableListOf<PlaceSuggestion>()
-                for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    suggestions.add(
-                        PlaceSuggestion(
-                            name = obj.optString("display_name").split(",").firstOrNull() ?: query,
-                            description = obj.optString("display_name"),
-                            latLng = LatLng(obj.getDouble("lat"), obj.getDouble("lon"))
+                val result = mutableListOf<PlaceSuggestion>()
+                if (conn.responseCode == 200) {
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
+                    val arr = JSONArray(body)
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.getJSONObject(i)
+                        result.add(
+                            PlaceSuggestion(
+                                name = obj.optString("display_name").split(",").firstOrNull() ?: query,
+                                description = obj.optString("display_name"),
+                                latLng = LatLng(obj.getDouble("lat"), obj.getDouble("lon"))
+                            )
                         )
-                    )
+                    }
                 }
-                _state.update { it.copy(suggestions = suggestions, isSearchingSuggestions = false) }
-            } else {
-                _state.update { it.copy(isSearchingSuggestions = false) }
+                result
             }
+            _state.update { it.copy(suggestions = suggestions, isSearchingSuggestions = false) }
         } catch (e: Exception) {
             _state.update { it.copy(isSearchingSuggestions = false) }
         }

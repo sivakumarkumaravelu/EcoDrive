@@ -406,19 +406,19 @@ private fun TripStatItem(
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = DarkOnSurfaceVariant,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(18.dp),
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = value,
             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-            color = DarkOnSurface,
+            color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = DarkOnSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

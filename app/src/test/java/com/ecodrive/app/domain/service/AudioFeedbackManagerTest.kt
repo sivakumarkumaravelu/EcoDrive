@@ -20,10 +20,19 @@ class AudioFeedbackManagerTest {
     @Before
     fun setup() {
         mockkConstructor(TextToSpeech::class)
-        // Simulate TTS init success callback
         every { anyConstructed<TextToSpeech>().setLanguage(any()) } returns TextToSpeech.LANG_COUNTRY_AVAILABLE
+        every { anyConstructed<TextToSpeech>().setSpeechRate(any()) } returns TextToSpeech.SUCCESS
+        every { anyConstructed<TextToSpeech>().setPitch(any()) } returns TextToSpeech.SUCCESS
+        every { anyConstructed<TextToSpeech>().setAudioAttributes(any()) } returns TextToSpeech.SUCCESS
+        every { anyConstructed<TextToSpeech>().voices } returns null
+        every { anyConstructed<TextToSpeech>().setOnUtteranceProgressListener(any()) } returns 0
+        every {
+            anyConstructed<TextToSpeech>().speak(any<String>(), any<Int>(), any(), any<String>())
+        } returns TextToSpeech.SUCCESS
         audioFeedbackManager = AudioFeedbackManager(context)
     }
+
+    // ── isAudioEnabled state ──────────────────────────────────────────────
 
     @Test
     fun `test isAudioEnabled defaults to true`() = runTest {
@@ -43,46 +52,159 @@ class AudioFeedbackManagerTest {
         assertTrue(audioFeedbackManager.isAudioEnabled.first())
     }
 
+    // ── Audio-disabled guards ─────────────────────────────────────────────
+
     @Test
     fun `test playEventFeedback does nothing when audio disabled`() {
         audioFeedbackManager.setAudioEnabled(false)
-        val event = buildEvent(DrivingEventType.HARD_BRAKE)
-
-        audioFeedbackManager.playEventFeedback(event)
-
+        audioFeedbackManager.playEventFeedback(buildEvent(DrivingEventType.HARD_BRAKE))
         verify(exactly = 0) { anyConstructed<TextToSpeech>().speak(any(), any(), any(), any()) }
     }
 
     @Test
     fun `test playTip does nothing when audio disabled`() {
         audioFeedbackManager.setAudioEnabled(false)
-
         audioFeedbackManager.playTip("slow down")
-
         verify(exactly = 0) { anyConstructed<TextToSpeech>().speak(any(), any(), any(), any()) }
     }
 
     @Test
-    fun `test playTip sanitizes emojis before speaking`() {
-        // Arrange
-        val tipWithEmoji = "🤖 Slow down! 🐢"
-        val expectedSanitizedTip = "Slow down!"
-        
-        // Act
-        // Simulate tts being ready by calling onInit directly
-        audioFeedbackManager.onInit(TextToSpeech.SUCCESS)
-        audioFeedbackManager.playTip(tipWithEmoji)
+    fun `test playSafetyAlert does nothing when audio disabled`() {
+        audioFeedbackManager.setAudioEnabled(false)
+        audioFeedbackManager.playSafetyAlert("High fatigue risk detected.")
+        verify(exactly = 0) { anyConstructed<TextToSpeech>().speak(any(), any(), any(), any()) }
+    }
 
-        // Assert
-        verify(exactly = 1) { 
+    // ── sanitizeForTts ────────────────────────────────────────────────────
+
+    @Test
+    fun `sanitizeForTts strips simple emoji`() {
+        val result = audioFeedbackManager.sanitizeForTts("\uD83E\uDD16 Slow down! \uD83D\uDC22")
+        assertEquals("Slow down!", result)
+    }
+
+    @Test
+    fun `sanitizeForTts strips warning sign variation selector emoji`() {
+        // U+26A0 (warning sign) + U+FE0F (variation selector-16) form the ⚠️ emoji
+        val result = audioFeedbackManager.sanitizeForTts("\u26A0\uFE0F Watch out!")
+        assertEquals("Watch out!", result)
+    }
+
+    @Test
+    fun `sanitizeForTts expands km per h unit`() {
+        val result = audioFeedbackManager.sanitizeForTts("Reduce speed to 50 km/h")
+        assertEquals("Reduce speed to 50 kilometers per hour", result)
+    }
+
+    @Test
+    fun `sanitizeForTts expands mph unit`() {
+        val result = audioFeedbackManager.sanitizeForTts("You are doing 30 mph")
+        assertEquals("You are doing 30 miles per hour", result)
+    }
+
+    @Test
+    fun `sanitizeForTts expands m per s squared written as m over s2`() {
+        val result = audioFeedbackManager.sanitizeForTts("Acceleration: 3.2 m/s2")
+        assertEquals("Acceleration: 3.2 meters per second squared", result)
+    }
+
+    @Test
+    fun `sanitizeForTts strips markdown bold and italic markers`() {
+        val result = audioFeedbackManager.sanitizeForTts("**Tip**: Ease off the *gas*")
+        assertEquals("Tip: Ease off the gas", result)
+    }
+
+    @Test
+    fun `sanitizeForTts returns blank for emoji-only input`() {
+        val result = audioFeedbackManager.sanitizeForTts("\uD83E\uDD16\uD83D\uDC22")
+        assertTrue("Expected blank but got: '$result'", result.isBlank())
+    }
+
+    @Test
+    fun `sanitizeForTts collapses multiple spaces`() {
+        val result = audioFeedbackManager.sanitizeForTts("Slow   down   please")
+        assertEquals("Slow down please", result)
+    }
+
+    // ── Queue behaviour ───────────────────────────────────────────────────
+
+    @Test
+    fun `playTip speaks via QUEUE_ADD`() {
+        audioFeedbackManager.onInit(TextToSpeech.SUCCESS)
+        audioFeedbackManager.playTip("Ease off the accelerator")
+
+        verify(exactly = 1) {
             anyConstructed<TextToSpeech>().speak(
-                eq(expectedSanitizedTip),
-                any(), 
-                any(), 
+                eq("Ease off the accelerator"),
+                eq(TextToSpeech.QUEUE_ADD),
+                any(),
                 any()
-            ) 
+            )
         }
     }
+
+    @Test
+    fun `playSafetyAlert speaks via QUEUE_FLUSH`() {
+        audioFeedbackManager.onInit(TextToSpeech.SUCCESS)
+        audioFeedbackManager.playSafetyAlert("High fatigue risk detected. Please take a break.")
+
+        verify(exactly = 1) {
+            anyConstructed<TextToSpeech>().speak(
+                eq("High fatigue risk detected. Please take a break."),
+                eq(TextToSpeech.QUEUE_FLUSH),
+                any(),
+                any()
+            )
+        }
+    }
+
+    @Test
+    fun `playEventFeedback speaks via QUEUE_FLUSH`() {
+        audioFeedbackManager.onInit(TextToSpeech.SUCCESS)
+        audioFeedbackManager.playEventFeedback(buildEvent(DrivingEventType.HARD_BRAKE))
+
+        verify(exactly = 1) {
+            anyConstructed<TextToSpeech>().speak(
+                eq("Hard braking detected"),
+                eq(TextToSpeech.QUEUE_FLUSH),
+                any(),
+                any()
+            )
+        }
+    }
+
+    @Test
+    fun `playTip drops third tip when queue is full`() {
+        audioFeedbackManager.onInit(TextToSpeech.SUCCESS)
+
+        // Fill the queue to MAX_TIP_QUEUE (2)
+        audioFeedbackManager.playTip("First tip")
+        audioFeedbackManager.playTip("Second tip")
+        // This should be dropped silently
+        audioFeedbackManager.playTip("Third tip — should be dropped")
+
+        // Only 2 QUEUE_ADD speak() calls should have been made
+        verify(exactly = 2) {
+            anyConstructed<TextToSpeech>().speak(any<String>(), eq(TextToSpeech.QUEUE_ADD), any(), any())
+        }
+    }
+
+    @Test
+    fun `playTip sanitizes emoji before speaking`() {
+        audioFeedbackManager.onInit(TextToSpeech.SUCCESS)
+        audioFeedbackManager.playTip("\uD83E\uDD16 Slow down!")
+
+        verify(exactly = 1) {
+            anyConstructed<TextToSpeech>().speak(
+                eq("Slow down!"),
+                eq(TextToSpeech.QUEUE_ADD),
+                any(),
+                any()
+            )
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
 
     private fun buildEvent(type: DrivingEventType) = DrivingEvent(
         id = 1L,

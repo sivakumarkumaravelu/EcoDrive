@@ -71,25 +71,31 @@ class AiCoachService @Inject constructor(
             You are a real-time Eco-Driving Coach. Provide a SINGLE, concise (max 15 words) tip 
             for the driver based on their current behavior.
             
-            CRITICAL: Use $unitLabel for speed and provide advice in the context of the ${if (useMetric) "Metric" else "Imperial"} system.
-            Do NOT include any emojis, markdown, or special symbols in your response. 
-            The output will be read aloud by Text-to-Speech.
+            CRITICAL FORMATTING RULES — the tip will be read aloud by Text-to-Speech:
+            - Write in plain spoken English. No emojis, symbols, or markdown.
+            - Do NOT use abbreviations. Write units in full: use "kilometers per hour" not "km/h",
+              "miles per hour" not "mph", "meters per second" not "m/s".
+            - Write numbers naturally as you would say them: "fifteen" not "15", or "about 60 kilometers per hour".
+            - No bullet points, no lists, no special characters.
+            - Output ONLY the tip text — no labels, no prefix, no explanation.
+            
+            Speed system: $unitLabel
             
             Current Metrics:
             - Speed: ${"%.1f".format(displaySpeed)} $unitLabel
-            - Acceleration: ${"%.2f".format(metrics.longitudinalAccelMps2)} m/s²
-            - Eco Score: ${ecoScore.overall}/100
+            - Acceleration: ${"%.2f".format(metrics.longitudinalAccelMps2)} meters per second squared
+            - Eco Score: ${ecoScore.overall} out of 100
             
             Last 60s Context:
             - Avg Speed: ${"%.1f".format(displayAvgSpeed)} $unitLabel
-            - Max Accel: ${"%.2f".format(maxAccel)} m/s²
-            - Hardest Brake: ${"%.2f".format(minAccel)} m/s²
+            - Max Acceleration: ${"%.2f".format(maxAccel)} meters per second squared
+            - Hardest Brake: ${"%.2f".format(minAccel)} meters per second squared
             $weatherSection
             Previous Tip Given: ${lastTip ?: "None"}
             
-            Give a fresh, relevant tip. If conditions are hazardous (rain/ice/fog), prioritize safety over efficiency.
-            If driving is perfect, give an encouraging short praise.
-            Focus on actionable advice. Output ONLY the tip text.
+            Give a fresh, relevant tip. If conditions are hazardous (rain, ice, or fog), prioritize safety over efficiency.
+            If driving is perfect, give short encouraging praise.
+            Focus on actionable advice.
         """.trimIndent()
 
         val tip = aiManager.generateRealTimeTip(prompt)

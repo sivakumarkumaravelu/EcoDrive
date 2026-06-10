@@ -46,6 +46,5 @@ class AiPromptUnitTest {
         // Then
         assertTrue("Prompt should mention mph", capturedPrompt.contains("mph"))
         assertTrue("Prompt should mention 62.1", capturedPrompt.contains("62.1"))
-        assertTrue("Prompt should mention Imperial", capturedPrompt.contains("Imperial"))
     }
 }

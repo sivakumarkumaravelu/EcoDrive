@@ -57,6 +57,8 @@ fun EcoScoreGauge(
         label = "glowAlpha",
     )
 
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant
+
     Box(
         modifier = modifier.size(size),
         contentAlignment = Alignment.Center,
@@ -74,7 +76,7 @@ fun EcoScoreGauge(
 
             // Background arc (dark track)
             drawArc(
-                color = DarkSurfaceVariant,
+                color = trackColor,
                 startAngle = startAngle,
                 sweepAngle = sweepAngle,
                 useCenter = false,
@@ -128,7 +130,7 @@ fun EcoScoreGauge(
             Text(
                 text = "ECO SCORE",
                 style = MaterialTheme.typography.labelMedium,
-                color = DarkOnSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
                 text = "$animatedScore",
@@ -141,7 +143,7 @@ fun EcoScoreGauge(
             Text(
                 text = "/ 100",
                 style = MaterialTheme.typography.bodyMedium,
-                color = DarkOnSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -170,8 +172,15 @@ fun MetricCard(
             label = "borderAlpha",
         )
 
+    val cardBgTint = accentColor.copy(alpha = 0.04f)
+
     Box(modifier = modifier) {
         Canvas(modifier = Modifier.matchParentSize()) {
+            // Soft colored background tint
+            drawRoundRect(
+                color = cardBgTint,
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(16f, 16f),
+            )
             // Glassmorphism border glow
             drawRoundRect(
                 color = accentColor.copy(alpha = animatedBorderAlpha),
@@ -188,7 +197,10 @@ fun MetricCard(
         ) {
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                ),
                 color = accentColor,
             )
             Spacer(modifier = Modifier.height(4.dp))
@@ -197,12 +209,12 @@ fun MetricCard(
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontWeight = FontWeight.Bold,
                 ),
-                color = DarkOnSurface,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = unit,
                 style = MaterialTheme.typography.bodySmall,
-                color = DarkOnSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -217,7 +229,7 @@ fun ConnectionStatusBar(
     statusText: String,
     modifier: Modifier = Modifier,
 ) {
-    val statusColor = if (isConnected) EcoGreen else DarkOnSurfaceVariant
+    val statusColor = if (isConnected) EcoGreen else MaterialTheme.colorScheme.onSurfaceVariant
     val dotAlpha by rememberInfiniteTransition(label = "dot")
         .animateFloat(
             initialValue = 0.4f,

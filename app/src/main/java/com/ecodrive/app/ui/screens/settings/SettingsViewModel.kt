@@ -45,6 +45,7 @@ class SettingsViewModel @Inject constructor(
         val odometerKm: Double? = null,
         val isObdEnabled: Boolean = false,
         val autoRecordEnabled: Boolean = false,
+        val useGoogleMaps: Boolean = false,
         val selectedAiProvider: String = "GEMINI",
         val selectedModel: String = "",
         val availableModels: List<String> = emptyList(),
@@ -59,6 +60,17 @@ class SettingsViewModel @Inject constructor(
     private val providerModelsCache = ConcurrentHashMap<String, List<String>>()
 
     init {
+        // Load initial client credentials from preferences
+        viewModelScope.launch {
+            val id = preferenceManager.smartcarClientId.first()
+            val secret = preferenceManager.smartcarClientSecret.first()
+            _state.update {
+                it.copy(
+                    smartcarClientId = id,
+                    smartcarClientSecret = secret
+                )
+            }
+        }
         observeSmartcarState()
         observeGeneralPreferences()
         validateProvidersAndObserveAiPrefs()
@@ -87,6 +99,15 @@ class SettingsViewModel @Inject constructor(
                 }
             }
         }
+        // Collect callback auth code from MainActivity
+        viewModelScope.launch {
+            com.ecodrive.app.ui.MainActivity.authCodeFlow.collect { code ->
+                if (code != null) {
+                    handleAuthCallback(code)
+                    com.ecodrive.app.ui.MainActivity.authCodeFlow.value = null // reset
+                }
+            }
+        }
     }
 
     private fun observeGeneralPreferences() {
@@ -95,14 +116,23 @@ class SettingsViewModel @Inject constructor(
                 preferenceManager.autoRecordEnabled,
                 preferenceManager.useMetricUnits,
                 preferenceManager.appTheme,
-                preferenceManager.colorPalette
-            ) { autoRecord, useMetric, theme, palette ->
+                preferenceManager.colorPalette,
+                preferenceManager.useGoogleMaps
+            ) { autoRecord, useMetric, theme, palette, useGoogleMaps ->
+                // Sync AppConfig map provider dynamically on changes
+                com.ecodrive.app.util.AppConfig.ACTIVE_MAP_PROVIDER = if (useGoogleMaps) {
+                    com.ecodrive.app.util.MapProvider.GOOGLE_MAPS
+                } else {
+                    com.ecodrive.app.util.MapProvider.OPEN_STREET_MAP
+                }
+
                 _state.update {
                     it.copy(
                         autoRecordEnabled = autoRecord,
                         useMetric = useMetric,
                         appTheme = theme,
-                        appPalette = palette
+                        appPalette = palette,
+                        useGoogleMaps = useGoogleMaps
                     )
                 }
             }.collect()
@@ -204,8 +234,21 @@ class SettingsViewModel @Inject constructor(
      * Generate the Smartcar Connect OAuth URL for the user to log in.
      */
     fun getAuthUrl(): String? {
-        val clientId = _state.value.smartcarClientId
+        val clientId = _state.value.smartcarClientId.trim()
+        val clientSecret = _state.value.smartcarClientSecret.trim()
         if (clientId.isBlank()) return null
+
+        _state.update {
+            it.copy(
+                smartcarClientId = clientId,
+                smartcarClientSecret = clientSecret
+            )
+        }
+
+        viewModelScope.launch {
+            preferenceManager.setSmartcarClientId(clientId)
+            preferenceManager.setSmartcarClientSecret(clientSecret)
+        }
         return smartcarApiClient.getAuthUrl(clientId)
     }
 
@@ -213,8 +256,8 @@ class SettingsViewModel @Inject constructor(
      * Handle the OAuth callback with the authorization code.
      */
     fun handleAuthCallback(code: String) {
-        val clientId = _state.value.smartcarClientId
-        val clientSecret = _state.value.smartcarClientSecret
+        val clientId = _state.value.smartcarClientId.trim()
+        val clientSecret = _state.value.smartcarClientSecret.trim()
         viewModelScope.launch {
             smartcarApiClient.exchangeCode(code, clientId, clientSecret)
         }
@@ -230,6 +273,16 @@ class SettingsViewModel @Inject constructor(
 
     fun disconnectSmartcar() {
         smartcarApiClient.disconnect()
+        viewModelScope.launch {
+            preferenceManager.setSmartcarClientId("")
+            preferenceManager.setSmartcarClientSecret("")
+        }
+        _state.update {
+            it.copy(
+                smartcarClientId = "",
+                smartcarClientSecret = ""
+            )
+        }
     }
 
     fun toggleUnits() {
@@ -241,6 +294,12 @@ class SettingsViewModel @Inject constructor(
     fun toggleAutoRecord() {
         viewModelScope.launch {
             preferenceManager.setAutoRecordEnabled(!_state.value.autoRecordEnabled)
+        }
+    }
+
+    fun toggleUseGoogleMaps() {
+        viewModelScope.launch {
+            preferenceManager.setUseGoogleMaps(!_state.value.useGoogleMaps)
         }
     }
 

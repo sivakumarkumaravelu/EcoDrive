@@ -58,10 +58,21 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleIntent(intent)
         enableEdgeToEdge()
         setContent {
             val appTheme by preferenceManager.appTheme.collectAsStateWithLifecycle(initialValue = AppTheme.DARK)
             val appPalette by preferenceManager.colorPalette.collectAsStateWithLifecycle(initialValue = AppColorPalette.ECO_GREEN)
+
+            LaunchedEffect(preferenceManager) {
+                preferenceManager.useGoogleMaps.collect { useGoogleMaps ->
+                    com.ecodrive.app.util.AppConfig.ACTIVE_MAP_PROVIDER = if (useGoogleMaps) {
+                        com.ecodrive.app.util.MapProvider.GOOGLE_MAPS
+                    } else {
+                        com.ecodrive.app.util.MapProvider.OPEN_STREET_MAP
+                    }
+                }
+            }
 
             EcoDriveTheme(
                 appTheme = appTheme,
@@ -78,6 +89,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent) {
         intent.data?.let { uri ->
             if (uri.scheme == "ecodrive" && uri.host == "callback") {
                 val code = uri.getQueryParameter("code")

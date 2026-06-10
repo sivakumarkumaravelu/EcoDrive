@@ -32,6 +32,9 @@ class PreferenceManager @Inject constructor(
         private val APP_THEME = stringPreferencesKey("app_theme")
         private val COLOR_PALETTE = stringPreferencesKey("color_palette")
         private val AI_PROVIDER = stringPreferencesKey("ai_provider")
+        private val USE_GOOGLE_MAPS = booleanPreferencesKey("use_google_maps")
+        private val SMARTCAR_CLIENT_ID = stringPreferencesKey("smartcar_client_id")
+        private val SMARTCAR_CLIENT_SECRET = stringPreferencesKey("smartcar_client_secret")
     }
 
     val autoRecordEnabled: Flow<Boolean>
@@ -64,6 +67,15 @@ class PreferenceManager @Inject constructor(
     val selectedAiProvider: Flow<String>
         get() = dataStore.data.map { it[AI_PROVIDER] ?: "GEMINI" }
 
+    val useGoogleMaps: Flow<Boolean>
+        get() = dataStore.data.map { it[USE_GOOGLE_MAPS] ?: false }
+
+    val smartcarClientId: Flow<String>
+        get() = dataStore.data.map { it[SMARTCAR_CLIENT_ID] ?: "" }
+
+    val smartcarClientSecret: Flow<String>
+        get() = dataStore.data.map { it[SMARTCAR_CLIENT_SECRET] ?: "" }
+
     suspend fun setAutoRecordEnabled(enabled: Boolean) {
         dataStore.edit { it[AUTO_RECORD_ENABLED] = enabled }
     }
@@ -89,6 +101,18 @@ class PreferenceManager @Inject constructor(
 
     suspend fun setSelectedAiProvider(provider: String) {
         dataStore.edit { it[AI_PROVIDER] = provider }
+    }
+
+    suspend fun setUseGoogleMaps(enabled: Boolean) {
+        dataStore.edit { it[USE_GOOGLE_MAPS] = enabled }
+    }
+
+    suspend fun setSmartcarClientId(clientId: String) {
+        dataStore.edit { it[SMARTCAR_CLIENT_ID] = clientId }
+    }
+
+    suspend fun setSmartcarClientSecret(clientSecret: String) {
+        dataStore.edit { it[SMARTCAR_CLIENT_SECRET] = clientSecret }
     }
 
     fun getSelectedModel(provider: String): Flow<String?> {

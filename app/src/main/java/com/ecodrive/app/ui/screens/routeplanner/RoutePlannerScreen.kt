@@ -206,6 +206,8 @@ private fun SearchOverlay(
 ) {
     // showDropdown tracks whether the popup should be shown
     val showDropdown = suggestions.isNotEmpty()
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val offsetY = with(density) { 64.dp.roundToPx() }
 
     Box(modifier = modifier) {
         // Search text field
@@ -253,8 +255,8 @@ private fun SearchOverlay(
         if (showDropdown) {
             Popup(
                 alignment = Alignment.TopStart,
-                // Offset below the search field (~56dp for the text field height)
-                offset = androidx.compose.ui.unit.IntOffset(0, 220),
+                // Offset below the search field (~56dp + padding for the text field height)
+                offset = androidx.compose.ui.unit.IntOffset(0, offsetY),
                 properties = PopupProperties(
                     focusable = false,
                     dismissOnBackPress = true,

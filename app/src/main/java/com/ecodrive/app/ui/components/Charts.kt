@@ -57,13 +57,16 @@ fun LineChart(
     )
 
     val textMeasurer = rememberTextMeasurer()
+    val outlineColor = MaterialTheme.colorScheme.outline
+    val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val cardBg = EcoDriveTheme.colors.cardBackground
 
     Column(modifier = modifier) {
         if (yAxisLabel.isNotBlank()) {
             Text(
                 text = yAxisLabel,
                 style = MaterialTheme.typography.labelSmall,
-                color = DarkOnSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 4.dp),
             )
         }
@@ -92,7 +95,7 @@ fun LineChart(
             for (i in 0..gridCount) {
                 val y = 10f + (chartHeight - 20f) * i / gridCount
                 drawLine(
-                    color = DarkCardBorder.copy(alpha = 0.3f),
+                    color = outlineColor.copy(alpha = 0.3f),
                     start = Offset(chartPadding, y),
                     end = Offset(size.width - chartPadding, y),
                     strokeWidth = 1f,
@@ -108,7 +111,7 @@ fun LineChart(
                     topLeft = Offset(0f, y - 8f),
                     style = TextStyle(
                         fontSize = 9.sp,
-                        color = DarkOnSurfaceVariant,
+                        color = onSurfaceVariantColor,
                     ),
                 )
             }
@@ -160,7 +163,7 @@ fun LineChart(
                     val x = mapX(i)
                     val y = mapY(points[i].y)
                     drawCircle(color = lineColor, radius = 3.5f, center = Offset(x, y))
-                    drawCircle(color = DarkBackground, radius = 1.5f, center = Offset(x, y))
+                    drawCircle(color = cardBg, radius = 1.5f, center = Offset(x, y))
                 }
             }
 
@@ -175,7 +178,7 @@ fun LineChart(
                         topLeft = Offset(x - 12f, chartHeight + 4f),
                         style = TextStyle(
                             fontSize = 8.sp,
-                            color = DarkOnSurfaceVariant,
+                            color = onSurfaceVariantColor,
                         ),
                     )
                 }
@@ -207,13 +210,14 @@ fun BarChart(
     )
 
     val textMeasurer = rememberTextMeasurer()
+    val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     Column(modifier = modifier) {
         if (yAxisLabel.isNotBlank()) {
             Text(
                 text = yAxisLabel,
                 style = MaterialTheme.typography.labelSmall,
-                color = DarkOnSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 4.dp),
             )
         }
@@ -252,7 +256,7 @@ fun BarChart(
                     topLeft = Offset(x - 4f, chartHeight + 4f),
                     style = TextStyle(
                         fontSize = 8.sp,
-                        color = DarkOnSurfaceVariant,
+                        color = onSurfaceVariantColor,
                     ),
                 )
             }
@@ -351,7 +355,7 @@ private fun EmptyChartPlaceholder(modifier: Modifier, message: String) {
         Text(
             text = message,
             style = MaterialTheme.typography.bodySmall,
-            color = DarkOnSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

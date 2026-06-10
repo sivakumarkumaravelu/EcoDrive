@@ -111,6 +111,24 @@ class PreferenceManagerTest {
         assertTrue(metric)
     }
 
+    @Test
+    fun `test useGoogleMaps default is false`() = runTest {
+        every { dataStore.data } returns flowOf(emptyPreferences())
+        val enabled = preferenceManager.useGoogleMaps.first()
+        assertFalse(enabled)
+    }
+
+    @Test
+    fun `test useGoogleMaps returns value from preferences`() = runTest {
+        val key = booleanPreferencesKey("use_google_maps")
+        val prefs = preferencesOf(key to true)
+        every { dataStore.data } returns flowOf(prefs)
+
+        val enabled = preferenceManager.useGoogleMaps.first()
+        assertTrue(enabled)
+    }
+
+
     @Ignore("DataStore.edit mocking issues - focus on public API testing")
     @Test
     fun `test setAutoRecordEnabled edits dataStore`() = runTest {
@@ -138,6 +156,56 @@ class PreferenceManagerTest {
         
         preferenceManager.setCarBluetoothAddress(null)
         
+        coVerify { dataStore.edit(any()) }
+    }
+
+    @Test
+    fun `test smartcarClientId default is blank`() = runTest {
+        every { dataStore.data } returns flowOf(emptyPreferences())
+        val id = preferenceManager.smartcarClientId.first()
+        assertEquals("", id)
+    }
+
+    @Test
+    fun `test smartcarClientId returns stored value`() = runTest {
+        val key = stringPreferencesKey("smartcar_client_id")
+        val prefs = preferencesOf(key to "client_123")
+        every { dataStore.data } returns flowOf(prefs)
+
+        val id = preferenceManager.smartcarClientId.first()
+        assertEquals("client_123", id)
+    }
+
+    @Test
+    fun `test smartcarClientSecret default is blank`() = runTest {
+        every { dataStore.data } returns flowOf(emptyPreferences())
+        val secret = preferenceManager.smartcarClientSecret.first()
+        assertEquals("", secret)
+    }
+
+    @Test
+    fun `test smartcarClientSecret returns stored value`() = runTest {
+        val key = stringPreferencesKey("smartcar_client_secret")
+        val prefs = preferencesOf(key to "secret_456")
+        every { dataStore.data } returns flowOf(prefs)
+
+        val secret = preferenceManager.smartcarClientSecret.first()
+        assertEquals("secret_456", secret)
+    }
+
+    @Ignore("DataStore.edit mocking issues - focus on public API testing")
+    @Test
+    fun `test setSmartcarClientId edits dataStore`() = runTest {
+        coEvery { dataStore.edit(any()) } returns emptyPreferences()
+        preferenceManager.setSmartcarClientId("client_123")
+        coVerify { dataStore.edit(any()) }
+    }
+
+    @Ignore("DataStore.edit mocking issues - focus on public API testing")
+    @Test
+    fun `test setSmartcarClientSecret edits dataStore`() = runTest {
+        coEvery { dataStore.edit(any()) } returns emptyPreferences()
+        preferenceManager.setSmartcarClientSecret("secret_456")
         coVerify { dataStore.edit(any()) }
     }
 }

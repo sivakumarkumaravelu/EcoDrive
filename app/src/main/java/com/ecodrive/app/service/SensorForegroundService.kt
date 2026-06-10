@@ -380,7 +380,8 @@ class SensorForegroundService : Service() {
         for (anomaly in anomalies) {
             if (anomaly.severity == com.ecodrive.app.domain.model.AnomalySeverity.HIGH) {
                 serviceScope.launch(Dispatchers.Main) {
-                    audioFeedbackManager.playTip("⚠️ ${anomaly.description}")
+                    // Anomaly warnings are safety-critical — use playSafetyAlert for QUEUE_FLUSH priority.
+                    audioFeedbackManager.playSafetyAlert(anomaly.description)
                 }
             }
         }
@@ -397,15 +398,16 @@ class SensorForegroundService : Service() {
         lastFatigueAlertMs = now
         val message = when (status) {
             com.ecodrive.app.domain.ai.analyzer.FatigueStatus.HIGH_RISK -> 
-                "⚠️ High fatigue risk detected. Please consider taking a break."
+                "High fatigue risk detected. Please consider taking a break."
             com.ecodrive.app.domain.ai.analyzer.FatigueStatus.MODERATE_RISK -> 
-                "🔔 Your driving patterns suggest reduced focus. Stay alert."
+                "Your driving patterns suggest reduced focus. Stay alert."
             else -> ""
         }
         
         if (message.isNotBlank()) {
             serviceScope.launch(Dispatchers.Main) {
-                audioFeedbackManager.playTip(message)
+                // Fatigue alerts are safety-critical — use playSafetyAlert for QUEUE_FLUSH priority.
+                audioFeedbackManager.playSafetyAlert(message)
             }
         }
     }
@@ -418,7 +420,8 @@ class SensorForegroundService : Service() {
         if (tip != null) {
             _latestTip.value = tip
             withContext(Dispatchers.Main) {
-                audioFeedbackManager.playTip("🤖 $tip")
+                // AI coaching tips are non-urgent — play via QUEUE_ADD so they don't interrupt alerts.
+                audioFeedbackManager.playTip(tip)
             }
         }
     }

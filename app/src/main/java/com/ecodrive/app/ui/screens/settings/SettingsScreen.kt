@@ -99,8 +99,12 @@ fun SettingsScreen(
             )
             SettingsCheckRow(
                 label = "Use Google Maps",
-                checked = AppConfig.USE_GOOGLE_MAPS,
-                enabled = false, // Controlled via AppConfig for now
+                checked = state.useGoogleMaps,
+                enabled = true,
+                onCheckedChange = {
+                    viewModel.toggleUseGoogleMaps()
+                    com.ecodrive.app.util.HapticHelper.playClick(context)
+                }
             )
         }
 
@@ -246,7 +250,10 @@ fun SettingsScreen(
             SettingsCheckRow(
                 label = "Auto-Record Drives",
                 checked = state.autoRecordEnabled,
-                onCheckedChange = { viewModel.toggleAutoRecord() }
+                onCheckedChange = {
+                    viewModel.toggleAutoRecord()
+                    com.ecodrive.app.util.HapticHelper.playClick(context)
+                }
             )
             Text(
                 text = "EcoDrive will automatically start and stop recording " +
@@ -297,7 +304,10 @@ fun SettingsScreen(
                 label = "🔌 OBD-II Adapter (Pro)",
                 checked = state.isObdEnabled,
                 enabled = true,
-                onCheckedChange = { viewModel.toggleObd() }
+                onCheckedChange = {
+                    viewModel.toggleObd()
+                    com.ecodrive.app.util.HapticHelper.playClick(context)
+                }
             )
             Text(
                 text = "OBD-II support coming soon as an optional upgrade for " +
@@ -343,9 +353,8 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                             val providerDisplayName = state.selectedAiProvider.lowercase().replaceFirstChar { it.uppercase() }
-                            val modelDisplayName = if (state.selectedModel.isNotBlank()) " (${state.selectedModel})" else ""
                             Text(
-                                text = "$providerDisplayName$modelDisplayName",
+                                text = providerDisplayName,
                                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
                             )
                         }
@@ -530,6 +539,7 @@ private fun AppearanceSelector(
     onPaletteChange: (AppColorPalette) -> Unit,
     onToggleUnits: () -> Unit,
 ) {
+    val context = LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -553,7 +563,10 @@ private fun AppearanceSelector(
                 AppTheme.entries.forEachIndexed { index, theme ->
                     SegmentedButton(
                         selected = currentTheme == theme,
-                        onClick = { onThemeChange(theme) },
+                        onClick = {
+                            onThemeChange(theme)
+                            com.ecodrive.app.util.HapticHelper.playClick(context)
+                        },
                         shape = SegmentedButtonDefaults.itemShape(index = index, count = AppTheme.entries.size),
                         label = {
                             Text(
@@ -580,7 +593,12 @@ private fun AppearanceSelector(
                     val isMetric = label == "Metric"
                     SegmentedButton(
                         selected = useMetric == isMetric,
-                        onClick = { if (useMetric != isMetric) onToggleUnits() },
+                        onClick = {
+                            if (useMetric != isMetric) {
+                                onToggleUnits()
+                                com.ecodrive.app.util.HapticHelper.playClick(context)
+                            }
+                        },
                         shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
                         label = { Text(label) }
                     )
@@ -603,7 +621,10 @@ private fun AppearanceSelector(
                     ColorSwatch(
                         palette = palette,
                         selected = currentPalette == palette,
-                        onClick = { onPaletteChange(palette) }
+                        onClick = {
+                            onPaletteChange(palette)
+                            com.ecodrive.app.util.HapticHelper.playClick(context)
+                        }
                     )
                 }
             }
