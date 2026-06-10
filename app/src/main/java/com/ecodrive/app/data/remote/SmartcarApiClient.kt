@@ -79,13 +79,15 @@ class SmartcarApiClient @Inject constructor() {
      * @param make Optional vehicle brand to pre-filter (e.g., "FORD", "TOYOTA")
      */
     fun getAuthUrl(clientId: String, make: String? = null): String {
+        val cleanClientId = clientId.trim().removePrefix("client_")
         val makeParam = if (make.isNullOrBlank()) "" else "&make=${make.uppercase()}"
         return "https://connect.smartcar.com/oauth/authorize" +
                 "?response_type=code" +
-                "&client_id=$clientId" +
+                "&client_id=$cleanClientId" +
                 "&redirect_uri=${Constants.SMARTCAR_REDIRECT_URI}" +
-                "&scope=read_fuel read_odometer read_tires read_location" +
+                "&scope=read_fuel+read_odometer+read_tires+read_location" +
                 makeParam +
+                "&mode=live" +
                 "&single_select=true"
     }
 
@@ -97,6 +99,7 @@ class SmartcarApiClient @Inject constructor() {
         clientId: String,
         clientSecret: String,
     ): Result<Unit> = withContext(Dispatchers.IO) {
+        val cleanClientId = clientId.trim().removePrefix("client_")
         try {
             _state.value = ApiState.AUTHENTICATING
 
@@ -104,13 +107,16 @@ class SmartcarApiClient @Inject constructor() {
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            
+            val authString = "$cleanClientId:${clientSecret.trim()}"
+            val base64Auth = android.util.Base64.encodeToString(authString.toByteArray(), android.util.Base64.NO_WRAP)
+            connection.setRequestProperty("Authorization", "Basic $base64Auth")
+            
             connection.doOutput = true
 
             val body = "grant_type=authorization_code" +
                     "&code=$code" +
-                    "&redirect_uri=${Constants.SMARTCAR_REDIRECT_URI}" +
-                    "&client_id=$clientId" +
-                    "&client_secret=$clientSecret"
+                    "&redirect_uri=${Constants.SMARTCAR_REDIRECT_URI}"
 
             connection.outputStream.write(body.toByteArray())
 
