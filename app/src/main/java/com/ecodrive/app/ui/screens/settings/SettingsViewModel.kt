@@ -33,6 +33,7 @@ class SettingsViewModel @Inject constructor(
 
     data class SettingsState(
         val smartcarApiState: SmartcarApiClient.ApiState = SmartcarApiClient.ApiState.NOT_CONFIGURED,
+        val smartcarApplicationId: String = "",
         val smartcarClientId: String = "",
         val smartcarClientSecret: String = "",
         val calibrationFactor: Double = 1.0,
@@ -62,10 +63,12 @@ class SettingsViewModel @Inject constructor(
     init {
         // Load initial client credentials from preferences
         viewModelScope.launch {
+            val appId = preferenceManager.smartcarApplicationId.first()
             val id = preferenceManager.smartcarClientId.first()
             val secret = preferenceManager.smartcarClientSecret.first()
             _state.update {
                 it.copy(
+                    smartcarApplicationId = appId,
                     smartcarClientId = id,
                     smartcarClientSecret = secret
                 )
@@ -101,9 +104,11 @@ class SettingsViewModel @Inject constructor(
         }
         // Collect callback auth code from MainActivity
         viewModelScope.launch {
-            com.ecodrive.app.ui.MainActivity.authCodeFlow.collect { code ->
-                if (code != null) {
-                    handleAuthCallback(code)
+            com.ecodrive.app.ui.MainActivity.authCodeFlow.collect { authData ->
+                if (authData != null) {
+                    val code = authData.first
+                    val userId = authData.second
+                    handleAuthCallback(code, userId)
                     com.ecodrive.app.ui.MainActivity.authCodeFlow.value = null // reset
                 }
             }
@@ -234,33 +239,41 @@ class SettingsViewModel @Inject constructor(
      * Generate the Smartcar Connect OAuth URL for the user to log in.
      */
     fun getAuthUrl(): String? {
+        val appId = _state.value.smartcarApplicationId.trim()
         val clientId = _state.value.smartcarClientId.trim()
         val clientSecret = _state.value.smartcarClientSecret.trim()
-        if (clientId.isBlank()) return null
+        if (appId.isBlank() || clientId.isBlank()) return null
 
         _state.update {
             it.copy(
+                smartcarApplicationId = appId,
                 smartcarClientId = clientId,
                 smartcarClientSecret = clientSecret
             )
         }
 
         viewModelScope.launch {
+            preferenceManager.setSmartcarApplicationId(appId)
             preferenceManager.setSmartcarClientId(clientId)
             preferenceManager.setSmartcarClientSecret(clientSecret)
         }
-        return smartcarApiClient.getAuthUrl(clientId)
+        return smartcarApiClient.getAuthUrl(appId)
     }
 
     /**
-     * Handle the OAuth callback with the authorization code.
+     * Handle the OAuth callback with the authorization code and user ID.
      */
-    fun handleAuthCallback(code: String) {
+    fun handleAuthCallback(code: String, userId: String?) {
         val clientId = _state.value.smartcarClientId.trim()
         val clientSecret = _state.value.smartcarClientSecret.trim()
         viewModelScope.launch {
-            smartcarApiClient.exchangeCode(code, clientId, clientSecret)
+            smartcarApiClient.exchangeCode(code, userId, clientId, clientSecret)
         }
+    }
+
+    fun updateApplicationId(id: String) {
+        _state.update { it.copy(smartcarApplicationId = id) }
+        viewModelScope.launch { preferenceManager.setSmartcarApplicationId(id) }
     }
 
     fun updateClientId(id: String) {

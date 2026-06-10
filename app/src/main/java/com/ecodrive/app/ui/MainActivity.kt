@@ -84,7 +84,7 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        val authCodeFlow = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+        val authCodeFlow = kotlinx.coroutines.flow.MutableStateFlow<Pair<String, String?>?>(null)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -96,8 +96,9 @@ class MainActivity : ComponentActivity() {
         intent.data?.let { uri ->
             if (uri.scheme == "ecodrive" && uri.host == "callback") {
                 val code = uri.getQueryParameter("code")
+                val userId = uri.getQueryParameter("user_id")
                 if (code != null) {
-                    authCodeFlow.value = code
+                    authCodeFlow.value = Pair(code, userId)
                 }
             }
         }

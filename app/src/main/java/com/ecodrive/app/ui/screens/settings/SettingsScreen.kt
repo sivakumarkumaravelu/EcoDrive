@@ -181,6 +181,21 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
+                    value = state.smartcarApplicationId,
+                    onValueChange = viewModel::updateApplicationId,
+                    label = { Text("Smartcar Application ID") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                    ),
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
                     value = state.smartcarClientId,
                     onValueChange = viewModel::updateClientId,
                     label = { Text("Smartcar Client ID") },
@@ -221,7 +236,7 @@ fun SettingsScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = state.smartcarClientId.isNotBlank(),
+                    enabled = state.smartcarApplicationId.isNotBlank() && state.smartcarClientId.isNotBlank(),
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Login,
