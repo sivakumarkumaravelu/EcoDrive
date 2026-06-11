@@ -20,6 +20,7 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.maps.android.compose.*
+import com.ecodrive.app.util.MapStyle
 
 private const val TAG = "EcoMap"
 
@@ -68,11 +69,22 @@ fun EcoMap(
                 }
             }
             
+            val mapStyle = AppConfig.ACTIVE_MAP_STYLE
+            val mapProperties = remember(mapStyle) {
+                MapProperties(
+                    mapType = when (mapStyle) {
+                        MapStyle.TERRAIN -> com.google.maps.android.compose.MapType.TERRAIN
+                        else -> com.google.maps.android.compose.MapType.NORMAL
+                    }
+                )
+            }
+            
             GoogleMap(
                 modifier = modifier,
                 cameraPositionState = cameraPositionState,
                 onMapLoaded = { isMapLoaded = true },
-                uiSettings = MapUiSettings(zoomControlsEnabled = false)
+                uiSettings = MapUiSettings(zoomControlsEnabled = false),
+                properties = mapProperties
             ) {
                 markers.forEach { marker ->
                     Marker(
@@ -137,14 +149,24 @@ fun OsmMapView(
     autoFit: Boolean = false
 ) {
     val isDarkTheme = LocalIsDarkTheme.current
+    val mapStyle = AppConfig.ACTIVE_MAP_STYLE
 
-    // Pick tile layer based on current app theme:
-    //  dark_all  → CARTO Dark Matter  (suits the app's dark UI)
-    //  light_all → CARTO Positron     (clean, minimal light tiles)
+    // Pick tile layer based on current app theme and style
     val tileVariant = if (isDarkTheme) "dark_all" else "light_all"
     val mapBgColor  = if (isDarkTheme) "#121212" else "#f0f0f0"
+    
+    val tileLayerUrl = when (mapStyle) {
+        MapStyle.TERRAIN -> "https://api.maptiler.com/maps/outdoor-v2/{z}/{x}/{y}.png?key=${AppConfig.MAPTILER_API_KEY}"
+        MapStyle.STREETS -> "https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${AppConfig.MAPTILER_API_KEY}"
+        else -> "https://{s}.basemaps.cartocdn.com/$tileVariant/{z}/{x}/{y}{r}.png"
+    }
+    
+    val tileLayerAttribution = when (mapStyle) {
+        MapStyle.TERRAIN, MapStyle.STREETS -> "'&copy; <a href=\"https://www.maptiler.com/copyright/\">MapTiler</a> <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap contributors</a>'"
+        else -> "'&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors &copy; <a href=\"https://carto.com/attributions\">CARTO</a>'"
+    }
 
-    val htmlContent = remember(center, zoom, polylines, markers, autoFit, isDarkTheme) {
+    val htmlContent = remember(center, zoom, polylines, markers, autoFit, isDarkTheme, mapStyle) {
         val markersJs = markers.joinToString("\n") { 
             "L.marker([${it.position.latitude}, ${it.position.longitude}]).addTo(featureGroup);" 
         }
@@ -183,10 +205,9 @@ fun OsmMapView(
                 try {
                     console.log("Initializing map at [${center.latitude}, ${center.longitude}] with zoom ${zoom}");
                     var map = L.map('map').setView([${center.latitude}, ${center.longitude}], ${zoom});
-                    // Tile layer switches between CARTO Dark Matter and CARTO Positron
-                    // based on the app theme selection in Settings.
-                    L.tileLayer('https://{s}.basemaps.cartocdn.com/$tileVariant/{z}/{x}/{y}{r}.png', {
-                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                    // Tile layer switches between styles based on settings.
+                    L.tileLayer('$tileLayerUrl', {
+                        attribution: $tileLayerAttribution,
                         subdomains: 'abcd',
                         maxZoom: 20
                     }).addTo(map);
@@ -218,7 +239,21 @@ fun OsmMapView(
         modifier = modifier,
         factory = { context ->
             WebView(context).apply {
-                webViewClient = WebViewClient()
+                webViewClient = object : WebViewClient() {
+                    override fun onReceivedHttpError(
+                        view: WebView?,
+                        request: android.webkit.WebResourceRequest?,
+                        errorResponse: android.webkit.WebResourceResponse?
+                    ) {
+                        super.onReceivedHttpError(view, request, errorResponse)
+                        val statusCode = errorResponse?.statusCode ?: 0
+                        val host = request?.url?.host ?: ""
+                        if (host.contains("maptiler.com") && (statusCode == 403 || statusCode == 429)) {
+                            Log.e(TAG, "MapTiler API limit reached. Triggering fallback.")
+                            com.ecodrive.app.util.MapErrorNotifier.triggerFallback()
+                        }
+                    }
+                }
                 webChromeClient = object : WebChromeClient() {
                     override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
                         consoleMessage?.let {
@@ -280,16 +315,37 @@ fun MapLibreMapView(
 ) {
     val context = LocalContext.current
     val isDarkTheme = LocalIsDarkTheme.current
+    val mapStyle = AppConfig.ACTIVE_MAP_STYLE
     
-    // CARTO provides gorgeous minimal vector styles that match the app theme perfectly.
-    val styleUrl = if (isDarkTheme) {
-        "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
-    } else {
-        "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
+    // Choose style based on theme and map style settings
+    val styleUrl = when (mapStyle) {
+        MapStyle.TERRAIN -> "https://api.maptiler.com/maps/outdoor-v2/style.json?key=${AppConfig.MAPTILER_API_KEY}"
+        MapStyle.STREETS -> "https://api.maptiler.com/maps/streets-v2/style.json?key=${AppConfig.MAPTILER_API_KEY}"
+        else -> if (isDarkTheme) {
+            "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
+        } else {
+            "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
+        }
     }
 
     // Initialize MapLibre before constructing MapView
     com.mapbox.mapboxsdk.Mapbox.getInstance(context)
+    
+    // Add custom OkHttpClient to intercept 403/429
+    val okHttpClient = remember {
+        okhttp3.OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                val response = chain.proceed(request)
+                if (request.url.host.contains("maptiler.com") && (response.code == 403 || response.code == 429)) {
+                    Log.e(TAG, "MapTiler vector API limit reached. Triggering fallback.")
+                    com.ecodrive.app.util.MapErrorNotifier.triggerFallback()
+                }
+                response
+            }
+            .build()
+    }
+    com.mapbox.mapboxsdk.module.http.HttpRequestUtil.setOkHttpClient(okHttpClient)
 
     val mapView = remember {
         com.mapbox.mapboxsdk.maps.MapView(context)

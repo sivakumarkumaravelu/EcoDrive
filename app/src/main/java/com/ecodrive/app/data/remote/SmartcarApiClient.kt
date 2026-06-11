@@ -68,6 +68,12 @@ class SmartcarApiClient @Inject constructor() {
     private var currentUserId: String? = null
     @Volatile
     private var vehicleId: String? = null
+    
+    @Volatile
+    private var savedClientId: String? = null
+    @Volatile
+    private var savedClientSecret: String? = null
+    
     private var pollingJob: Job? = null
 
     // ── OAuth Flow ──────────────────────────────────────────────
@@ -108,6 +114,8 @@ class SmartcarApiClient @Inject constructor() {
             if (userId != null) {
                 currentUserId = userId
             }
+            savedClientId = fullClientId
+            savedClientSecret = clientSecret.trim()
 
             val url = URL("https://iam.smartcar.com/oauth2/token")
             val connection = url.openConnection() as HttpURLConnection
@@ -260,7 +268,7 @@ class SmartcarApiClient @Inject constructor() {
         }
     }
 
-    private fun apiGet(urlString: String): String {
+    private suspend fun apiGet(urlString: String, retryCount: Int = 1): String {
         val finalUrl = if (urlString.startsWith(Constants.SMARTCAR_BASE_URL)) {
             "https://vehicle.api.smartcar.com/v3/" + urlString.removePrefix(Constants.SMARTCAR_BASE_URL)
         } else {
@@ -274,6 +282,13 @@ class SmartcarApiClient @Inject constructor() {
             connection.setRequestProperty("sc-user-id", it)
         }
         connection.setRequestProperty("Content-Type", "application/json")
+
+        if (connection.responseCode == 401 && retryCount > 0) {
+            // Token might be expired, try to refresh
+            if (refreshToken()) {
+                return apiGet(urlString, retryCount - 1)
+            }
+        }
 
         if (connection.responseCode != 200) {
             val errorStream = connection.errorStream
@@ -299,5 +314,36 @@ class SmartcarApiClient @Inject constructor() {
     private fun readResponse(connection: HttpURLConnection): String {
         return BufferedReader(InputStreamReader(connection.inputStream))
             .use { it.readText() }
+    }
+
+    private suspend fun refreshToken(): Boolean = withContext(Dispatchers.IO) {
+        val clientId = savedClientId ?: return@withContext false
+        val secret = savedClientSecret ?: return@withContext false
+        try {
+            val url = URL("https://iam.smartcar.com/oauth2/token")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            connection.doOutput = true
+
+            val body = "grant_type=client_credentials" +
+                    "&client_id=$clientId" +
+                    "&client_secret=$secret"
+
+            connection.outputStream.write(body.toByteArray())
+
+            if (connection.responseCode == 200) {
+                val response = readResponse(connection)
+                val json = JSONObject(response)
+                accessToken = json.getString("access_token")
+                true
+            } else {
+                Log.e(TAG, "Token refresh failed with response code ${connection.responseCode}")
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Token refresh failed: ${e.message}")
+            false
+        }
     }
 }

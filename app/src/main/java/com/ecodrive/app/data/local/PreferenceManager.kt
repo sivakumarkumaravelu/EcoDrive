@@ -36,6 +36,7 @@ class PreferenceManager @Inject constructor(
         private val SMARTCAR_APPLICATION_ID_KEY = stringPreferencesKey("smartcar_application_id")
         private val SMARTCAR_CLIENT_ID = stringPreferencesKey("smartcar_client_id")
         private val SMARTCAR_CLIENT_SECRET = stringPreferencesKey("smartcar_client_secret")
+        private val MAP_STYLE = stringPreferencesKey("map_style")
     }
 
     val autoRecordEnabled: Flow<Boolean>
@@ -70,6 +71,15 @@ class PreferenceManager @Inject constructor(
 
     val useGoogleMaps: Flow<Boolean>
         get() = dataStore.data.map { it[USE_GOOGLE_MAPS] ?: false }
+
+    val mapStyle: Flow<com.ecodrive.app.util.MapStyle>
+        get() = dataStore.data.map {
+            try {
+                com.ecodrive.app.util.MapStyle.valueOf(it[MAP_STYLE] ?: com.ecodrive.app.util.MapStyle.DEFAULT.name)
+            } catch (e: Exception) {
+                com.ecodrive.app.util.MapStyle.DEFAULT
+            }
+        }
 
     val smartcarApplicationId: Flow<String>
         get() = dataStore.data.map { it[SMARTCAR_APPLICATION_ID_KEY] ?: "" }
@@ -109,6 +119,10 @@ class PreferenceManager @Inject constructor(
 
     suspend fun setUseGoogleMaps(enabled: Boolean) {
         dataStore.edit { it[USE_GOOGLE_MAPS] = enabled }
+    }
+
+    suspend fun setMapStyle(style: com.ecodrive.app.util.MapStyle) {
+        dataStore.edit { it[MAP_STYLE] = style.name }
     }
 
     suspend fun setSmartcarApplicationId(id: String) {

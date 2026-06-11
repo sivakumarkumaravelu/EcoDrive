@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import com.ecodrive.app.domain.model.AppColorPalette
 import com.ecodrive.app.domain.model.AppTheme
+import com.ecodrive.app.util.MapStyle
 import io.mockk.*
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -160,10 +161,10 @@ class PreferenceManagerTest {
     }
 
     @Test
-    fun `test smartcarClientId default is blank`() = runTest {
+    fun `test smartcarClientId default is loaded correctly`() = runTest {
         every { dataStore.data } returns flowOf(emptyPreferences())
-        val id = preferenceManager.smartcarClientId.first()
-        assertEquals("", id)
+        val clientId = preferenceManager.smartcarClientId.first()
+        assertEquals("client_01KRQFQKMXYQK09HJ9TCRGDTE3", clientId)
     }
 
     @Test
@@ -177,10 +178,10 @@ class PreferenceManagerTest {
     }
 
     @Test
-    fun `test smartcarClientSecret default is blank`() = runTest {
+    fun `test smartcarClientSecret default is loaded correctly`() = runTest {
         every { dataStore.data } returns flowOf(emptyPreferences())
         val secret = preferenceManager.smartcarClientSecret.first()
-        assertEquals("", secret)
+        assertEquals("9782e5a0bc2a85fa2c18d298b983fdebc5e0d3b041c7cc82cbac9fa28a5cad34", secret)
     }
 
     @Test
@@ -207,5 +208,32 @@ class PreferenceManagerTest {
         coEvery { dataStore.edit(any()) } returns emptyPreferences()
         preferenceManager.setSmartcarClientSecret("secret_456")
         coVerify { dataStore.edit(any()) }
+    }
+
+    @Test
+    fun `test mapStyle defaults to DEFAULT`() = runTest {
+        every { dataStore.data } returns flowOf(emptyPreferences())
+        val style = preferenceManager.mapStyle.first()
+        assertEquals(MapStyle.DEFAULT, style)
+    }
+
+    @Test
+    fun `test mapStyle returns stored style`() = runTest {
+        val key = stringPreferencesKey("map_style")
+        val prefs = preferencesOf(key to MapStyle.TERRAIN.name)
+        every { dataStore.data } returns flowOf(prefs)
+
+        val style = preferenceManager.mapStyle.first()
+        assertEquals(MapStyle.TERRAIN, style)
+    }
+
+    @Test
+    fun `test mapStyle falls back to DEFAULT on invalid string`() = runTest {
+        val key = stringPreferencesKey("map_style")
+        val prefs = preferencesOf(key to "SATELLITE")
+        every { dataStore.data } returns flowOf(prefs)
+
+        val style = preferenceManager.mapStyle.first()
+        assertEquals(MapStyle.DEFAULT, style)
     }
 }

@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -65,11 +66,32 @@ class MainActivity : ComponentActivity() {
             val appPalette by preferenceManager.colorPalette.collectAsStateWithLifecycle(initialValue = AppColorPalette.ECO_GREEN)
 
             LaunchedEffect(preferenceManager) {
-                preferenceManager.useGoogleMaps.collect { useGoogleMaps ->
-                    com.ecodrive.app.util.AppConfig.ACTIVE_MAP_PROVIDER = if (useGoogleMaps) {
-                        com.ecodrive.app.util.MapProvider.GOOGLE_MAPS
-                    } else {
-                        com.ecodrive.app.util.MapProvider.OPEN_STREET_MAP
+                launch {
+                    preferenceManager.useGoogleMaps.collect { useGoogleMaps ->
+                        com.ecodrive.app.util.AppConfig.ACTIVE_MAP_PROVIDER = if (useGoogleMaps) {
+                            com.ecodrive.app.util.MapProvider.GOOGLE_MAPS
+                        } else {
+                            com.ecodrive.app.util.MapProvider.OPEN_STREET_MAP
+                        }
+                    }
+                }
+                launch {
+                    preferenceManager.mapStyle.collect { mapStyle ->
+                        com.ecodrive.app.util.AppConfig.ACTIVE_MAP_STYLE = mapStyle
+                    }
+                }
+                launch {
+                    com.ecodrive.app.util.MapErrorNotifier.fallbackEvent.collect {
+                        // Switch back to free tiles
+                        preferenceManager.setMapStyle(com.ecodrive.app.util.MapStyle.DEFAULT)
+                        
+                        kotlinx.coroutines.Dispatchers.Main.dispatch(kotlin.coroutines.EmptyCoroutineContext, Runnable {
+                            android.widget.Toast.makeText(
+                                this@MainActivity,
+                                "MapTiler API limit reached. Falling back to free map.",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        })
                     }
                 }
             }

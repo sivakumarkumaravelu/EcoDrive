@@ -47,6 +47,7 @@ class SettingsViewModel @Inject constructor(
         val isObdEnabled: Boolean = false,
         val autoRecordEnabled: Boolean = false,
         val useGoogleMaps: Boolean = false,
+        val mapStyle: com.ecodrive.app.util.MapStyle = com.ecodrive.app.util.MapStyle.DEFAULT,
         val selectedAiProvider: String = "GEMINI",
         val selectedModel: String = "",
         val availableModels: List<String> = emptyList(),
@@ -118,12 +119,19 @@ class SettingsViewModel @Inject constructor(
     private fun observeGeneralPreferences() {
         viewModelScope.launch {
             combine(
-                preferenceManager.autoRecordEnabled,
-                preferenceManager.useMetricUnits,
-                preferenceManager.appTheme,
-                preferenceManager.colorPalette,
-                preferenceManager.useGoogleMaps
-            ) { autoRecord, useMetric, theme, palette, useGoogleMaps ->
+                combine(
+                    preferenceManager.autoRecordEnabled,
+                    preferenceManager.useMetricUnits,
+                    preferenceManager.appTheme,
+                    ::Triple
+                ),
+                combine(
+                    preferenceManager.colorPalette,
+                    preferenceManager.useGoogleMaps,
+                    preferenceManager.mapStyle,
+                    ::Triple
+                )
+            ) { (autoRecord, useMetric, theme), (palette, useGoogleMaps, mapStyle) ->
                 // Sync AppConfig map provider dynamically on changes
                 com.ecodrive.app.util.AppConfig.ACTIVE_MAP_PROVIDER = if (useGoogleMaps) {
                     com.ecodrive.app.util.MapProvider.GOOGLE_MAPS
@@ -137,7 +145,8 @@ class SettingsViewModel @Inject constructor(
                         useMetric = useMetric,
                         appTheme = theme,
                         appPalette = palette,
-                        useGoogleMaps = useGoogleMaps
+                        useGoogleMaps = useGoogleMaps,
+                        mapStyle = mapStyle
                     )
                 }
             }.collect()
@@ -313,6 +322,12 @@ class SettingsViewModel @Inject constructor(
     fun toggleUseGoogleMaps() {
         viewModelScope.launch {
             preferenceManager.setUseGoogleMaps(!_state.value.useGoogleMaps)
+        }
+    }
+
+    fun setMapStyle(style: com.ecodrive.app.util.MapStyle) {
+        viewModelScope.launch {
+            preferenceManager.setMapStyle(style)
         }
     }
 

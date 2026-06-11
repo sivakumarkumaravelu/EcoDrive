@@ -88,8 +88,8 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.outlineVariant
             )
             SettingsRow(
-                label = "Units of Measurement",
-                subLabel = if (state.useMetric) "Metric (km, liters)" else "Imperial (miles, gallons)",
+                label = "Map Style & Units",
+                subLabel = (if (state.useMetric) "Metric" else "Imperial") + " • " + (if (state.mapStyle == com.ecodrive.app.util.MapStyle.TERRAIN) "Terrain Map" else "Minimal Map"),
                 onClick = { showAppearanceSheet = true }
             )
             HorizontalDivider(
@@ -508,9 +508,11 @@ fun SettingsScreen(
             currentTheme = state.appTheme,
             currentPalette = state.appPalette,
             useMetric = state.useMetric,
+            mapStyle = state.mapStyle,
             onThemeChange = viewModel::setAppTheme,
             onPaletteChange = viewModel::setColorPalette,
             onToggleUnits = viewModel::toggleUnits,
+            onMapStyleChange = viewModel::setMapStyle,
             onDismiss = { showAppearanceSheet = false }
         )
     }
@@ -522,9 +524,11 @@ private fun AppearanceBottomSheet(
     currentTheme: AppTheme,
     currentPalette: AppColorPalette,
     useMetric: Boolean,
+    mapStyle: com.ecodrive.app.util.MapStyle,
     onThemeChange: (AppTheme) -> Unit,
     onPaletteChange: (AppColorPalette) -> Unit,
     onToggleUnits: () -> Unit,
+    onMapStyleChange: (com.ecodrive.app.util.MapStyle) -> Unit,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(
@@ -537,9 +541,11 @@ private fun AppearanceBottomSheet(
             currentTheme = currentTheme,
             currentPalette = currentPalette,
             useMetric = useMetric,
+            mapStyle = mapStyle,
             onThemeChange = onThemeChange,
             onPaletteChange = onPaletteChange,
-            onToggleUnits = onToggleUnits
+            onToggleUnits = onToggleUnits,
+            onMapStyleChange = onMapStyleChange
         )
     }
 }
@@ -550,9 +556,11 @@ private fun AppearanceSelector(
     currentTheme: AppTheme,
     currentPalette: AppColorPalette,
     useMetric: Boolean,
+    mapStyle: com.ecodrive.app.util.MapStyle,
     onThemeChange: (AppTheme) -> Unit,
     onPaletteChange: (AppColorPalette) -> Unit,
     onToggleUnits: () -> Unit,
+    onMapStyleChange: (com.ecodrive.app.util.MapStyle) -> Unit,
 ) {
     val context = LocalContext.current
     Column(
@@ -616,6 +624,38 @@ private fun AppearanceSelector(
                         },
                         shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
                         label = { Text(label) }
+                    )
+                }
+            }
+        }
+
+        // Map Style Selector
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "Map Style",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                com.ecodrive.app.util.MapStyle.entries.forEachIndexed { index, style ->
+                    SegmentedButton(
+                        selected = mapStyle == style,
+                        onClick = {
+                            if (mapStyle != style) {
+                                onMapStyleChange(style)
+                                com.ecodrive.app.util.HapticHelper.playClick(context)
+                            }
+                        },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = com.ecodrive.app.util.MapStyle.entries.size),
+                        label = { 
+                            Text(
+                                when (style) {
+                                    com.ecodrive.app.util.MapStyle.DEFAULT -> "Minimal"
+                                    com.ecodrive.app.util.MapStyle.TERRAIN -> "Terrain"
+                                    com.ecodrive.app.util.MapStyle.STREETS -> "Streets"
+                                }
+                            ) 
+                        }
                     )
                 }
             }
