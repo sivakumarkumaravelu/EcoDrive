@@ -78,7 +78,7 @@ object Constants {
     const val SMARTCAR_REDIRECT_URI = "ecodrive://callback"
 
     /** Smartcar API base URL */
-    const val SMARTCAR_BASE_URL = "https://api.smartcar.com/v2.0/"
+    const val SMARTCAR_BASE_URL = "https://vehicle.api.smartcar.com/v3/"
 
     /** Polling interval for Vehicle API (milliseconds) */
     const val SMARTCAR_POLL_INTERVAL_MS = 60_000L

@@ -370,13 +370,20 @@ class SmartcarApiClient @Inject constructor() {
     // ── Internals ───────────────────────────────────────────────
 
     private suspend fun fetchVehicleId() {
-        val url = "https://api.smartcar.com/v2.0/vehicles"
+        val url = if (currentUserId != null) {
+            "${BASE_URL}connections?filter[user_id]=$currentUserId"
+        } else {
+            "${BASE_URL}connections"
+        }
 
         val response = apiGet(url)
         val json = JSONObject(response)
-        val vehicles = json.getJSONArray("vehicles")
-        if (vehicles.length() > 0) {
-            vehicleId = vehicles.getString(0)
+        val connections = json.getJSONArray("data")
+        if (connections.length() > 0) {
+            val firstConnection = connections.getJSONObject(0)
+            val relationships = firstConnection.getJSONObject("relationships")
+            val vehicle = relationships.getJSONObject("vehicle").getJSONObject("data")
+            vehicleId = vehicle.getString("id")
             Log.i(TAG, "Vehicle ID: $vehicleId")
         } else {
             throw Exception("No vehicles found in account")
