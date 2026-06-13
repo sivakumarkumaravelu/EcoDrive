@@ -118,6 +118,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         val authCodeFlow = kotlinx.coroutines.flow.MutableStateFlow<Pair<String, String?>?>(null)
+        val authErrorFlow = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -130,8 +131,22 @@ class MainActivity : ComponentActivity() {
             if (uri.scheme == "ecodrive" && uri.host == "callback") {
                 val code = uri.getQueryParameter("code")
                 val userId = uri.getQueryParameter("user_id")
-                if (code != null) {
-                    authCodeFlow.value = Pair(code, userId)
+                val error = uri.getQueryParameter("error")
+                val errorDescription = uri.getQueryParameter("error_description")
+
+                when {
+                    code != null -> {
+                        authCodeFlow.value = Pair(code, userId)
+                    }
+                    error != null -> {
+                        // Smartcar returned an error — surface it to the UI
+                        val message = when {
+                            errorDescription != null -> "$error: $errorDescription"
+                            else -> error
+                        }
+                        authErrorFlow.value = message
+                        android.util.Log.e("MainActivity", "Smartcar OAuth error: $message")
+                    }
                 }
             }
         }

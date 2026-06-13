@@ -43,6 +43,7 @@ class SettingsViewModelTest {
     private val smartcarApplicationIdFlow = MutableStateFlow("")
     private val smartcarClientIdFlow = MutableStateFlow("")
     private val smartcarClientSecretFlow = MutableStateFlow("")
+    private val smartcarRefreshTokenFlow = MutableStateFlow("")
     private val mapStyleFlow = MutableStateFlow(com.ecodrive.app.util.MapStyle.DEFAULT)
     private val liveCoachingFlow = MutableStateFlow(true)
     private val coachVoiceFlow = MutableStateFlow("DEFAULT")
@@ -57,6 +58,7 @@ class SettingsViewModelTest {
 
         every { smartcarApiClient.state } returns apiStateFlow
         every { smartcarApiClient.vehicleData } returns vehicleDataFlow
+        coEvery { smartcarApiClient.exchangeCode(any(), any(), any(), any()) } returns Result.success("mock_refresh_token")
         every { preferenceManager.autoRecordEnabled } returns autoRecordFlow
         every { preferenceManager.useMetricUnits } returns useMetricFlow
         every { preferenceManager.appTheme } returns appThemeFlow
@@ -66,6 +68,7 @@ class SettingsViewModelTest {
         every { preferenceManager.smartcarApplicationId } returns smartcarApplicationIdFlow
         every { preferenceManager.smartcarClientId } returns smartcarClientIdFlow
         every { preferenceManager.smartcarClientSecret } returns smartcarClientSecretFlow
+        every { preferenceManager.smartcarRefreshToken } returns smartcarRefreshTokenFlow
         every { preferenceManager.mapStyle } returns mapStyleFlow
         every { preferenceManager.liveCoachingEnabled } returns liveCoachingFlow
         every { preferenceManager.coachVoice } returns coachVoiceFlow
@@ -75,6 +78,7 @@ class SettingsViewModelTest {
         coEvery { preferenceManager.setSmartcarApplicationId(any()) } just Runs
         coEvery { preferenceManager.setSmartcarClientId(any()) } just Runs
         coEvery { preferenceManager.setSmartcarClientSecret(any()) } just Runs
+        coEvery { preferenceManager.setSmartcarRefreshToken(any()) } just Runs
         coEvery { preferenceManager.setMapStyle(any()) } just Runs
         coEvery { preferenceManager.setAppFontScale(any()) } just Runs
         coEvery { preferenceManager.setLiveCoachingEnabled(any()) } just Runs
@@ -145,7 +149,7 @@ class SettingsViewModelTest {
     @Test
     fun `test getAuthUrl delegates to smartcarApiClient when clientId set`() = runTest {
         advanceUntilIdle()
-        every { smartcarApiClient.getAuthUrl("my-app") } returns "https://auth.example.com"
+        every { smartcarApiClient.getAuthUrl("my-client") } returns "https://auth.example.com"
         viewModel.updateApplicationId("my-app")
         viewModel.updateClientId("my-client")
         val url = viewModel.getAuthUrl()
@@ -232,14 +236,11 @@ class SettingsViewModelTest {
         viewModel.updateClientId("  client_123   ")
         viewModel.updateClientSecret("   secret_456  ")
 
-        every { smartcarApiClient.getAuthUrl("app_123") } returns "https://auth.example.com?client_id=client_123"
+        every { smartcarApiClient.getAuthUrl("client_123") } returns "https://auth.example.com?client_id=client_123"
 
         val url = viewModel.getAuthUrl()
 
         assertEquals("https://auth.example.com?client_id=client_123", url)
-        assertEquals("app_123", viewModel.state.value.smartcarApplicationId)
-        assertEquals("client_123", viewModel.state.value.smartcarClientId)
-        assertEquals("secret_456", viewModel.state.value.smartcarClientSecret)
 
         advanceUntilIdle()
 
@@ -279,6 +280,7 @@ class SettingsViewModelTest {
         verify { smartcarApiClient.disconnect() }
         coVerify { preferenceManager.setSmartcarClientId("") }
         coVerify { preferenceManager.setSmartcarClientSecret("") }
+        coVerify { preferenceManager.setSmartcarRefreshToken("") }
         assertEquals("", viewModel.state.value.smartcarClientId)
         assertEquals("", viewModel.state.value.smartcarClientSecret)
     }
@@ -333,6 +335,7 @@ class SettingsViewModelTest {
         verify { smartcarApiClient.disconnect() }
         coVerify { preferenceManager.setSmartcarClientId("") }
         coVerify { preferenceManager.setSmartcarClientSecret("") }
+        coVerify { preferenceManager.setSmartcarRefreshToken("") }
         assertEquals("", viewModel.state.value.smartcarClientId)
         assertEquals("", viewModel.state.value.smartcarClientSecret)
     }

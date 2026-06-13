@@ -266,6 +266,7 @@ fun SettingsScreen(
 
                 Button(
                     onClick = {
+                        viewModel.clearAuthError()
                         val url = viewModel.getAuthUrl()
                         if (url != null) {
                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
@@ -283,6 +284,32 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Connect to Vehicle")
+                }
+
+                // Show OAuth error returned from Smartcar Connect (e.g. invalid client_id)
+                if (state.smartcarAuthError != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.1f))
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = state.smartcarAuthError!!,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))

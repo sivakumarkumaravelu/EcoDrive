@@ -37,6 +37,7 @@ class PreferenceManager @Inject constructor(
         private val SMARTCAR_APPLICATION_ID_KEY = stringPreferencesKey("smartcar_application_id")
         private val SMARTCAR_CLIENT_ID = stringPreferencesKey("smartcar_client_id")
         private val SMARTCAR_CLIENT_SECRET = stringPreferencesKey("smartcar_client_secret")
+        private val SMARTCAR_REFRESH_TOKEN = stringPreferencesKey("smartcar_refresh_token")
         private val MAP_STYLE = stringPreferencesKey("map_style")
         private val LIVE_COACHING_ENABLED = booleanPreferencesKey("live_coaching_enabled")
         private val COACH_VOICE = stringPreferencesKey("coach_voice")
@@ -110,6 +111,9 @@ class PreferenceManager @Inject constructor(
     val smartcarClientSecret: Flow<String>
         get() = dataStore.data.map { it[SMARTCAR_CLIENT_SECRET] ?: "9782e5a0bc2a85fa2c18d298b983fdebc5e0d3b041c7cc82cbac9fa28a5cad34" }
 
+    val smartcarRefreshToken: Flow<String>
+        get() = dataStore.data.map { it[SMARTCAR_REFRESH_TOKEN] ?: "" }
+
     suspend fun setAutoRecordEnabled(enabled: Boolean) {
         dataStore.edit { it[AUTO_RECORD_ENABLED] = enabled }
     }
@@ -155,6 +159,10 @@ class PreferenceManager @Inject constructor(
 
     suspend fun setSmartcarClientSecret(clientSecret: String) {
         dataStore.edit { it[SMARTCAR_CLIENT_SECRET] = clientSecret }
+    }
+
+    suspend fun setSmartcarRefreshToken(token: String) {
+        dataStore.edit { it[SMARTCAR_REFRESH_TOKEN] = token }
     }
 
     suspend fun setLiveCoachingEnabled(enabled: Boolean) {

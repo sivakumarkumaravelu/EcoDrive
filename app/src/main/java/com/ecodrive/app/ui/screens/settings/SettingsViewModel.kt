@@ -37,6 +37,7 @@ class SettingsViewModel @Inject constructor(
         val smartcarApplicationId: String = "",
         val smartcarClientId: String = "",
         val smartcarClientSecret: String = "",
+        val smartcarAuthError: String? = null,
         val calibrationFactor: Double = 1.0,
         val useMetric: Boolean = true,
         val appTheme: AppTheme = AppTheme.DARK,
@@ -67,6 +68,7 @@ class SettingsViewModel @Inject constructor(
             val appId = preferenceManager.smartcarApplicationId.first()
             val id = preferenceManager.smartcarClientId.first()
             val secret = preferenceManager.smartcarClientSecret.first()
+            val refreshToken = preferenceManager.smartcarRefreshToken.first()
             _state.update {
                 it.copy(
                     smartcarApplicationId = appId,
@@ -76,8 +78,8 @@ class SettingsViewModel @Inject constructor(
             }
             
             // Auto-reconnect if credentials are present
-            if (id.isNotBlank() && secret.isNotBlank()) {
-                smartcarApiClient.authenticate(id, secret)
+            if (id.isNotBlank() && secret.isNotBlank() && refreshToken.isNotBlank()) {
+                smartcarApiClient.authenticate(id, secret, refreshToken)
             }
         }
         observeSmartcarState()
@@ -111,6 +113,15 @@ class SettingsViewModel @Inject constructor(
                         fuelTankPercent = data.fuelPercent,
                         odometerKm = data.odometerKm,
                     )
+                }
+            }
+        }
+        // Collect OAuth error callbacks from MainActivity (e.g. invalid client_id)
+        viewModelScope.launch {
+            com.ecodrive.app.ui.MainActivity.authErrorFlow.collect { error ->
+                if (error != null) {
+                    _state.update { it.copy(smartcarAuthError = error) }
+                    com.ecodrive.app.ui.MainActivity.authErrorFlow.value = null // reset
                 }
             }
         }
@@ -185,20 +196,12 @@ class SettingsViewModel @Inject constructor(
         val clientSecret = _state.value.smartcarClientSecret.trim()
         if (appId.isBlank() || clientId.isBlank()) return null
 
-        _state.update {
-            it.copy(
-                smartcarApplicationId = appId,
-                smartcarClientId = clientId,
-                smartcarClientSecret = clientSecret
-            )
-        }
-
         viewModelScope.launch {
             preferenceManager.setSmartcarApplicationId(appId)
             preferenceManager.setSmartcarClientId(clientId)
             preferenceManager.setSmartcarClientSecret(clientSecret)
         }
-        return smartcarApiClient.getAuthUrl(appId)
+        return smartcarApiClient.getAuthUrl(clientId)
     }
 
     /**
@@ -208,7 +211,10 @@ class SettingsViewModel @Inject constructor(
         val clientId = _state.value.smartcarClientId.trim()
         val clientSecret = _state.value.smartcarClientSecret.trim()
         viewModelScope.launch {
-            smartcarApiClient.exchangeCode(code, userId, clientId, clientSecret)
+            val result = smartcarApiClient.exchangeCode(code, userId, clientId, clientSecret)
+            result.onSuccess { refreshToken ->
+                preferenceManager.setSmartcarRefreshToken(refreshToken)
+            }
         }
     }
 
@@ -225,11 +231,16 @@ class SettingsViewModel @Inject constructor(
         _state.update { it.copy(smartcarClientSecret = secret) }
     }
 
+    fun clearAuthError() {
+        _state.update { it.copy(smartcarAuthError = null) }
+    }
+
     fun disconnectSmartcar() {
         smartcarApiClient.disconnect()
         viewModelScope.launch {
             preferenceManager.setSmartcarClientId("")
             preferenceManager.setSmartcarClientSecret("")
+            preferenceManager.setSmartcarRefreshToken("")
         }
         _state.update {
             it.copy(
