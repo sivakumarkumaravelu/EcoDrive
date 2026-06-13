@@ -22,7 +22,7 @@ import com.ecodrive.app.data.local.entity.*
         BadgeEntity::class,
         AnomalyEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class EcoDriveDatabase : RoomDatabase() {

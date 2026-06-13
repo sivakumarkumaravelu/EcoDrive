@@ -92,19 +92,21 @@ class SettingsViewModel @Inject constructor(
 
     private fun observeLocalVehicle() {
         viewModelScope.launch {
-            // One-shot fetch to avoid infinite loop when updating local fields
-            val vehicle = vehicleRepository.getDefaultVehicle()
-            if (vehicle != null) {
-                _state.update { 
-                    it.copy(
-                        localVehicle = vehicle,
-                        // If Smartcar is NOT connected, update display values from local profile
-                        vehicleMake = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) vehicle.make else it.vehicleMake,
-                        vehicleModel = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) vehicle.model else it.vehicleModel,
-                        vehicleYear = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) vehicle.year else it.vehicleYear,
-                        fuelTankPercent = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) vehicle.fuelLevelPercent else it.fuelTankPercent,
-                        odometerKm = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) vehicle.odometerKm else it.odometerKm,
-                    )
+            // Observe vehicle changes using Flow to ensure UI stays in sync
+            vehicleRepository.getAllVehicles().collect { vehicles ->
+                val vehicle = vehicles.firstOrNull() ?: vehicleRepository.getDefaultVehicle()
+                if (vehicle != null) {
+                    _state.update { 
+                        it.copy(
+                            localVehicle = vehicle,
+                            // If Smartcar is NOT connected, update display values from local profile
+                            vehicleMake = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) vehicle.make else it.vehicleMake,
+                            vehicleModel = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) vehicle.model else it.vehicleModel,
+                            vehicleYear = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) vehicle.year else it.vehicleYear,
+                            fuelTankPercent = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) vehicle.fuelLevelPercent else it.fuelTankPercent,
+                            odometerKm = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) vehicle.odometerKm else it.odometerKm,
+                        )
+                    }
                 }
             }
         }

@@ -71,15 +71,17 @@ class DashboardViewModel @Inject constructor(
 
     private fun observeLocalVehicle() {
         viewModelScope.launch {
-            // One-shot fetch to avoid infinite loop
-            val vehicle = vehicleRepository.getDefaultVehicle()
-            if (vehicle != null) {
-                _state.update {
-                    it.copy(
-                        vehicleName = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) {
-                            vehicle.name
-                        } else it.vehicleName
-                    )
+            // Observe vehicle changes using Flow
+            vehicleRepository.getAllVehicles().collect { vehicles ->
+                val vehicle = vehicles.firstOrNull() ?: vehicleRepository.getDefaultVehicle()
+                if (vehicle != null) {
+                    _state.update {
+                        it.copy(
+                            vehicleName = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) {
+                                vehicle.name
+                            } else it.vehicleName
+                        )
+                    }
                 }
             }
         }
