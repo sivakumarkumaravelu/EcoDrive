@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,6 +37,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -61,6 +63,11 @@ fun SettingsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var showAppearanceSheet by remember { mutableStateOf(false) }
+
+    // Manual editing state
+    var showEditNameDialog by remember { mutableStateOf(false) }
+    var showEditOdometerDialog by remember { mutableStateOf(false) }
+    var showEditFuelDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -138,29 +145,76 @@ fun SettingsScreen(
         }
 
         // ── Vehicle Profile ─────────────────────────────────────
-        SettingsSection(title = "Vehicle", icon = Icons.Filled.DirectionsCar) {
-            if (state.smartcarApiState == SmartcarApiClient.ApiState.CONNECTED) {
-                val vehicleName = buildString {
+        SettingsSection(title = "Vehicle Profile", icon = Icons.Filled.DirectionsCar) {
+            val isSmartcarConnected = state.smartcarApiState == SmartcarApiClient.ApiState.CONNECTED
+            
+            // Vehicle Name
+            val displayName = if (isSmartcarConnected) {
+                buildString {
                     if (state.vehicleYear != null) append("${state.vehicleYear} ")
                     if (state.vehicleMake != null) append("${state.vehicleMake} ")
                     if (state.vehicleModel != null) append(state.vehicleModel)
                 }.trim().takeIf { it.isNotEmpty() } ?: "Connected Vehicle"
-
-                SettingsInfoRow("Profile", vehicleName)
-                SettingsInfoRow("Odometer", state.odometerKm?.let { UnitConverter.formatDistance(it, state.useMetric) } ?: "--")
-                SettingsInfoRow("Fuel Level", state.fuelTankPercent?.let { "%.0f%%".format(it) } ?: "--")
             } else {
-                SettingsInfoRow("Profile", "Not Connected")
-                SettingsInfoRow("Odometer", "--")
-                SettingsInfoRow("Fuel Level", "--")
+                state.localVehicle?.name ?: "My Vehicle"
             }
 
-            Text(
-                text = "Connect via Smartcar in the section below to automatically sync your vehicle details.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = 4.dp)
+            SettingsEditableRow(
+                label = "Vehicle Name",
+                value = displayName,
+                isEditable = !isSmartcarConnected,
+                onClick = { if (!isSmartcarConnected) showEditNameDialog = true }
             )
+            
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 4.dp),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            // Odometer
+            val odometerDisplay = state.odometerKm?.let { 
+                com.ecodrive.app.util.UnitConverter.formatDistance(it, state.useMetric) 
+            } ?: "--"
+            
+            SettingsEditableRow(
+                label = "Odometer",
+                value = odometerDisplay,
+                isEditable = !isSmartcarConnected,
+                onClick = { if (!isSmartcarConnected) showEditOdometerDialog = true }
+            )
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 4.dp),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            // Fuel Level
+            val fuelDisplay = state.fuelTankPercent?.let { "%.0f%%".format(it) } ?: "--"
+            
+            SettingsEditableRow(
+                label = "Fuel Level",
+                value = fuelDisplay,
+                isEditable = !isSmartcarConnected,
+                onClick = { if (!isSmartcarConnected) showEditFuelDialog = true }
+            )
+
+            if (!isSmartcarConnected) {
+                Text(
+                    text = "Tip: Connect via Smartcar below to sync these automatically.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            } else {
+                Text(
+                    text = "Currently syncing live from your vehicle via Smartcar.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = EcoDriveTheme.colors.scoreExcellent,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
         }
 
         // ── Smartcar Connected Services ─────────────────────────
@@ -479,6 +533,135 @@ fun SettingsScreen(
             onMapStyleChange = viewModel::setMapStyle,
             onDismiss = { showAppearanceSheet = false }
         )
+    }
+
+    // ── Edit Dialogs ──────────────────────────────────────────
+
+    if (showEditNameDialog) {
+        var text by remember { mutableStateOf(state.localVehicle?.name ?: "") }
+        AlertDialog(
+            onDismissRequest = { showEditNameDialog = false },
+            title = { Text("Vehicle Name") },
+            text = {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.updateVehicleName(text)
+                    showEditNameDialog = false
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditNameDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showEditOdometerDialog) {
+        var text by remember { mutableStateOf(state.odometerKm?.toInt()?.toString() ?: "") }
+        AlertDialog(
+            onDismissRequest = { showEditOdometerDialog = false },
+            title = { Text("Update Odometer") },
+            text = {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { if (it.isEmpty() || it.toDoubleOrNull() != null) text = it },
+                    label = { Text(if (state.useMetric) "Kilometers" else "Miles") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    text.toDoubleOrNull()?.let { 
+                        val km = if (state.useMetric) it else it / 0.621371
+                        viewModel.updateOdometer(km) 
+                    }
+                    showEditOdometerDialog = false
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditOdometerDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showEditFuelDialog) {
+        var sliderValue by remember { mutableStateOf((state.fuelTankPercent ?: 50.0).toFloat()) }
+        AlertDialog(
+            onDismissRequest = { showEditFuelDialog = false },
+            title = { Text("Update Fuel Level") },
+            text = {
+                Column {
+                    Text(
+                        text = "%.0f%%".format(sliderValue),
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
+                    Slider(
+                        value = sliderValue,
+                        onValueChange = { sliderValue = it },
+                        valueRange = 0f..100f,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.updateFuelLevel(sliderValue.toDouble())
+                    showEditFuelDialog = false
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditFuelDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun SettingsEditableRow(
+    label: String,
+    value: String,
+    isEditable: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = isEditable, onClick = onClick)
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        if (isEditable) {
+            Icon(
+                imageVector = Icons.Filled.Edit,
+                contentDescription = "Edit",
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                modifier = Modifier.size(18.dp)
+            )
+        }
     }
 }
 

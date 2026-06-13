@@ -86,7 +86,7 @@ fun DashboardScreen(
             color = MaterialTheme.colorScheme.primary,
         )
         Text(
-            text = "Active Vehicle",
+            text = state.vehicleName,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

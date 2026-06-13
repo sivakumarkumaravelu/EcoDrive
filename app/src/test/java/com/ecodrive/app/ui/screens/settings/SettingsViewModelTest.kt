@@ -4,9 +4,11 @@ import com.ecodrive.app.TestUtils
 import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.remote.SmartcarApiClient
 import com.ecodrive.app.data.remote.SmartcarVehicleData
+import com.ecodrive.app.data.repository.VehicleRepository
 import com.ecodrive.app.domain.analyzer.FuelEstimationEngine
 import com.ecodrive.app.domain.model.AppColorPalette
 import com.ecodrive.app.domain.model.AppTheme
+import com.ecodrive.app.domain.model.Vehicle
 import com.ecodrive.app.util.PermissionManager
 import com.ecodrive.app.domain.ai.service.AiManager
 import com.ecodrive.app.domain.ai.provider.AiProvider
@@ -28,6 +30,7 @@ class SettingsViewModelTest {
     private val preferenceManager: PreferenceManager = mockk(relaxed = true)
     private val aiManager: AiManager = mockk(relaxed = true)
     private val permissionManager: PermissionManager = mockk(relaxed = true)
+    private val vehicleRepository: VehicleRepository = mockk(relaxed = true)
     private val mockProvider: AiProvider = mockk(relaxed = true)
 
     private val testDispatcher = StandardTestDispatcher()
@@ -93,12 +96,20 @@ class SettingsViewModelTest {
         every { fuelEngine.getCalibrationFactor() } returns 1.05
         every { permissionManager.hasBluetoothPermissions() } returns false
         every { permissionManager.hasBackgroundLocationPermission() } returns false
+        coEvery { vehicleRepository.getDefaultVehicle() } returns Vehicle()
 
         // Suppress MainActivity.authCodeFlow by mocking it
         mockkObject(com.ecodrive.app.ui.MainActivity.Companion)
         every { com.ecodrive.app.ui.MainActivity.authCodeFlow } returns MutableStateFlow<Pair<String, String?>?>(null)
 
-        viewModel = SettingsViewModel(smartcarApiClient, fuelEngine, preferenceManager, aiManager, permissionManager)
+        viewModel = SettingsViewModel(
+            smartcarApiClient,
+            vehicleRepository,
+            fuelEngine,
+            preferenceManager,
+            aiManager,
+            permissionManager
+        )
         testDispatcher.scheduler.advanceUntilIdle()
     }
 
@@ -222,7 +233,14 @@ class SettingsViewModelTest {
         smartcarClientSecretFlow.value = "secret_saved"
 
         // Recreate viewModel to test init block load
-        viewModel = SettingsViewModel(smartcarApiClient, fuelEngine, preferenceManager, aiManager, permissionManager)
+        viewModel = SettingsViewModel(
+            smartcarApiClient,
+            vehicleRepository,
+            fuelEngine,
+            preferenceManager,
+            aiManager,
+            permissionManager
+        )
         advanceUntilIdle()
 
         assertEquals("client_saved", viewModel.state.value.smartcarClientId)
@@ -291,7 +309,14 @@ class SettingsViewModelTest {
         every { com.ecodrive.app.ui.MainActivity.authCodeFlow } returns authCodeFlow
 
         // Recreate viewModel to observe our custom flow
-        viewModel = SettingsViewModel(smartcarApiClient, fuelEngine, preferenceManager, aiManager, permissionManager)
+        viewModel = SettingsViewModel(
+            smartcarApiClient,
+            vehicleRepository,
+            fuelEngine,
+            preferenceManager,
+            aiManager,
+            permissionManager
+        )
         advanceUntilIdle()
         viewModel.updateClientId("client_123")
         viewModel.updateClientSecret("secret_456")

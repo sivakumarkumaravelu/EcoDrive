@@ -23,8 +23,8 @@ android {
         applicationId = "com.ecodrive.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 23
-        versionName = "1.3.19"
+        versionCode = 24
+        versionName = "1.3.20"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

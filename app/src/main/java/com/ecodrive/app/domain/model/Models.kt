@@ -180,6 +180,8 @@ data class Vehicle(
     val tankCapacityLiters: Double = 50.0,
     val engineDisplacementCc: Int = 2000,
     val fuelCalibrationFactor: Double = 1.0,
+    val odometerKm: Double? = null,
+    val fuelLevelPercent: Double? = null,
     val isDefault: Boolean = false,
 )
 

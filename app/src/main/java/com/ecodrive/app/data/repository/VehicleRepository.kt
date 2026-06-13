@@ -73,6 +73,8 @@ private fun VehicleEntity.toDomain() = Vehicle(
     tankCapacityLiters = tankCapacityLiters,
     engineDisplacementCc = engineDisplacementCc,
     fuelCalibrationFactor = fuelCalibrationFactor,
+    odometerKm = odometerKm,
+    fuelLevelPercent = fuelLevelPercent,
     isDefault = isDefault,
 )
 
@@ -91,5 +93,7 @@ private fun Vehicle.toEntity() = VehicleEntity(
     tankCapacityLiters = tankCapacityLiters,
     engineDisplacementCc = engineDisplacementCc,
     fuelCalibrationFactor = fuelCalibrationFactor,
+    odometerKm = odometerKm,
+    fuelLevelPercent = fuelLevelPercent,
     isDefault = isDefault,
 )

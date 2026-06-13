@@ -5,11 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.remote.SmartcarApiClient
+import com.ecodrive.app.data.repository.VehicleRepository
 import com.ecodrive.app.domain.analyzer.FuelEstimationEngine
 import com.ecodrive.app.util.PermissionManager
-import com.ecodrive.app.domain.model.AppColorPalette
-import com.ecodrive.app.domain.model.AppFontScale
-import com.ecodrive.app.domain.model.AppTheme
+import com.ecodrive.app.domain.model.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -26,6 +25,7 @@ import com.ecodrive.app.domain.ai.service.AiManager
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val smartcarApiClient: SmartcarApiClient,
+    private val vehicleRepository: VehicleRepository,
     private val fuelEngine: FuelEstimationEngine,
     private val preferenceManager: PreferenceManager,
     private val aiManager: AiManager,
@@ -45,11 +45,14 @@ class SettingsViewModel @Inject constructor(
         val appFontScale: AppFontScale = AppFontScale.MEDIUM,
         val hasBluetoothPermissions: Boolean = false,
         val hasBackgroundLocationPermission: Boolean = false,
+        // Active/Display data (Smartcar preferred if connected)
         val vehicleMake: String? = null,
         val vehicleModel: String? = null,
         val vehicleYear: Int? = null,
         val fuelTankPercent: Double? = null,
         val odometerKm: Double? = null,
+        // Local profile data
+        val localVehicle: Vehicle? = null,
         val isObdEnabled: Boolean = false,
         val autoRecordEnabled: Boolean = false,
         val useGoogleMaps: Boolean = false,
@@ -83,7 +86,31 @@ class SettingsViewModel @Inject constructor(
             }
         }
         observeSmartcarState()
+        observeLocalVehicle()
         observeGeneralPreferences()
+    }
+
+    private fun observeLocalVehicle() {
+        viewModelScope.launch {
+            // In a real app we'd observe the whole list or a 'selected' flag, 
+            // but for now we use the first one from getDefaultVehicle
+            vehicleRepository.getAllVehicles().collect { vehicles ->
+                val vehicle = vehicles.firstOrNull() ?: vehicleRepository.getDefaultVehicle()
+                if (vehicle != null) {
+                    _state.update { 
+                        it.copy(
+                            localVehicle = vehicle,
+                            // If Smartcar is NOT connected, update display values from local profile
+                            vehicleMake = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) vehicle.make else it.vehicleMake,
+                            vehicleModel = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) vehicle.model else it.vehicleModel,
+                            vehicleYear = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) vehicle.year else it.vehicleYear,
+                            fuelTankPercent = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) vehicle.fuelLevelPercent else it.fuelTankPercent,
+                            odometerKm = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) vehicle.odometerKm else it.odometerKm,
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private fun observeSmartcarState() {
@@ -312,6 +339,43 @@ class SettingsViewModel @Inject constructor(
     fun setCoachVoice(voice: String) {
         viewModelScope.launch {
             preferenceManager.setCoachVoice(voice)
+        }
+    }
+
+    // ── Vehicle Profile Actions ────────────────────────────────
+
+    fun updateVehicleName(name: String) {
+        viewModelScope.launch {
+            val current = _state.value.localVehicle ?: Vehicle()
+            vehicleRepository.saveVehicle(current.copy(name = name))
+        }
+    }
+
+    fun updateVehicleMake(make: String) {
+        viewModelScope.launch {
+            val current = _state.value.localVehicle ?: Vehicle()
+            vehicleRepository.saveVehicle(current.copy(make = make))
+        }
+    }
+
+    fun updateVehicleModel(model: String) {
+        viewModelScope.launch {
+            val current = _state.value.localVehicle ?: Vehicle()
+            vehicleRepository.saveVehicle(current.copy(model = model))
+        }
+    }
+
+    fun updateOdometer(odometerKm: Double) {
+        viewModelScope.launch {
+            val current = _state.value.localVehicle ?: Vehicle()
+            vehicleRepository.saveVehicle(current.copy(odometerKm = odometerKm))
+        }
+    }
+
+    fun updateFuelLevel(fuelPercent: Double) {
+        viewModelScope.launch {
+            val current = _state.value.localVehicle ?: Vehicle()
+            vehicleRepository.saveVehicle(current.copy(fuelLevelPercent = fuelPercent))
         }
     }
 }

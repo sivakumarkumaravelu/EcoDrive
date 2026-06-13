@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.remote.SmartcarApiClient
+import com.ecodrive.app.data.repository.VehicleRepository
 import com.ecodrive.app.domain.model.*
 import com.ecodrive.app.domain.recorder.TripRecorder
 import com.ecodrive.app.data.sensor.SensorDataManager
@@ -23,6 +24,7 @@ import javax.inject.Inject
 class DashboardViewModel @Inject constructor(
     private val sensorDataManager: SensorDataManager,
     private val smartcarApiClient: SmartcarApiClient,
+    private val vehicleRepository: VehicleRepository,
     private val tripRecorder: TripRecorder,
     private val preferenceManager: PreferenceManager,
     private val aiCoachService: com.ecodrive.app.domain.ai.service.AiCoachService,
@@ -51,6 +53,7 @@ class DashboardViewModel @Inject constructor(
         val maxSpeedKmh: Double = 0.0,
         val useMetric: Boolean = true,
         val predictedScore: PredictedScore? = null,
+        val vehicleName: String = "My Vehicle",
     )
 
     private val _state = MutableStateFlow(DashboardState())
@@ -60,9 +63,27 @@ class DashboardViewModel @Inject constructor(
         checkPermissions()
         observeSensorState()
         observeSmartcarState()
+        observeLocalVehicle()
         observeRecorderState()
         observePreferences()
         fetchPrediction()
+    }
+
+    private fun observeLocalVehicle() {
+        viewModelScope.launch {
+            vehicleRepository.getAllVehicles().collect { vehicles ->
+                val vehicle = vehicles.firstOrNull() ?: vehicleRepository.getDefaultVehicle()
+                if (vehicle != null) {
+                    _state.update {
+                        it.copy(
+                            vehicleName = if (it.smartcarApiState != SmartcarApiClient.ApiState.CONNECTED) {
+                                vehicle.name
+                            } else it.vehicleName
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private fun fetchPrediction() {
@@ -126,6 +147,19 @@ class DashboardViewModel @Inject constructor(
                     fuelPercent = data.fuelPercent,
                     odometerKm = data.odometerKm,
                 )
+                
+                // Update display name if Smartcar is connected
+                val name = buildString {
+                    if (data.year != null) append("${data.year} ")
+                    if (data.make != null) append("${data.make} ")
+                    if (data.model != null) append(data.model)
+                }.trim().takeIf { it.isNotEmpty() } ?: "Connected Vehicle"
+
+                _state.update {
+                    it.copy(
+                        vehicleName = name
+                    )
+                }
             }
         }
     }

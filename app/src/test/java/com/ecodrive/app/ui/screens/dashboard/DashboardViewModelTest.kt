@@ -4,6 +4,7 @@ import com.ecodrive.app.TestUtils
 import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.remote.SmartcarApiClient
 import com.ecodrive.app.data.remote.SmartcarVehicleData
+import com.ecodrive.app.data.repository.VehicleRepository
 import com.ecodrive.app.domain.ai.service.AiCoachService
 import com.ecodrive.app.domain.model.*
 import com.ecodrive.app.domain.recorder.TripRecorder
@@ -29,6 +30,9 @@ class DashboardViewModelTest {
     private val aiCoachService: AiCoachService = mockk(relaxed = true)
     private val ecoScorePredictor: com.ecodrive.app.domain.ai.analyzer.EcoScorePredictor = mockk(relaxed = true)
     private val permissionManager: PermissionManager = mockk(relaxed = true)
+    private val vehicleRepository: VehicleRepository = mockk(relaxed = true)
+
+    private lateinit var viewModel: DashboardViewModel
 
     private val testDispatcher = StandardTestDispatcher()
 
@@ -47,13 +51,12 @@ class DashboardViewModelTest {
     private val hardAccelCountFlow = MutableStateFlow(0)
     private val sharpTurnCountFlow = MutableStateFlow(0)
 
-    private lateinit var viewModel: DashboardViewModel
-
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         TestUtils.mockLog()
 
+        coEvery { vehicleRepository.getDefaultVehicle() } returns Vehicle()
         every { sensorDataManager.state } returns sensorStateFlow
         every { sensorDataManager.errorMessage } returns sensorErrorFlow
         every { smartcarApiClient.state } returns smartcarStateFlow
@@ -74,6 +77,7 @@ class DashboardViewModelTest {
         viewModel = DashboardViewModel(
             sensorDataManager,
             smartcarApiClient,
+            vehicleRepository,
             tripRecorder,
             preferenceManager,
             aiCoachService,
