@@ -38,13 +38,15 @@ class SettingsViewModelTest {
     private val useMetricFlow = MutableStateFlow(true)
     private val appThemeFlow = MutableStateFlow(AppTheme.DARK)
     private val colorPaletteFlow = MutableStateFlow(AppColorPalette.ECO_GREEN)
-    private val selectedAiProviderFlow = MutableStateFlow("GEMINI")
-    private val selectedModelFlow = MutableStateFlow<String?>("gemini-2.0-flash")
+
     private val useGoogleMapsFlow = MutableStateFlow(false)
     private val smartcarApplicationIdFlow = MutableStateFlow("")
     private val smartcarClientIdFlow = MutableStateFlow("")
     private val smartcarClientSecretFlow = MutableStateFlow("")
     private val mapStyleFlow = MutableStateFlow(com.ecodrive.app.util.MapStyle.DEFAULT)
+    private val liveCoachingFlow = MutableStateFlow(true)
+    private val coachVoiceFlow = MutableStateFlow("DEFAULT")
+    private val appFontScaleFlow = MutableStateFlow(com.ecodrive.app.domain.model.AppFontScale.MEDIUM)
 
     private lateinit var viewModel: SettingsViewModel
 
@@ -65,13 +67,18 @@ class SettingsViewModelTest {
         every { preferenceManager.smartcarClientId } returns smartcarClientIdFlow
         every { preferenceManager.smartcarClientSecret } returns smartcarClientSecretFlow
         every { preferenceManager.mapStyle } returns mapStyleFlow
-        every { preferenceManager.selectedAiProvider } returns selectedAiProviderFlow
-        every { preferenceManager.getSelectedModel(any()) } returns selectedModelFlow
+        every { preferenceManager.liveCoachingEnabled } returns liveCoachingFlow
+        every { preferenceManager.coachVoice } returns coachVoiceFlow
+        every { preferenceManager.appFontScale } returns appFontScaleFlow
+
 
         coEvery { preferenceManager.setSmartcarApplicationId(any()) } just Runs
         coEvery { preferenceManager.setSmartcarClientId(any()) } just Runs
         coEvery { preferenceManager.setSmartcarClientSecret(any()) } just Runs
         coEvery { preferenceManager.setMapStyle(any()) } just Runs
+        coEvery { preferenceManager.setAppFontScale(any()) } just Runs
+        coEvery { preferenceManager.setLiveCoachingEnabled(any()) } just Runs
+        coEvery { preferenceManager.setCoachVoice(any()) } just Runs
         
         every { aiManager.getProviderByName(any()) } returns mockProvider
         every { aiManager.getAllProviders() } returns listOf(mockProvider)
@@ -203,56 +210,7 @@ class SettingsViewModelTest {
         assertEquals(12345.0, viewModel.state.value.odometerKm)
     }
 
-    @Test
-    fun `test provider validation filters working and non-working providers`() = runTest {
-        val workingProvider = mockk<AiProvider>(relaxed = true) {
-            every { name } returns "MISTRAL"
-            coEvery { getAvailableModels() } returns listOf("mistral-small")
-        }
-        val brokenProvider = mockk<AiProvider>(relaxed = true) {
-            every { name } returns "DEEPSEEK"
-            coEvery { getAvailableModels() } returns null
-        }
-        
-        every { aiManager.getAllProviders() } returns listOf(mockProvider, workingProvider, brokenProvider)
-        
-        // Recreate viewModel to run init validation with these providers
-        viewModel = SettingsViewModel(smartcarApiClient, fuelEngine, preferenceManager, aiManager, permissionManager)
-        
-        advanceUntilIdle()
-        
-        val validProviders = viewModel.state.value.validProviders
-        assertTrue(validProviders.contains("LOCAL"))
-        assertTrue(validProviders.contains("GEMINI"))
-        assertTrue(validProviders.contains("MISTRAL"))
-        assertFalse(validProviders.contains("DEEPSEEK"))
-    }
 
-    @Test
-    fun `test selected provider falls back when invalid`() = runTest {
-        selectedAiProviderFlow.value = "GROQ"
-        
-        val workingProvider = mockk<AiProvider>(relaxed = true) {
-            every { name } returns "GEMINI"
-            coEvery { getAvailableModels() } returns listOf("gemini-model")
-        }
-        val brokenProvider = mockk<AiProvider>(relaxed = true) {
-            every { name } returns "GROQ"
-            coEvery { getAvailableModels() } returns null
-        }
-        
-        every { aiManager.getAllProviders() } returns listOf(workingProvider, brokenProvider)
-        every { aiManager.getProviderByName("GEMINI") } returns workingProvider
-        every { aiManager.getProviderByName("GROQ") } returns brokenProvider
-        
-        // Recreate viewModel
-        viewModel = SettingsViewModel(smartcarApiClient, fuelEngine, preferenceManager, aiManager, permissionManager)
-        
-        advanceUntilIdle()
-        
-        // It should call setSelectedAiProvider to fall back to GEMINI
-        coVerify { preferenceManager.setSelectedAiProvider("GEMINI") }
-    }
 
     @Test
     fun `test credentials loaded on init`() = runTest {
@@ -341,5 +299,41 @@ class SettingsViewModelTest {
 
         coVerify { smartcarApiClient.exchangeCode("deep_link_code_abc", "user_xyz", "client_123", "secret_456") }
         assertNull(authCodeFlow.value) // Reset after consumption
+    }
+
+    @Test
+    fun `test setAppFontScale calls preferenceManager`() = runTest {
+        viewModel.setAppFontScale(com.ecodrive.app.domain.model.AppFontScale.LARGE)
+        advanceUntilIdle()
+        coVerify { preferenceManager.setAppFontScale(com.ecodrive.app.domain.model.AppFontScale.LARGE) }
+    }
+
+    @Test
+    fun `test toggleLiveCoaching calls preferenceManager`() = runTest {
+        viewModel.toggleLiveCoaching()
+        advanceUntilIdle()
+        coVerify { preferenceManager.setLiveCoachingEnabled(false) } // true -> false
+    }
+
+    @Test
+    fun `test setCoachVoice calls preferenceManager`() = runTest {
+        viewModel.setCoachVoice("SARAH")
+        advanceUntilIdle()
+        coVerify { preferenceManager.setCoachVoice("SARAH") }
+    }
+
+    @Test
+    fun `test AUTH_FAILED api state triggers disconnectSmartcar`() = runTest {
+        viewModel.updateClientId("client_123")
+        viewModel.updateClientSecret("secret_456")
+
+        apiStateFlow.value = SmartcarApiClient.ApiState.AUTH_FAILED
+        advanceUntilIdle()
+
+        verify { smartcarApiClient.disconnect() }
+        coVerify { preferenceManager.setSmartcarClientId("") }
+        coVerify { preferenceManager.setSmartcarClientSecret("") }
+        assertEquals("", viewModel.state.value.smartcarClientId)
+        assertEquals("", viewModel.state.value.smartcarClientSecret)
     }
 }

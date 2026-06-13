@@ -86,16 +86,43 @@ class AnalyzersExtendedTest {
         drivingPatternAnalyzer.analyze(createMetrics(speed = 0.0, isIdle = true, timestamp = Instant.ofEpochMilli(1000)), 1L)
         
         // After 60s (Constants.IDLE_WARNING_SECONDS = 60)
-        // Duration = 60s. condition idleDuration > 60 is FALSE. 
-        // Need T=61.1s for duration 60.1s. 
+        // Duration = 61.1s. idleDuration will be 61L (due to integer division 61100/1000). 61 > 60 is TRUE.
+        // It should trigger the first warning.
         val events61 = drivingPatternAnalyzer.analyze(createMetrics(speed = 0.0, isIdle = true, timestamp = Instant.ofEpochMilli(62100)), 1L)
-        // Duration = 61.1s. 61.1 > 60 is TRUE. 61.1 % 30 is NOT 0.
-        // The implementation uses idleDuration % 30 == 0L.
-        // So we need exactly 90, 120, etc. (since it starts > 60)
+        assertTrue("Expected initial idle warning > 60s", events61.any { it.type == DrivingEventType.EXCESSIVE_IDLE })
         
-        // At 90s idle (T=91s)
-        val events91 = drivingPatternAnalyzer.analyze(createMetrics(speed = 0.0, isIdle = true, timestamp = Instant.ofEpochMilli(91000)), 1L)
-        assertTrue("Expected idle event at 90s", events91.any { it.type == DrivingEventType.EXCESSIVE_IDLE })
+        // Duration = 91.1s (90.1s since start). idleDuration will be 91L. 91 - 60 = 31 >= 30.
+        // It should trigger the second warning.
+        val events91 = drivingPatternAnalyzer.analyze(createMetrics(speed = 0.0, isIdle = true, timestamp = Instant.ofEpochMilli(92100)), 1L)
+        assertTrue("Expected idle event at ~90s", events91.any { it.type == DrivingEventType.EXCESSIVE_IDLE })
+    }
+
+    @Test
+    fun `test multiple simultaneous thresholds`() {
+        val metrics = createMetrics(
+            speed = Constants.SPEED_EXCESSIVE_KMH + 1.0,
+            longAccel = -Constants.HARD_BRAKE_THRESHOLD - 0.1,
+            latAccel = Constants.SHARP_TURN_THRESHOLD + 0.1
+        )
+        val events = drivingPatternAnalyzer.analyze(metrics, 1L)
+        assertTrue("Expected EXCESSIVE_SPEED", events.any { it.type == DrivingEventType.EXCESSIVE_SPEED })
+        assertTrue("Expected HARD_BRAKE", events.any { it.type == DrivingEventType.HARD_BRAKE })
+        assertTrue("Expected SHARP_TURN", events.any { it.type == DrivingEventType.SHARP_TURN })
+    }
+
+    @Test
+    fun `test idle warning resets when speed increases`() {
+        drivingPatternAnalyzer.analyze(createMetrics(speed = 0.0, isIdle = true, timestamp = Instant.ofEpochMilli(1000)), 1L)
+        
+        val events61 = drivingPatternAnalyzer.analyze(createMetrics(speed = 0.0, isIdle = true, timestamp = Instant.ofEpochMilli(62100)), 1L)
+        assertTrue(events61.any { it.type == DrivingEventType.EXCESSIVE_IDLE })
+
+        // Speed increases
+        drivingPatternAnalyzer.analyze(createMetrics(speed = 10.0, isIdle = false, timestamp = Instant.ofEpochMilli(63100)), 1L)
+
+        // Idle again for 10s (should not trigger)
+        val eventsNew = drivingPatternAnalyzer.analyze(createMetrics(speed = 0.0, isIdle = true, timestamp = Instant.ofEpochMilli(73100)), 1L)
+        assertTrue(eventsNew.isEmpty())
     }
 
     private fun createMetrics(
