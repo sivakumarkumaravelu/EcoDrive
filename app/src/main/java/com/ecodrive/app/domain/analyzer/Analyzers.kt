@@ -42,6 +42,7 @@ class DrivingPatternAnalyzer @Inject constructor() {
 
     private var previousMetrics: DrivingMetrics? = null
     private var idleStartTimeMs: Long? = null
+    private var lastIdleEventDuration: Long = 0
     private val speedHistory = java.util.Collections.synchronizedList(mutableListOf<Double>())
     private var thresholds = com.ecodrive.app.domain.ai.engine.DrivingThresholds()
 
@@ -71,20 +72,28 @@ class DrivingPatternAnalyzer @Inject constructor() {
         }
 
         if (metrics.speedKmh > Constants.SPEED_EXCESSIVE_KMH) {
-            events.add(DrivingEvent(tripId = tripId, type = DrivingEventType.EXCESSIVE_SPEED, value = metrics.speedKmh, speedAtEvent = metrics.speedKmh, latitude = metrics.latitude, longitude = metrics.longitude, description = "Excessive speed: %.0f km/h".format(metrics.speedKmh)))
+            events.add(DrivingEvent(tripId = tripId, type = DrivingEventType.EXCESSIVE_SPEED, value = metrics.speedKmh, speedAtEvent = metrics.speedKmh, latitude = metrics.latitude, longitude = metrics.longitude, description = "Excessive speed"))
         }
 
         if (metrics.isIdle) {
             if (idleStartTimeMs == null) {
                 idleStartTimeMs = metrics.timestamp.toEpochMilli()
+                lastIdleEventDuration = 0
             } else {
                 val idleDuration = (metrics.timestamp.toEpochMilli() - idleStartTimeMs!!) / 1000
-                if (idleDuration > Constants.IDLE_WARNING_SECONDS && idleDuration % 30 == 0L) {
-                    events.add(DrivingEvent(tripId = tripId, type = DrivingEventType.EXCESSIVE_IDLE, value = idleDuration.toDouble(), speedAtEvent = 0.0, latitude = metrics.latitude, longitude = metrics.longitude, description = "Idling for ${idleDuration}s"))
+                if (idleDuration > Constants.IDLE_WARNING_SECONDS) {
+                    if (lastIdleEventDuration == 0L) {
+                        lastIdleEventDuration = Constants.IDLE_WARNING_SECONDS.toLong()
+                        events.add(DrivingEvent(tripId = tripId, type = DrivingEventType.EXCESSIVE_IDLE, value = idleDuration.toDouble(), speedAtEvent = 0.0, latitude = metrics.latitude, longitude = metrics.longitude, description = "Idling for ${idleDuration}s"))
+                    } else if (idleDuration - lastIdleEventDuration >= 30) {
+                        lastIdleEventDuration += 30
+                        events.add(DrivingEvent(tripId = tripId, type = DrivingEventType.EXCESSIVE_IDLE, value = idleDuration.toDouble(), speedAtEvent = 0.0, latitude = metrics.latitude, longitude = metrics.longitude, description = "Idling for ${idleDuration}s"))
+                    }
                 }
             }
         } else {
             idleStartTimeMs = null
+            lastIdleEventDuration = 0
         }
 
         previousMetrics = metrics
@@ -103,6 +112,7 @@ class DrivingPatternAnalyzer @Inject constructor() {
     fun reset() {
         previousMetrics = null
         idleStartTimeMs = null
+        lastIdleEventDuration = 0
         speedHistory.clear()
     }
 }
@@ -326,7 +336,8 @@ class EcoScoreCalculator @Inject constructor() {
         tripDurationMinutes: Double,
         weights: com.ecodrive.app.domain.ai.engine.ScoreWeights = com.ecodrive.app.domain.ai.engine.ScoreWeights(),
     ): EcoScore {
-        val per10Min = if (tripDurationMinutes > 0) 10.0 / tripDurationMinutes else 1.0
+        val effectiveDuration = kotlin.math.max(tripDurationMinutes, 5.0)
+        val per10Min = 10.0 / effectiveDuration
 
         val accelFreq = hardAccelCount * per10Min
         val accelScore = when {

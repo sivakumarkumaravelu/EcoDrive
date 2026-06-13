@@ -29,7 +29,7 @@ class AudioFeedbackManagerTest {
         every {
             anyConstructed<TextToSpeech>().speak(any<String>(), any<Int>(), any(), any<String>())
         } returns TextToSpeech.SUCCESS
-        audioFeedbackManager = AudioFeedbackManager(context)
+        audioFeedbackManager = AudioFeedbackManager(context, mockk(relaxed = true), kotlinx.coroutines.test.TestScope())
     }
 
     // ── isAudioEnabled state ──────────────────────────────────────────────

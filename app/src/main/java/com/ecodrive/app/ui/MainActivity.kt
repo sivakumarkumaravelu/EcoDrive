@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val appTheme by preferenceManager.appTheme.collectAsStateWithLifecycle(initialValue = AppTheme.DARK)
             val appPalette by preferenceManager.colorPalette.collectAsStateWithLifecycle(initialValue = AppColorPalette.ECO_GREEN)
+            val appFontScale by preferenceManager.appFontScale.collectAsStateWithLifecycle(initialValue = com.ecodrive.app.domain.model.AppFontScale.MEDIUM)
 
             LaunchedEffect(preferenceManager) {
                 launch {
@@ -94,11 +95,21 @@ class MainActivity : ComponentActivity() {
                         })
                     }
                 }
+                launch {
+                    preferenceManager.keepDisplayOn.collect { keepDisplayOn ->
+                        if (keepDisplayOn) {
+                            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        } else {
+                            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        }
+                    }
+                }
             }
 
             EcoDriveTheme(
                 appTheme = appTheme,
-                appPalette = appPalette
+                appPalette = appPalette,
+                appFontScale = appFontScale
             ) {
                 EcoDriveApp()
             }

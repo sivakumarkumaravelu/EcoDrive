@@ -9,8 +9,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.core.view.WindowCompat
 import com.ecodrive.app.domain.model.AppColorPalette
+import com.ecodrive.app.domain.model.AppFontScale
 import com.ecodrive.app.domain.model.AppTheme
 
 /**
@@ -154,6 +157,7 @@ private fun createAppColorScheme(
 fun EcoDriveTheme(
     appTheme: AppTheme = AppTheme.DARK,
     appPalette: AppColorPalette = AppColorPalette.ECO_GREEN,
+    appFontScale: AppFontScale = AppFontScale.MEDIUM,
     content: @Composable () -> Unit,
 ) {
     val darkTheme = when (appTheme) {
@@ -179,9 +183,21 @@ fun EcoDriveTheme(
         }
     }
 
+    val baseDensity = LocalDensity.current
+    val scaleFactor = when (appFontScale) {
+        AppFontScale.SMALL -> 0.85f
+        AppFontScale.MEDIUM -> 1.0f
+        AppFontScale.LARGE -> 1.15f
+    }
+    val newDensity = Density(
+        density = baseDensity.density,
+        fontScale = baseDensity.fontScale * scaleFactor
+    )
+
     CompositionLocalProvider(
         LocalEcoDriveColors provides semanticColors,
         LocalIsDarkTheme provides darkTheme,
+        LocalDensity provides newDensity,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

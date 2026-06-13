@@ -7,10 +7,12 @@ import com.ecodrive.app.domain.model.AnomalyType
 import com.ecodrive.app.domain.model.DrivingMetrics
 import com.ecodrive.app.domain.model.VehicleAnomaly
 import com.ecodrive.app.util.Constants
+import com.ecodrive.app.util.UnitConverter
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
 import kotlin.math.sqrt
+import kotlinx.coroutines.launch
 
 /**
  * Detects statistical anomalies in vehicle telemetry that may indicate
@@ -25,6 +27,8 @@ import kotlin.math.sqrt
 @Singleton
 class AnomalyDetector @Inject constructor(
     private val aiManager: AiManager,
+    private val preferenceManager: com.ecodrive.app.data.local.PreferenceManager,
+    @com.ecodrive.app.di.ApplicationScope private val scope: kotlinx.coroutines.CoroutineScope
 ) {
     companion object {
         private const val TAG = "AnomalyDetector"
@@ -40,6 +44,15 @@ class AnomalyDetector @Inject constructor(
 
     private val lastAlertMs = mutableMapOf<AnomalyType, Long>()
     private val detectedAnomalies = mutableListOf<VehicleAnomaly>()
+    private var useMetric = true
+
+    init {
+        scope.launch {
+            preferenceManager.useMetricUnits.collect { metric ->
+                useMetric = metric
+            }
+        }
+    }
 
     /**
      * Feed a new data point and return any newly detected anomalies.
@@ -76,6 +89,9 @@ class AnomalyDetector @Inject constructor(
         if (fuelRateHistory.size < 30 || metrics.fuelRateLPerH <= 0) return null
         if (!canAlert(AnomalyType.HIGH_FUEL_CONSUMPTION)) return null
 
+        // Only evaluate fuel consumption anomalies during steady cruising (no hard accel/braking)
+        if (abs(metrics.longitudinalAccelMps2) > 0.5) return null
+
         // Only compare at similar speeds (within ±10 km/h of current)
         val targetSpeed = metrics.speedKmh
         val similarSpeedFuel = fuelRateHistory.zip(speedHistory).filter { (_, s) ->
@@ -95,7 +111,7 @@ class AnomalyDetector @Inject constructor(
             return VehicleAnomaly(
                 type = AnomalyType.HIGH_FUEL_CONSUMPTION,
                 severity = severity,
-                description = "Fuel use is ${(excess * 100).toInt()}% above your baseline at ${metrics.speedKmh.toInt()} km/h",
+                description = "Fuel use is ${(excess * 100).toInt()}% above your baseline",
                 detectedAtSpeedKmh = metrics.speedKmh,
             )
         }
@@ -202,7 +218,10 @@ class AnomalyDetector @Inject constructor(
     }
 
     private fun updateHistory(metrics: DrivingMetrics) {
-        if (metrics.fuelRateLPerH > 0) fuelRateHistory.add(metrics.fuelRateLPerH)
+        // Build fuel history ONLY during steady state to get an accurate cruising baseline
+        if (metrics.fuelRateLPerH > 0 && abs(metrics.longitudinalAccelMps2) < 0.5) {
+            fuelRateHistory.add(metrics.fuelRateLPerH)
+        }
         lateralAccelHistory.add(metrics.lateralAccelMps2)
         verticalAccelHistory.add(metrics.verticalAccelMps2)
         speedHistory.add(metrics.speedKmh)

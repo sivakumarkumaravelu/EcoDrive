@@ -39,8 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ecodrive.app.domain.model.DrivingEventType
+import com.ecodrive.app.ui.components.formatMarkdownBold
 import com.ecodrive.app.ui.theme.*
-
 /**
  * Coach screen providing personalized driving tips and historical analysis.
  */
@@ -113,12 +113,13 @@ fun CoachScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = state.personalizedTip,
-                        style = MaterialTheme.typography.bodyLarge,
+                        text = formatMarkdownBold(state.personalizedTip),
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(24.dp))
         }
 
         // ── Active Challenge ────────────────────────────────────
@@ -213,7 +214,7 @@ fun CoachScreen(
         
         EfficiencyTipCard(
             title = "Minimize Idling",
-            description = "If you're parked for more than 30 seconds, it's usually more efficient to turn off the engine. Idling yields 0 mpg.",
+            description = "If you're parked for more than 30 seconds, it's usually more efficient to turn off the engine. Idling yields ${if (state.useMetric) "0 efficiency" else "0 mpg"}.",
             icon = Icons.Filled.PauseCircle
         )
 
@@ -282,7 +283,7 @@ private fun AskTheCoachSection(
                                 .padding(12.dp)
                         ) {
                             Text(
-                                text = message.text,
+                                text = formatMarkdownBold(message.text),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )

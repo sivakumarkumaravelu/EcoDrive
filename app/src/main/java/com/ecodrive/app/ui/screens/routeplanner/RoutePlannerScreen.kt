@@ -33,6 +33,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ecodrive.app.ui.components.EcoMap
 import com.ecodrive.app.ui.components.EcoMarker
 import com.ecodrive.app.ui.components.EcoPolyline
+import com.ecodrive.app.ui.components.formatMarkdownBold
 import com.ecodrive.app.ui.theme.EcoDriveTheme
 import com.ecodrive.app.util.UnitConverter
 import com.google.android.gms.maps.model.LatLng
@@ -438,7 +439,7 @@ private fun AiInsightCard(insight: String) {
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = insight,
+                text = formatMarkdownBold(insight),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                 // Cap at 3 lines when collapsed — prevents full-screen takeover

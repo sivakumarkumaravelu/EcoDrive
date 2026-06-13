@@ -76,28 +76,30 @@ fun LineChart(
                 .fillMaxWidth()
                 .height(160.dp),
         ) {
-            val chartPadding = 40f
-            val chartWidth = size.width - chartPadding * 2
-            val chartHeight = size.height - chartPadding
+            val paddingX = 48.dp.toPx()
+            val paddingBottom = 32.dp.toPx()
+            val paddingTop = 16.dp.toPx()
+            val chartWidth = size.width - paddingX * 2
+            val chartHeight = size.height - paddingBottom - paddingTop
 
             val yMin = minY ?: points.minOf { it.y }
             val yMax = maxY ?: points.maxOf { it.y }
             val yRange = (yMax - yMin).coerceAtLeast(1f)
 
             fun mapX(index: Int): Float =
-                chartPadding + (index.toFloat() / (points.size - 1)) * chartWidth
+                paddingX + (index.toFloat() / (points.size - 1)) * chartWidth
 
             fun mapY(value: Float): Float =
-                chartHeight - ((value - yMin) / yRange) * (chartHeight - 20f) + 10f
+                paddingTop + chartHeight - ((value - yMin) / yRange) * chartHeight
 
             // Draw horizontal grid lines
             val gridCount = 4
             for (i in 0..gridCount) {
-                val y = 10f + (chartHeight - 20f) * i / gridCount
+                val y = paddingTop + chartHeight * i / gridCount
                 drawLine(
                     color = outlineColor.copy(alpha = 0.3f),
-                    start = Offset(chartPadding, y),
-                    end = Offset(size.width - chartPadding, y),
+                    start = Offset(paddingX, y),
+                    end = Offset(size.width - paddingX, y),
                     strokeWidth = 1f,
                 )
 
@@ -105,14 +107,14 @@ fun LineChart(
                 val labelValue = yMax - (yRange * i / gridCount)
                 val text = if (labelValue >= 100) "%.0f".format(labelValue)
                 else "%.1f".format(labelValue)
+                val textStyle = TextStyle(
+                    fontSize = 9.sp,
+                    color = onSurfaceVariantColor,
+                )
+                val measuredText = textMeasurer.measure(text, textStyle)
                 drawText(
-                    textMeasurer = textMeasurer,
-                    text = text,
-                    topLeft = Offset(0f, y - 8f),
-                    style = TextStyle(
-                        fontSize = 9.sp,
-                        color = onSurfaceVariantColor,
-                    ),
+                    textLayoutResult = measuredText,
+                    topLeft = Offset((paddingX - measuredText.size.width - 8f).coerceAtLeast(0f), y - measuredText.size.height / 2f),
                 )
             }
 
@@ -131,8 +133,8 @@ fun LineChart(
                 val fillPath = Path().apply {
                     addPath(path)
                     val lastX = mapX(animatedCount - 1)
-                    lineTo(lastX, chartHeight)
-                    lineTo(chartPadding, chartHeight)
+                    lineTo(lastX, paddingTop + chartHeight)
+                    lineTo(paddingX, paddingTop + chartHeight)
                     close()
                 }
                 drawPath(
@@ -171,15 +173,24 @@ fun LineChart(
             if (xAxisLabels.isNotEmpty()) {
                 val step = (xAxisLabels.size / 5).coerceAtLeast(1)
                 for (i in xAxisLabels.indices step step) {
-                    val x = chartPadding + (i.toFloat() / (xAxisLabels.size - 1)) * chartWidth
-                    drawText(
-                        textMeasurer = textMeasurer,
-                        text = xAxisLabels[i],
-                        topLeft = Offset(x - 12f, chartHeight + 4f),
+                    val x = paddingX + (i.toFloat() / (xAxisLabels.size - 1)) * chartWidth
+                    val text = xAxisLabels[i]
+                    val measuredText = textMeasurer.measure(
+                        text = text,
                         style = TextStyle(
                             fontSize = 8.sp,
                             color = onSurfaceVariantColor,
-                        ),
+                        )
+                    )
+                    val xOffset = when (i) {
+                        0 -> x
+                        xAxisLabels.lastIndex -> x - measuredText.size.width
+                        else -> x - (measuredText.size.width / 2f)
+                    }
+                    
+                    drawText(
+                        textLayoutResult = measuredText,
+                        topLeft = Offset(xOffset, paddingTop + chartHeight + 8.dp.toPx())
                     )
                 }
             }
@@ -211,6 +222,8 @@ fun BarChart(
 
     val textMeasurer = rememberTextMeasurer()
     val onSurfaceVariantColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val outlineColor = MaterialTheme.colorScheme.outline
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
 
     Column(modifier = modifier) {
         if (yAxisLabel.isNotBlank()) {
@@ -227,19 +240,49 @@ fun BarChart(
                 .fillMaxWidth()
                 .height(140.dp),
         ) {
-            val chartPadding = 16f
-            val bottomPadding = 24f
+            val chartPadding = 48.dp.toPx()
+            val topPadding = 16.dp.toPx()
+            val bottomPadding = 32.dp.toPx()
             val chartWidth = size.width - chartPadding * 2
-            val chartHeight = size.height - bottomPadding
+            val chartHeight = size.height - topPadding - bottomPadding
 
             val max = maxValue ?: values.maxOf { it.second }.coerceAtLeast(1f)
             val barWidth = (chartWidth / values.size) * 0.6f
             val barSpacing = chartWidth / values.size
 
+
+            // Draw horizontal grid lines
+            val gridCount = 4
+            for (i in 0..gridCount) {
+                val yLine = topPadding + chartHeight * i / gridCount
+                drawLine(
+                    color = outlineColor.copy(alpha = 0.3f),
+                    start = Offset(chartPadding, yLine),
+                    end = Offset(size.width - chartPadding, yLine),
+                    strokeWidth = 1f,
+                )
+
+                // Y-axis labels
+                val labelValue = max - (max * i / gridCount)
+                val text = if (labelValue >= 100 || labelValue % 1f == 0f) "%.0f".format(labelValue)
+                else "%.1f".format(labelValue)
+                
+                val textStyle = TextStyle(
+                    fontSize = 9.sp,
+                    color = onSurfaceVariantColor,
+                )
+                val measuredText = textMeasurer.measure(text, textStyle)
+                drawText(
+                    textLayoutResult = measuredText,
+                    topLeft = Offset((chartPadding - measuredText.size.width - 8f).coerceAtLeast(0f), yLine - measuredText.size.height / 2f),
+                )
+            }
+
             values.forEachIndexed { index, (label, value) ->
-                val barHeight = (value / max) * chartHeight * animationProgress
+                val safeValue = value.coerceAtLeast(0f)
+                val barHeight = (safeValue / max) * chartHeight * animationProgress
                 val x = chartPadding + index * barSpacing + (barSpacing - barWidth) / 2
-                val y = chartHeight - barHeight
+                val y = topPadding + chartHeight - barHeight
 
                 // Bar with rounded top corners
                 drawRoundRect(
@@ -249,15 +292,33 @@ fun BarChart(
                     cornerRadius = CornerRadius(4f, 4f),
                 )
 
-                // Label below bar
+                // Value above bar
+                val valueText = if (value >= 100f || value % 1f == 0f) "%.0f".format(value) else "%.1f".format(value)
+                val measuredValText = textMeasurer.measure(
+                    text = valueText,
+                    style = TextStyle(
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = onSurfaceColor
+                    )
+                )
                 drawText(
-                    textMeasurer = textMeasurer,
+                    textLayoutResult = measuredValText,
+                    topLeft = Offset(x + (barWidth / 2f) - (measuredValText.size.width / 2f), y - measuredValText.size.height - 2f)
+                )
+
+                // Label below bar
+                val measuredText = textMeasurer.measure(
                     text = label,
-                    topLeft = Offset(x - 4f, chartHeight + 4f),
                     style = TextStyle(
                         fontSize = 8.sp,
                         color = onSurfaceVariantColor,
-                    ),
+                    )
+                )
+                val textX = x + (barWidth / 2f) - (measuredText.size.width / 2f)
+                drawText(
+                    textLayoutResult = measuredText,
+                    topLeft = Offset(textX.coerceAtLeast(chartPadding), topPadding + chartHeight + 8f)
                 )
             }
         }
@@ -321,6 +382,7 @@ fun ScoreDonut(
     )
 
     val total = segments.sumOf { it.second }.toFloat()
+    if (total <= 0f) return
 
     Canvas(modifier = modifier.size(size)) {
         val strokeWidth = 18f

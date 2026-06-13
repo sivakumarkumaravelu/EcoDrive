@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import com.ecodrive.app.domain.model.AppColorPalette
+import com.ecodrive.app.domain.model.AppFontScale
 import com.ecodrive.app.domain.model.AppTheme
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -31,16 +32,23 @@ class PreferenceManager @Inject constructor(
         private val USE_METRIC_UNITS = booleanPreferencesKey("use_metric_units")
         private val APP_THEME = stringPreferencesKey("app_theme")
         private val COLOR_PALETTE = stringPreferencesKey("color_palette")
-        private val AI_PROVIDER = stringPreferencesKey("ai_provider")
+
         private val USE_GOOGLE_MAPS = booleanPreferencesKey("use_google_maps")
         private val SMARTCAR_APPLICATION_ID_KEY = stringPreferencesKey("smartcar_application_id")
         private val SMARTCAR_CLIENT_ID = stringPreferencesKey("smartcar_client_id")
         private val SMARTCAR_CLIENT_SECRET = stringPreferencesKey("smartcar_client_secret")
         private val MAP_STYLE = stringPreferencesKey("map_style")
+        private val LIVE_COACHING_ENABLED = booleanPreferencesKey("live_coaching_enabled")
+        private val COACH_VOICE = stringPreferencesKey("coach_voice")
+        private val APP_FONT_SCALE = stringPreferencesKey("app_font_scale")
+        private val KEEP_DISPLAY_ON = booleanPreferencesKey("keep_display_on")
     }
 
     val autoRecordEnabled: Flow<Boolean>
         get() = dataStore.data.map { it[AUTO_RECORD_ENABLED] ?: false }
+
+    val keepDisplayOn: Flow<Boolean>
+        get() = dataStore.data.map { it[KEEP_DISPLAY_ON] ?: true }
 
     val carBluetoothAddress: Flow<String?>
         get() = dataStore.data.map { it[CAR_BLUETOOTH_ADDRESS] }
@@ -66,8 +74,14 @@ class PreferenceManager @Inject constructor(
             }
         }
 
-    val selectedAiProvider: Flow<String>
-        get() = dataStore.data.map { it[AI_PROVIDER] ?: "GEMINI" }
+    val appFontScale: Flow<AppFontScale>
+        get() = dataStore.data.map {
+            try {
+                AppFontScale.valueOf(it[APP_FONT_SCALE] ?: AppFontScale.MEDIUM.name)
+            } catch (e: Exception) {
+                AppFontScale.MEDIUM
+            }
+        }
 
     val useGoogleMaps: Flow<Boolean>
         get() = dataStore.data.map { it[USE_GOOGLE_MAPS] ?: false }
@@ -80,6 +94,12 @@ class PreferenceManager @Inject constructor(
                 com.ecodrive.app.util.MapStyle.DEFAULT
             }
         }
+
+    val liveCoachingEnabled: Flow<Boolean>
+        get() = dataStore.data.map { it[LIVE_COACHING_ENABLED] ?: true }
+
+    val coachVoice: Flow<String>
+        get() = dataStore.data.map { it[COACH_VOICE] ?: "DEFAULT" }
 
     val smartcarApplicationId: Flow<String>
         get() = dataStore.data.map { it[SMARTCAR_APPLICATION_ID_KEY] ?: "" }
@@ -113,8 +133,8 @@ class PreferenceManager @Inject constructor(
         dataStore.edit { it[COLOR_PALETTE] = palette.name }
     }
 
-    suspend fun setSelectedAiProvider(provider: String) {
-        dataStore.edit { it[AI_PROVIDER] = provider }
+    suspend fun setAppFontScale(scale: AppFontScale) {
+        dataStore.edit { it[APP_FONT_SCALE] = scale.name }
     }
 
     suspend fun setUseGoogleMaps(enabled: Boolean) {
@@ -137,13 +157,17 @@ class PreferenceManager @Inject constructor(
         dataStore.edit { it[SMARTCAR_CLIENT_SECRET] = clientSecret }
     }
 
-    fun getSelectedModel(provider: String): Flow<String?> {
-        val key = stringPreferencesKey("selected_model_${provider.uppercase()}")
-        return dataStore.data.map { it[key] }
+    suspend fun setLiveCoachingEnabled(enabled: Boolean) {
+        dataStore.edit { it[LIVE_COACHING_ENABLED] = enabled }
     }
 
-    suspend fun setSelectedModel(provider: String, model: String) {
-        val key = stringPreferencesKey("selected_model_${provider.uppercase()}")
-        dataStore.edit { it[key] = model }
+    suspend fun setCoachVoice(voice: String) {
+        dataStore.edit { it[COACH_VOICE] = voice }
     }
+
+    suspend fun setKeepDisplayOn(keep: Boolean) {
+        dataStore.edit { it[KEEP_DISPLAY_ON] = keep }
+    }
+
+
 }

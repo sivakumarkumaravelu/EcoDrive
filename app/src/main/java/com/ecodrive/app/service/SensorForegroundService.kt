@@ -63,6 +63,12 @@ class SensorForegroundService : Service() {
     lateinit var fatigueDetector: com.ecodrive.app.domain.ai.analyzer.FatigueDetector
 
     @Inject
+    lateinit var challengeGenerator: com.ecodrive.app.domain.ai.analyzer.ChallengeGenerator
+
+    @Inject
+    lateinit var preferenceManager: com.ecodrive.app.data.local.PreferenceManager
+
+    @Inject
     lateinit var vehicleRepository: com.ecodrive.app.data.repository.VehicleRepository
 
     @Inject
@@ -124,6 +130,8 @@ class SensorForegroundService : Service() {
     private var idleTimeMs = 0L
     private var dataPointCounter = 0
     private var lastFatigueAlertMs = 0L
+    private var lastAiTipMs = 0L
+    private var liveCoachingEnabled = true
 
     // Performance Optimization: Batching data points
     private val dataPointBatch = mutableListOf<DrivingMetrics>()
@@ -162,6 +170,11 @@ class SensorForegroundService : Service() {
     }
 
     private fun observeMetrics() {
+        serviceScope.launch {
+            preferenceManager.liveCoachingEnabled.collect { enabled ->
+                liveCoachingEnabled = enabled
+            }
+        }
         serviceScope.launch {
             sensorDataManager.metrics.collect { metrics ->
                 if (metrics.timestamp.toEpochMilli() > 0 && _isRecording.value) {
@@ -236,6 +249,15 @@ class SensorForegroundService : Service() {
 
                     // Activate dormant AI: trigger periodic refinement after every trip
                     tripRepository.triggerPeriodicAiRefinement()
+
+                    // Update challenge progress and check for badges
+                    val completedTrip = tripRepository.getTripById(tripId)
+                    if (completedTrip != null) {
+                        challengeGenerator.updateProgress(completedTrip)
+                        val allTrips = tripRepository.getRecentCompletedTrips(100)
+                        val recentTrips = tripRepository.getRecentCompletedTrips(10)
+                        challengeGenerator.checkAndAwardBadges(allTrips, recentTrips)
+                    }
 
                     // Enrich any detected anomalies with AI diagnosis
                     val rawAnomalies = anomalyDetector.getDetectedAnomalies()
@@ -392,6 +414,8 @@ class SensorForegroundService : Service() {
     }
 
     private fun handleFatigue(status: com.ecodrive.app.domain.ai.analyzer.FatigueStatus) {
+        if (!liveCoachingEnabled) return
+        
         val now = System.currentTimeMillis()
         if (now - lastFatigueAlertMs < 60_000L) return // Don't annoy too much
         
@@ -416,8 +440,14 @@ class SensorForegroundService : Service() {
         metrics: DrivingMetrics,
         ecoScore: EcoScore
     ) {
+        if (!liveCoachingEnabled) return
+        
+        val now = System.currentTimeMillis()
+        if (now - lastAiTipMs < 120_000L) return // Rate limit: maximum one tip every 2 minutes
+
         val tip = aiCoachService.getRealTimeTip(metrics, ecoScore)
         if (tip != null) {
+            lastAiTipMs = now
             _latestTip.value = tip
             withContext(Dispatchers.Main) {
                 // AI coaching tips are non-urgent — play via QUEUE_ADD so they don't interrupt alerts.

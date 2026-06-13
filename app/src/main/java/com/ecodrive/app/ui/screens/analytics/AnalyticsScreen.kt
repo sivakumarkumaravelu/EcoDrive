@@ -364,7 +364,7 @@ private fun AiNarrativeCard(
             )
         } else if (narrative != null) {
             Text(
-                text = narrative,
+                text = formatMarkdownBold(narrative),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )

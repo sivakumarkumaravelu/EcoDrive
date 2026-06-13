@@ -60,9 +60,17 @@ class CohereProvider @Inject constructor() : AiProvider {
         val apiKey = AiConfig.COHERE_API_KEY
         if (apiKey.isBlank() || apiKey.startsWith("YOUR_")) return@withContext null
 
+        val availableModels = getAvailableModels()
+        val targetModel = if (availableModels.isNullOrEmpty()) {
+            model ?: defaultModel
+        } else {
+            if (model != null && availableModels.contains(model)) model 
+            else availableModels.firstOrNull { it.contains("command") } ?: availableModels.first()
+        }
+
         val requestBodyJson = buildJsonObject {
             put("message", prompt)
-            put("model", model ?: defaultModel)
+            put("model", targetModel)
             put("temperature", temp)
             put("max_tokens", maxTokens)
         }

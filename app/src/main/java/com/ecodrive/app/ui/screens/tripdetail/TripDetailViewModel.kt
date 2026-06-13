@@ -13,6 +13,7 @@ import com.ecodrive.app.data.local.entity.AiInsightEntity
 import com.ecodrive.app.data.repository.TripRepository
 import com.ecodrive.app.domain.analyzer.LocalEcoCoach
 import com.ecodrive.app.domain.model.DrivingEvent
+import com.ecodrive.app.domain.model.DrivingEventType
 import com.ecodrive.app.domain.model.Trip
 import com.ecodrive.app.ui.components.ChartPoint
 import com.ecodrive.app.util.Constants
@@ -172,7 +173,8 @@ class TripDetailViewModel @Inject constructor(
                 Driving Events:
                 ${events.joinToString("\n") { 
                     val eventSpeed = if (useMetric) it.speedAtEvent else com.ecodrive.app.util.UnitConverter.kmhToMph(it.speedAtEvent)
-                    "- ${it.type.name} at ${"%.1f".format(eventSpeed)} $speedUnit: ${it.description}" 
+                    val desc = if (it.type == DrivingEventType.EXCESSIVE_SPEED) "Excessive speed" else it.description
+                    "- ${it.type.name} at ${"%.1f".format(eventSpeed)} $speedUnit: $desc" 
                 }}
                 
                 Context:

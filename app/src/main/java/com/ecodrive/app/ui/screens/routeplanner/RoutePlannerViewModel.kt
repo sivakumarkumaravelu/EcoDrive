@@ -108,20 +108,22 @@ class RoutePlannerViewModel @Inject constructor(
         if (dest.length >= 3) {
             suggestionJob = viewModelScope.launch {
                 delay(500)
-                fetchSuggestions(dest)
+                fetchSuggestions(dest, state.value.origin)
             }
         } else {
             _state.update { it.copy(suggestions = emptyList()) }
         }
     }
 
-    private suspend fun fetchSuggestions(query: String) {
+    private suspend fun fetchSuggestions(query: String, origin: LatLng?) {
         _state.update { it.copy(isSearchingSuggestions = true) }
         try {
             val suggestions = withContext(Dispatchers.IO) {
                 val encoded = URLEncoder.encode(query, "UTF-8")
+                val proximityParam = if (origin != null) "&proximity=${origin.longitude},${origin.latitude}" else ""
+                val apiKey = AppConfig.MAPTILER_API_KEY
                 val url = java.net.URL(
-                    "https://nominatim.openstreetmap.org/search?q=$encoded&format=json&limit=5"
+                    "https://api.maptiler.com/geocoding/$encoded.json?key=$apiKey&limit=5$proximityParam"
                 )
                 val conn = url.openConnection() as java.net.HttpURLConnection
                 conn.setRequestProperty("User-Agent", "EcoDrive-Android/1.0")
@@ -131,16 +133,27 @@ class RoutePlannerViewModel @Inject constructor(
                 val result = mutableListOf<PlaceSuggestion>()
                 if (conn.responseCode == 200) {
                     val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    val arr = JSONArray(body)
-                    for (i in 0 until arr.length()) {
-                        val obj = arr.getJSONObject(i)
-                        result.add(
-                            PlaceSuggestion(
-                                name = obj.optString("display_name").split(",").firstOrNull() ?: query,
-                                description = obj.optString("display_name"),
-                                latLng = LatLng(obj.getDouble("lat"), obj.getDouble("lon"))
+                    val json = org.json.JSONObject(body)
+                    val arr = json.optJSONArray("features")
+                    if (arr != null) {
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.getJSONObject(i)
+                            val center = obj.optJSONArray("center")
+                            var latLng: LatLng? = null
+                            if (center != null && center.length() >= 2) {
+                                latLng = LatLng(center.getDouble(1), center.getDouble(0))
+                            }
+                            val placeName = obj.optString("place_name")
+                            val text = obj.optString("text") // Usually the short name
+                            val name = if (text.isNotBlank()) text else placeName.split(",").firstOrNull() ?: query
+                            result.add(
+                                PlaceSuggestion(
+                                    name = name,
+                                    description = placeName,
+                                    latLng = latLng
+                                )
                             )
-                        )
+                        }
                     }
                 }
                 result

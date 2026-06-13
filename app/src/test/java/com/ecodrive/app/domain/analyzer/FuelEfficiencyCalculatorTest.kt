@@ -56,10 +56,10 @@ class FuelEfficiencyCalculatorTest {
     }
 
     @Test
-    fun `test calculateConsumptionLPer100Km returns zero for low speed`() {
-        assertEquals(0.0, calculator.calculateConsumptionLPer100Km(5.0, 5.0), 0.0)
-        assertEquals(0.0, calculator.calculateConsumptionLPer100Km(5.0, 2.0), 0.0)
-        assertEquals(0.0, calculator.calculateConsumptionLPer100Km(5.0, 0.0), 0.0)
+    fun `test calculateConsumptionLPer100Km returns cap for low speed`() {
+        assertEquals(99.9, calculator.calculateConsumptionLPer100Km(5.0, 5.0), 0.0)
+        assertEquals(99.9, calculator.calculateConsumptionLPer100Km(5.0, 2.0), 0.0)
+        assertEquals(99.9, calculator.calculateConsumptionLPer100Km(5.0, 0.0), 0.0)
     }
 
     @Test

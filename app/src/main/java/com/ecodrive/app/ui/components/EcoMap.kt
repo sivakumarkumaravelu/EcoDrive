@@ -156,8 +156,8 @@ fun OsmMapView(
     val mapBgColor  = if (isDarkTheme) "#121212" else "#f0f0f0"
     
     val tileLayerUrl = when (mapStyle) {
-        MapStyle.TERRAIN -> "https://api.maptiler.com/maps/outdoor-v2/{z}/{x}/{y}.png?key=${AppConfig.MAPTILER_API_KEY}"
-        MapStyle.STREETS -> "https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${AppConfig.MAPTILER_API_KEY}"
+        MapStyle.TERRAIN -> "https://api.maptiler.com/maps/outdoor-v2${if (isDarkTheme) "-dark" else ""}/{z}/{x}/{y}.png?key=${AppConfig.MAPTILER_API_KEY}"
+        MapStyle.STREETS -> "https://api.maptiler.com/maps/streets-v2${if (isDarkTheme) "-dark" else ""}/{z}/{x}/{y}.png?key=${AppConfig.MAPTILER_API_KEY}"
         else -> "https://{s}.basemaps.cartocdn.com/$tileVariant/{z}/{x}/{y}{r}.png"
     }
     
@@ -204,7 +204,7 @@ fun OsmMapView(
 
                 try {
                     console.log("Initializing map at [${center.latitude}, ${center.longitude}] with zoom ${zoom}");
-                    var map = L.map('map').setView([${center.latitude}, ${center.longitude}], ${zoom});
+                    var map = L.map('map', { attributionControl: false }).setView([${center.latitude}, ${center.longitude}], ${zoom});
                     // Tile layer switches between styles based on settings.
                     L.tileLayer('$tileLayerUrl', {
                         attribution: $tileLayerAttribution,
@@ -319,8 +319,8 @@ fun MapLibreMapView(
     
     // Choose style based on theme and map style settings
     val styleUrl = when (mapStyle) {
-        MapStyle.TERRAIN -> "https://api.maptiler.com/maps/outdoor-v2/style.json?key=${AppConfig.MAPTILER_API_KEY}"
-        MapStyle.STREETS -> "https://api.maptiler.com/maps/streets-v2/style.json?key=${AppConfig.MAPTILER_API_KEY}"
+        MapStyle.TERRAIN -> "https://api.maptiler.com/maps/outdoor-v2${if (isDarkTheme) "-dark" else ""}/style.json?key=${AppConfig.MAPTILER_API_KEY}"
+        MapStyle.STREETS -> "https://api.maptiler.com/maps/streets-v2${if (isDarkTheme) "-dark" else ""}/style.json?key=${AppConfig.MAPTILER_API_KEY}"
         else -> if (isDarkTheme) {
             "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
         } else {
@@ -376,6 +376,9 @@ fun MapLibreMapView(
         modifier = modifier,
         update = { view ->
             view.getMapAsync { mapboxMap ->
+                mapboxMap.uiSettings.isAttributionEnabled = false
+                mapboxMap.uiSettings.isLogoEnabled = false
+                
                 mapboxMap.setStyle(styleUrl) { style ->
                     // Clear legacy annotations/markers
                     mapboxMap.clear()

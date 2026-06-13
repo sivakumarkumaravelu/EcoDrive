@@ -93,9 +93,10 @@ class AiCoachService @Inject constructor(
             $weatherSection
             Previous Tip Given: ${lastTip ?: "None"}
             
-            Give a fresh, relevant tip. If conditions are hazardous (rain, ice, or fog), prioritize safety over efficiency.
+            Give a fresh, relevant tip ONLY when necessary. Do NOT comment on driver fatigue, tiredness, or attention.
+            If conditions are hazardous (rain, ice, or fog), prioritize safety over efficiency.
             If driving is perfect, give short encouraging praise.
-            Focus on actionable advice.
+            Keep it brief and focus purely on actionable driving efficiency and safety.
         """.trimIndent()
 
         val tip = aiManager.generateRealTimeTip(prompt)

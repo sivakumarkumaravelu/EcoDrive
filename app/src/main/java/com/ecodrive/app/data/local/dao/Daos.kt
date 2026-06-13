@@ -207,6 +207,9 @@ interface ChallengeDao {
     @Query("SELECT * FROM challenges ORDER BY createdAtEpochMs DESC LIMIT 10")
     fun getAllChallenges(): Flow<List<com.ecodrive.app.data.local.entity.ChallengeEntity>>
 
+    @Delete
+    suspend fun deleteChallenge(challenge: com.ecodrive.app.data.local.entity.ChallengeEntity)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBadge(badge: com.ecodrive.app.data.local.entity.BadgeEntity)
 

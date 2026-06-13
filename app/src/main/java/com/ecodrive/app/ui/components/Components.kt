@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.withStyle
 import com.ecodrive.app.ui.theme.*
 
 /**
@@ -260,5 +261,23 @@ fun ConnectionStatusBar(
             style = MaterialTheme.typography.labelMedium,
             color = statusColor,
         )
+    }
+}
+
+/**
+ * Utility function to format simple Markdown bold text (**text**) into an AnnotatedString.
+ */
+fun formatMarkdownBold(text: String): androidx.compose.ui.text.AnnotatedString {
+    return androidx.compose.ui.text.buildAnnotatedString {
+        val boldRegex = Regex("\\*\\*(.*?)\\*\\*")
+        var lastIndex = 0
+        boldRegex.findAll(text).forEach { matchResult ->
+            append(text.substring(lastIndex, matchResult.range.first))
+            withStyle(style = androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold)) {
+                append(matchResult.groupValues[1])
+            }
+            lastIndex = matchResult.range.last + 1
+        }
+        append(text.substring(lastIndex, text.length))
     }
 }

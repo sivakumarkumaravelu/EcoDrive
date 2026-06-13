@@ -70,13 +70,13 @@ class ChallengeGenerator @Inject constructor(
             - Sharp Turns: $totalTurns
             - Weakest area: $weakestArea
             
-            Generate ONE specific, achievable weekly challenge targeting the weakest area.
+            Generate ONE specific, achievable challenge targeting the weakest area. The challenge should be to complete a certain number of trips without any events in the weakest area.
             
             Return ONLY a JSON object:
             {
               "title": "Short catchy title (max 5 words)",
-              "description": "Detailed description of the challenge goal (1-2 sentences)",
-              "target_count": <integer: how many 'events' to aim for (use 0 for zero-tolerance challenges)>,
+              "description": "Detailed description (e.g. 'Complete 5 trips with 0 hard brakes')",
+              "target_count": <integer: number of clean trips to complete, typically 3 to 10>,
               "duration_days": <integer: 5 or 7>,
               "badge_type": "<one of: SMOOTH_OPERATOR, ECO_WARRIOR, CONSISTENCY_KING, FUEL_SAVER>"
             }
@@ -118,17 +118,30 @@ class ChallengeGenerator @Inject constructor(
         val entity = challengeDao.getActiveChallenge() ?: return
         if (entity.isCompleted) return
 
-        // Count relevant events from the completed trip
-        val tripMetricCount = when (entity.metricType) {
-            "HARD_BRAKE" -> completedTrip.hardBrakeCount
-            "HARD_ACCELERATION" -> completedTrip.hardAccelCount
-            "SHARP_TURN" -> completedTrip.sharpTurnCount
-            else -> 0
+        val durationMs = entity.durationDays * 24 * 60 * 60 * 1000L
+        val elapsedMs = System.currentTimeMillis() - entity.createdAtEpochMs
+        if (elapsedMs >= durationMs) {
+            // Time expired, delete the challenge so a new one can be generated
+            challengeDao.deleteChallenge(entity)
+            Log.d(TAG, "Challenge expired and deleted")
+            return
         }
 
-        val newProgress = entity.progressCount + tripMetricCount
-        val isComplete = newProgress <= entity.targetCount && entity.targetCount == 0
-                || (entity.targetCount > 0 && newProgress <= entity.targetCount)
+        // Check if the trip was clean for the target metric
+        val isCleanTrip = when (entity.metricType) {
+            "HARD_BRAKE" -> completedTrip.hardBrakeCount == 0
+            "HARD_ACCELERATION" -> completedTrip.hardAccelCount == 0
+            "SHARP_TURN" -> completedTrip.sharpTurnCount == 0
+            "FIRST_TRIP" -> true
+            else -> true
+        }
+
+        var newProgress = entity.progressCount
+        if (isCleanTrip) {
+            newProgress += 1
+        }
+
+        val isComplete = newProgress >= entity.targetCount
 
         val updatedEntity = entity.copy(
             progressCount = newProgress,
@@ -208,9 +221,9 @@ class ChallengeGenerator @Inject constructor(
 
     private suspend fun buildFallbackChallenge(weakestArea: String, avgScore: Double): Challenge? {
         val (title, description, target) = when (weakestArea) {
-            "HARD_BRAKE" -> Triple("Smooth Stopper", "Complete 3 trips with fewer than 2 hard braking events each.", 6)
-            "HARD_ACCELERATION" -> Triple("Gentle Starter", "Keep total hard accelerations under 5 across your next 3 trips.", 5)
-            else -> Triple("Corner Smoother", "Complete your next 3 trips with fewer than 3 sharp turns each.", 9)
+            "HARD_BRAKE" -> Triple("Smooth Stopper", "Complete 5 trips with 0 hard brakes.", 5)
+            "HARD_ACCELERATION" -> Triple("Gentle Starter", "Complete 5 trips with 0 hard accelerations.", 5)
+            else -> Triple("Corner Smoother", "Complete 5 trips with 0 sharp turns.", 5)
         }
         val entity = ChallengeEntity(
             title = title,

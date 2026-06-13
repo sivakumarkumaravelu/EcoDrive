@@ -44,6 +44,7 @@ class CoachViewModel @Inject constructor(
         // Gamification
         val activeChallenge: Challenge? = null,
         val earnedBadges: List<Badge> = emptyList(),
+        val useMetric: Boolean = true,
     )
 
     data class ChatMessage(
@@ -64,10 +65,12 @@ class CoachViewModel @Inject constructor(
     val state: StateFlow<CoachState> = combine(
         tripRepository.getAllTrips(),
         audioFeedbackManager.isAudioEnabled,
-        _chatHistory,
-        _isAskingAi,
-        _aiReport
-    ) { allTrips, audioEnabled, chatHistory, isAskingAi, aiReport ->
+        preferenceManager.useMetricUnits,
+        combine(_chatHistory, _isAskingAi, _aiReport) { chatHistory, isAskingAi, aiReport ->
+            Triple(chatHistory, isAskingAi, aiReport)
+        }
+    ) { allTrips, audioEnabled, useMetric, aiState ->
+        val (chatHistory, isAskingAi, aiReport) = aiState
         val now = Instant.now()
         val oneWeekAgo = now.minus(7, ChronoUnit.DAYS).toEpochMilli()
         val twoWeeksAgo = now.minus(14, ChronoUnit.DAYS).toEpochMilli()
@@ -145,6 +148,7 @@ class CoachViewModel @Inject constructor(
             suggestedQuestions = _suggestedQuestions.value,
             activeChallenge = _activeChallenge.value,
             earnedBadges = _earnedBadges.value,
+            useMetric = useMetric,
         ).also {
             // Trigger AI report if data changed and we don't have one yet
             if (recentTrips.isNotEmpty() && aiReport == null) {
@@ -214,6 +218,7 @@ class CoachViewModel @Inject constructor(
 
     private fun generateWeeklyAiReport(s: CoachState) {
         viewModelScope.launch {
+            val unitStr = if (s.useMetric) "metric (km, km/h, liters, L/100km)" else "imperial (miles, mph, gallons, mpg)"
             val prompt = """
                 You are an expert Eco-Driving Coach. Analyze the driver's performance this week and provide a personalized coaching report (max 3 sentences).
                 
@@ -223,7 +228,7 @@ class CoachViewModel @Inject constructor(
                 - Issue Counts: HARD_BRAKE=${s.issuesCount[DrivingEventType.HARD_BRAKE] ?: 0}, HARD_ACCELERATION=${s.issuesCount[DrivingEventType.HARD_ACCELERATION] ?: 0}
                 - Trends: ${s.trends.mapValues { "%.1f%%".format(it.value) }}
                 
-                Provide encouraging, specific advice. If there are improvements, celebrate them.
+                CRITICAL: Always use $unitStr units in your response. Provide encouraging, specific advice. If there are improvements, celebrate them.
             """.trimIndent()
 
             val response = aiManager.generateWeeklyReport(prompt)
@@ -247,6 +252,7 @@ class CoachViewModel @Inject constructor(
             _chatHistory.update { it + userMsg }
             _isAskingAi.value = true
 
+            val unitStr = if (state.value.useMetric) "metric (km, km/h, liters, L/100km)" else "imperial (miles, mph, gallons, mpg)"
             val systemPrompt = """
                 You are an expert Eco-Driving Coach helping a driver improve their fuel efficiency and eco score.
                 
@@ -256,7 +262,7 @@ class CoachViewModel @Inject constructor(
                 - Hard Brakes: ${state.value.issuesCount[DrivingEventType.HARD_BRAKE] ?: 0}
                 - Hard Accels: ${state.value.issuesCount[DrivingEventType.HARD_ACCELERATION] ?: 0}
                 
-                Provide helpful, concise, and encouraging responses. Reference the driver's specific data when relevant.
+                CRITICAL: Always use $unitStr units in your response. Provide helpful, concise, and encouraging responses. Reference the driver's specific data when relevant.
                 After your answer, optionally suggest 2 follow-up questions the driver might want to ask, prefixed with "SUGGESTIONS:".
             """.trimIndent()
 

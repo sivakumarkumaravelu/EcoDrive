@@ -45,6 +45,7 @@ class CoachViewModelTest {
         
         every { tripRepository.getAllTrips() } returns tripsFlow
         every { audioFeedbackManager.isAudioEnabled } returns MutableStateFlow(true)
+        every { preferenceManager.useMetricUnits } returns MutableStateFlow(true)
         
         viewModel = CoachViewModel(
             tripRepository, 
@@ -84,9 +85,11 @@ class CoachViewModelTest {
 
         tripsFlow.value = listOf(recentTrip, previousWeekTrip)
         
+        val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.collect {} }
+        
         // When
         advanceUntilIdle()
-        val state = viewModel.state.first { !it.isLoading }
+        val state = viewModel.state.value
         
         // Then
         assertEquals(2, state.issuesCount[DrivingEventType.HARD_BRAKE])
@@ -108,7 +111,7 @@ class CoachViewModelTest {
             aiManager.generateConversationalResponse(any(), any()) 
         } returns Triple(aiResponse, providerName, modelName)
         
-        val collectJob = launch { viewModel.state.collect {} }
+        val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.collect {} }
         
         // When
         viewModel.askQuestion(question)
@@ -128,7 +131,7 @@ class CoachViewModelTest {
         assertEquals(providerName, history[1].providerName)
         assertEquals(modelName, history[1].modelName)
         
-        collectJob.cancel()
+        // No need to cancel collectJob manually when using backgroundScope
     }
 
     @Test
@@ -138,7 +141,7 @@ class CoachViewModelTest {
             aiManager.generateConversationalResponse(any(), any()) 
         } returns null
         
-        val collectJob = launch { viewModel.state.collect {} }
+        val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.state.collect {} }
         
         // When
         viewModel.askQuestion("Test")
@@ -150,6 +153,6 @@ class CoachViewModelTest {
         assertTrue("Error message text missing", history[1].text.contains("trouble connecting"))
         assertEquals(null, history[1].providerName)
         
-        collectJob.cancel()
+        // No need to cancel collectJob manually when using backgroundScope
     }
 }

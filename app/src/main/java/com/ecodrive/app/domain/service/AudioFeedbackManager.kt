@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.update
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.launch
 
 /**
  * Manages audio feedback for driving events, including both
@@ -34,6 +35,8 @@ import javax.inject.Singleton
 @Singleton
 class AudioFeedbackManager @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val preferenceManager: com.ecodrive.app.data.local.PreferenceManager,
+    @com.ecodrive.app.di.ApplicationScope private val scope: kotlinx.coroutines.CoroutineScope
 ) : TextToSpeech.OnInitListener {
 
     companion object {
@@ -126,11 +129,15 @@ class AudioFeedbackManager @Inject constructor(
             Log.w(TAG, "Could not configure audio attributes: ${e.message}")
         }
 
-        // Select the best available voice.
-        selectBestVoice()
-
+        // Wait until TTS is ready to apply voice preference
         isTtsReady = true
-        Log.i(TAG, "TTS ready. Voice: ${tts?.voice?.name}")
+        
+        scope.launch {
+            preferenceManager.coachVoice.collect { voiceType ->
+                applyVoicePreference(voiceType)
+            }
+        }
+        Log.i(TAG, "TTS ready.")
     }
 
     fun setAudioEnabled(enabled: Boolean) {
@@ -244,40 +251,51 @@ class AudioFeedbackManager @Inject constructor(
     }
 
     /**
-     * Scans installed voices and selects the highest-quality English voice available.
-     * Prefers Google's "x-iom" / "x-sfg" family; falls back gracefully.
+     * Applies the selected voice preference (JARVIS, FRIDAY, or DEFAULT).
      */
-    private fun selectBestVoice() {
+    fun applyVoicePreference(voiceType: String) {
+        if (!isTtsReady) return
         val voices: Set<Voice>? = tts?.voices
         if (voices.isNullOrEmpty()) return
 
         val englishVoices = voices.filter { voice ->
             voice.locale?.language == Locale.ENGLISH.language && !voice.isNetworkConnectionRequired.let {
-                // Exclude network-only voices to keep offline reliability,
-                // unless they appear in our preferred list (checked below).
                 false
             }
         }
 
-        // Try preferred patterns in priority order.
-        for (pattern in PREFERRED_VOICE_PATTERNS) {
-            val match = voices.firstOrNull { it.name.contains(pattern, ignoreCase = true) }
-            if (match != null) {
-                tts?.voice = match
-                Log.i(TAG, "Selected preferred voice: ${match.name}")
-                return
+        var selectedVoice: Voice? = null
+        when (voiceType) {
+            "JARVIS" -> {
+                // Try to find a UK Male voice
+                selectedVoice = englishVoices.firstOrNull { 
+                    it.locale?.country == "GB" && (it.name.contains("-x-rjs", ignoreCase = true) || it.name.contains("male", ignoreCase = true)) 
+                } ?: englishVoices.firstOrNull { it.locale?.country == "GB" }
+            }
+            "FRIDAY" -> {
+                // Try to find a UK Female voice
+                selectedVoice = englishVoices.firstOrNull { 
+                    it.locale?.country == "GB" && (it.name.contains("-x-gba", ignoreCase = true) || it.name.contains("-x-gbc", ignoreCase = true) || it.name.contains("female", ignoreCase = true)) 
+                } ?: englishVoices.firstOrNull { it.locale?.country == "GB" }
             }
         }
 
-        // Fallback: pick the highest-quality English voice by quality score.
-        val best = englishVoices
-            .filter { Voice.QUALITY_VERY_HIGH == it.quality || Voice.QUALITY_HIGH == it.quality }
-            .minByOrNull { it.latency } // prefer lowest-latency among high-quality voices
-
-        if (best != null) {
-            tts?.voice = best
-            Log.i(TAG, "Selected fallback voice: ${best.name} (quality=${best.quality})")
+        // Fallback to DEFAULT logic if no specific voice or 'DEFAULT' selected
+        if (selectedVoice == null) {
+            for (pattern in PREFERRED_VOICE_PATTERNS) {
+                selectedVoice = englishVoices.firstOrNull { it.name.contains(pattern, ignoreCase = true) }
+                if (selectedVoice != null) break
+            }
+            if (selectedVoice == null) {
+                selectedVoice = englishVoices
+                    .filter { Voice.QUALITY_VERY_HIGH == it.quality || Voice.QUALITY_HIGH == it.quality }
+                    .minByOrNull { it.latency }
+            }
         }
-        // If nothing matched, the TTS engine's default voice is used — that's acceptable.
+
+        if (selectedVoice != null) {
+            tts?.voice = selectedVoice
+            Log.i(TAG, "Selected voice: ${selectedVoice.name} for preference: $voiceType")
+        }
     }
 }

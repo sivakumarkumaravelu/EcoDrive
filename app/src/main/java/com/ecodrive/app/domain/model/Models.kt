@@ -237,6 +237,19 @@ enum class AppColorPalette {
 }
 
 /**
+ * Options for application font scale.
+ */
+enum class AppFontScale {
+    SMALL,
+    MEDIUM,
+    LARGE;
+
+    fun getDisplayName(): String {
+        return name.lowercase().replaceFirstChar { it.uppercase() }
+    }
+}
+
+/**
  * Fuel calibration data point from Smartcar API.
  */
 data class FuelCalibrationPoint(

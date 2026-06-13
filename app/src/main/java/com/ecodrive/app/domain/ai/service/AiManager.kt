@@ -3,18 +3,17 @@ package com.ecodrive.app.domain.ai.service
 import com.ecodrive.app.domain.ai.config.AiUtils
 
 import android.util.Log
-import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.domain.ai.provider.AiProvider
+import com.ecodrive.app.domain.ai.provider.DeepSeekProvider
 import com.ecodrive.app.domain.ai.provider.GeminiProvider
 import com.ecodrive.app.domain.ai.provider.LocalProvider
-import kotlinx.coroutines.flow.first
+import com.ecodrive.app.domain.ai.provider.OpenRouterProvider
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class AiManager @Inject constructor(
-    private val providers: Set<@JvmSuppressWildcards AiProvider>,
-    private val preferenceManager: PreferenceManager
+    private val providers: Set<@JvmSuppressWildcards AiProvider>
 ) {
     companion object {
         private const val TAG = "AiManager"
@@ -23,17 +22,48 @@ class AiManager @Inject constructor(
 
     private var lastCoachingCallMs = 0L
 
+    private suspend fun <T> executeWithFallback(action: suspend (AiProvider, String?) -> T?): T? {
+        // 1. Try Free Providers (Shuffled for load balancing)
+        val freeProviders = providers.filter { 
+            it !is DeepSeekProvider && it !is LocalProvider && it !is OpenRouterProvider 
+        }.shuffled()
+
+        for (provider in freeProviders) {
+            try {
+                val result = action(provider, provider.defaultModel)
+                if (result != null) return result
+            } catch (e: Exception) {
+                Log.w(TAG, "Provider ${provider.name} failed: ${e.message}")
+            }
+        }
+
+        // 2. Try Secondary/Paid Provider
+        val deepSeek = providers.find { it is DeepSeekProvider }
+        if (deepSeek != null) {
+            try {
+                val result = action(deepSeek, deepSeek.defaultModel)
+                if (result != null) return result
+            } catch (e: Exception) {
+                Log.e(TAG, "DeepSeek fallback failed", e)
+            }
+        }
+
+        // 3. Ultimate Fallback
+        val local = getLocalProvider()
+        return try {
+            action(local, null)
+        } catch (e: Exception) {
+            Log.e(TAG, "Local fallback failed", e)
+            null
+        }
+    }
+
     suspend fun generateRealTimeTip(prompt: String): String? {
         val now = System.currentTimeMillis()
         if (now - lastCoachingCallMs < COACHING_RATE_LIMIT_MS) return null
 
-        val provider = getSelectedProvider()
-        val model = getSelectedModel(provider.name)
-        var tip = provider.generateRealTimeTip(prompt, model)
-        
-        if (tip == null && provider !is LocalProvider) {
-            Log.d(TAG, "Primary provider failed, falling back to LocalProvider")
-            tip = getLocalProvider().generateRealTimeTip(prompt, null)
+        val tip = executeWithFallback { provider, model ->
+            provider.generateRealTimeTip(prompt, model)
         }
 
         if (tip != null) lastCoachingCallMs = System.currentTimeMillis()
@@ -41,30 +71,30 @@ class AiManager @Inject constructor(
     }
 
     suspend fun generateTripInsight(prompt: String): String? {
-        val provider = getSelectedProvider()
-        val model = getSelectedModel(provider.name)
-        return provider.generateTripInsight(prompt, model) ?: getLocalProvider().generateTripInsight(prompt, null)
+        return executeWithFallback { provider, model ->
+            provider.generateTripInsight(prompt, model)
+        }
     }
 
     suspend fun generateWeeklyReport(prompt: String): String? {
-        val provider = getSelectedProvider()
-        val model = getSelectedModel(provider.name)
-        return provider.generateWeeklyReport(prompt, model) ?: getLocalProvider().generateWeeklyReport(prompt, null)
+        return executeWithFallback { provider, model ->
+            provider.generateWeeklyReport(prompt, model)
+        }
     }
 
     suspend fun generateAnalyticsSummary(prompt: String): String? {
-        val provider = getSelectedProvider()
-        val model = getSelectedModel(provider.name)
-        return provider.generateAnalyticsSummary(prompt, model) ?: getLocalProvider().generateAnalyticsSummary(prompt, null)
+        return executeWithFallback { provider, model ->
+            provider.generateAnalyticsSummary(prompt, model)
+        }
     }
 
     /**
      * Generates an eco-score prediction using lower-temperature settings.
      */
     suspend fun generatePrediction(prompt: String): String? {
-        val provider = getSelectedProvider()
-        val model = getSelectedModel(provider.name)
-        return provider.generatePrediction(prompt, model) ?: getLocalProvider().generatePrediction(prompt, null)
+        return executeWithFallback { provider, model ->
+            provider.generatePrediction(prompt, model)
+        }
     }
 
     /**
@@ -79,31 +109,10 @@ class AiManager @Inject constructor(
         messages: List<Pair<String, Boolean>>,
         systemPrompt: String,
     ): Triple<String, String, String?>? {
-        val provider = getSelectedProvider()
-        val model = getSelectedModel(provider.name)
-        val response = provider.generateConversationalResponse(messages, systemPrompt, model)
-        
-        if (response != null) {
-            return Triple(response, provider.name, model ?: provider.defaultModel)
+        return executeWithFallback { provider, model ->
+            val response = provider.generateConversationalResponse(messages, systemPrompt, model)
+            if (response != null) Triple(response, provider.name, model ?: provider.defaultModel) else null
         }
-
-        val localProvider = getLocalProvider()
-        val localResponse = localProvider.generateConversationalResponse(messages, systemPrompt, null)
-        
-        return if (localResponse != null) {
-            Triple(localResponse, localProvider.name, localProvider.defaultModel)
-        } else {
-            null
-        }
-    }
-
-    private suspend fun getSelectedProvider(): AiProvider {
-        val selected = preferenceManager.selectedAiProvider.first()
-        return getProviderByName(selected)
-    }
-
-    private suspend fun getSelectedModel(providerName: String): String? {
-        return preferenceManager.getSelectedModel(providerName).first()
     }
 
     /**

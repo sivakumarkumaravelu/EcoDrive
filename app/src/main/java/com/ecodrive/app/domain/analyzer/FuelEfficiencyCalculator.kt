@@ -43,7 +43,7 @@ class FuelEfficiencyCalculator @Inject constructor() {
      * Calculate fuel consumption in L/100km.
      */
     fun calculateConsumptionLPer100Km(fuelRateLPerH: Double, speedKmh: Double): Double {
-        if (speedKmh <= 5.0) return 0.0 // Avoid division by zero and extreme values at idle
+        if (speedKmh <= 5.0) return 99.9 // Avoid division by zero, max out consumption at idle
         return (fuelRateLPerH / speedKmh) * 100.0
     }
 }

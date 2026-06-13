@@ -19,6 +19,9 @@ import javax.inject.Singleton
  * Supports multiple vehicle brands.
  */
 data class SmartcarVehicleData(
+    val make: String? = null,
+    val model: String? = null,
+    val year: Int? = null,
     val fuelPercent: Double? = null,
     val odometerKm: Double? = null,
     val tirePressureFrontLeft: Double? = null,
@@ -54,6 +57,7 @@ class SmartcarApiClient @Inject constructor() {
         AUTHENTICATING,
         CONNECTED,
         ERROR,
+        AUTH_FAILED
     }
 
     private val _state = MutableStateFlow(ApiState.NOT_CONFIGURED)
@@ -93,20 +97,19 @@ class SmartcarApiClient @Inject constructor() {
                 "?response_type=code" +
                 "&client_id=$cleanClientId" +
                 "&redirect_uri=${Constants.SMARTCAR_REDIRECT_URI}" +
-                "&scope=read_fuel+read_odometer+read_tires+read_location" +
+                "&scope=read_fuel+read_battery+read_odometer+read_tires+read_location" +
                 makeParam +
                 "&mode=live" +
                 "&single_select=true"
     }
 
     /**
-     * Exchange the OAuth authorization code for an access token.
+     * Authenticate directly using client credentials.
      */
-    suspend fun exchangeCode(
-        code: String,
-        userId: String?,
+    suspend fun authenticate(
         clientId: String,
         clientSecret: String,
+        userId: String? = null
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val fullClientId = if (clientId.trim().startsWith("client_")) clientId.trim() else "client_${clientId.trim()}"
         try {
@@ -154,11 +157,101 @@ class SmartcarApiClient @Inject constructor() {
                     val errorType = errorJson.optString("error", "unknown")
                     val errorDesc = errorJson.optString("error_description", errorDetails)
                     Log.e(TAG, "Smartcar Auth Error: $errorType - $errorDesc")
-                    _state.value = ApiState.ERROR
+                    if (connection.responseCode == 400 || connection.responseCode == 401) {
+                        _state.value = ApiState.AUTH_FAILED
+                    } else {
+                        _state.value = ApiState.ERROR
+                    }
                     Result.failure(Exception("Auth failed: $errorType - $errorDesc"))
                 } catch (e: Exception) {
                     Log.e(TAG, "Auth failed with response: $errorDetails")
-                    _state.value = ApiState.ERROR
+                    if (connection.responseCode == 400 || connection.responseCode == 401) {
+                        _state.value = ApiState.AUTH_FAILED
+                    } else {
+                        _state.value = ApiState.ERROR
+                    }
+                    Result.failure(Exception("Auth failed: ${connection.responseCode} - $errorDetails"))
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Token exchange failed: ${e.message}")
+            _state.value = ApiState.ERROR
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Exchange the OAuth authorization code for an access token.
+     */
+    suspend fun exchangeCode(
+        code: String,
+        userId: String?,
+        clientId: String,
+        clientSecret: String,
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        val fullClientId = if (clientId.trim().startsWith("client_")) clientId.trim() else "client_${clientId.trim()}"
+        try {
+            _state.value = ApiState.AUTHENTICATING
+            if (userId != null) {
+                currentUserId = userId
+            }
+            savedClientId = fullClientId
+            savedClientSecret = clientSecret.trim()
+
+            val url = URL("https://auth.smartcar.com/oauth/token")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            
+            val authStr = "$fullClientId:${clientSecret.trim()}"
+            val b64Auth = android.util.Base64.encodeToString(authStr.toByteArray(), android.util.Base64.NO_WRAP)
+            connection.setRequestProperty("Authorization", "Basic $b64Auth")
+            
+            connection.doOutput = true
+
+            val body = "grant_type=authorization_code" +
+                    "&code=$code" +
+                    "&redirect_uri=${Constants.SMARTCAR_REDIRECT_URI}"
+
+            connection.outputStream.write(body.toByteArray())
+
+            if (connection.responseCode == 200) {
+                val response = readResponse(connection)
+                val json = JSONObject(response)
+                accessToken = json.getString("access_token")
+
+                // Get vehicle ID
+                fetchVehicleId()
+
+                _state.value = ApiState.CONNECTED
+                startPolling()
+                Result.success(Unit)
+            } else {
+                val errorStream = connection.errorStream
+                val errorDetails = if (errorStream != null) {
+                    BufferedReader(InputStreamReader(errorStream)).use { it.readText() }
+                } else {
+                    "No error details"
+                }
+                
+                try {
+                    val errorJson = JSONObject(errorDetails)
+                    val errorType = errorJson.optString("error", "unknown")
+                    val errorDesc = errorJson.optString("error_description", errorDetails)
+                    Log.e(TAG, "Smartcar Auth Error: $errorType - $errorDesc")
+                    if (connection.responseCode == 400 || connection.responseCode == 401) {
+                        _state.value = ApiState.AUTH_FAILED
+                    } else {
+                        _state.value = ApiState.ERROR
+                    }
+                    Result.failure(Exception("Auth failed: $errorType - $errorDesc"))
+                } catch (e: Exception) {
+                    Log.e(TAG, "Auth failed with response: $errorDetails")
+                    if (connection.responseCode == 400 || connection.responseCode == 401) {
+                        _state.value = ApiState.AUTH_FAILED
+                    } else {
+                        _state.value = ApiState.ERROR
+                    }
                     Result.failure(Exception("Auth failed: ${connection.responseCode} - $errorDetails"))
                 }
             }
@@ -186,14 +279,39 @@ class SmartcarApiClient @Inject constructor() {
 
     // ── Data Fetching ───────────────────────────────────────────
 
+    private fun getAttributesFromJson(jsonStr: String): JSONObject {
+        val json = JSONObject(jsonStr)
+        if (json.has("data")) {
+            val data = json.optJSONObject("data")
+            if (data != null && data.has("attributes")) {
+                return data.getJSONObject("attributes")
+            } else if (data != null) {
+                return data
+            }
+        }
+        return json
+    }
+
     suspend fun fetchFuelLevel(): Double? = withContext(Dispatchers.IO) {
         val vid = vehicleId ?: return@withContext null
         try {
             val response = apiGet("${BASE_URL}vehicles/$vid/fuel")
-            val json = JSONObject(response)
-            json.optDouble("percentRemaining", Double.NaN).takeIf { !it.isNaN() }
+            val attrs = getAttributesFromJson(response)
+            attrs.optDouble("percentRemaining", Double.NaN).takeIf { !it.isNaN() }?.let { it * 100.0 }
         } catch (e: Exception) {
             Log.w(TAG, "Fuel level fetch failed: ${e.message}")
+            null
+        }
+    }
+
+    suspend fun fetchBatteryLevel(): Double? = withContext(Dispatchers.IO) {
+        val vid = vehicleId ?: return@withContext null
+        try {
+            val response = apiGet("${BASE_URL}vehicles/$vid/battery")
+            val attrs = getAttributesFromJson(response)
+            attrs.optDouble("percentRemaining", Double.NaN).takeIf { !it.isNaN() }?.let { it * 100.0 }
+        } catch (e: Exception) {
+            Log.w(TAG, "Battery level fetch failed: ${e.message}")
             null
         }
     }
@@ -202,20 +320,40 @@ class SmartcarApiClient @Inject constructor() {
         val vid = vehicleId ?: return@withContext null
         try {
             val response = apiGet("${BASE_URL}vehicles/$vid/odometer")
-            val json = JSONObject(response)
-            json.optDouble("distance", Double.NaN).takeIf { !it.isNaN() }
+            val attrs = getAttributesFromJson(response)
+            attrs.optDouble("distance", Double.NaN).takeIf { !it.isNaN() }
         } catch (e: Exception) {
             Log.w(TAG, "Odometer fetch failed: ${e.message}")
             null
         }
     }
 
+    suspend fun fetchAttributes(): Triple<String?, String?, Int?>? = withContext(Dispatchers.IO) {
+        val vid = vehicleId ?: return@withContext null
+        try {
+            val response = apiGet("${BASE_URL}vehicles/$vid")
+            val attrs = getAttributesFromJson(response)
+            val make = if (!attrs.isNull("make")) attrs.getString("make") else null
+            val model = if (!attrs.isNull("model")) attrs.getString("model") else null
+            val year = if (!attrs.isNull("year")) attrs.getInt("year") else null
+            Triple(make, model, year)
+        } catch (e: Exception) {
+            Log.w(TAG, "Attributes fetch failed: ${e.message}")
+            null
+        }
+    }
+
     suspend fun fetchAll(): SmartcarVehicleData = withContext(Dispatchers.IO) {
         val fuel = fetchFuelLevel()
+        val battery = fetchBatteryLevel()
         val odometer = fetchOdometer()
+        val attributes = fetchAttributes()
 
         SmartcarVehicleData(
-            fuelPercent = fuel,
+            make = attributes?.first,
+            model = attributes?.second,
+            year = attributes?.third,
+            fuelPercent = fuel ?: battery,
             odometerKm = odometer,
         ).also {
             _vehicleData.value = it
@@ -232,22 +370,13 @@ class SmartcarApiClient @Inject constructor() {
     // ── Internals ───────────────────────────────────────────────
 
     private suspend fun fetchVehicleId() {
-        // Build the connections URL, filtering by userId if available
-        val url = if (currentUserId != null) {
-            "https://vehicle.api.smartcar.com/v3/connections?filter[user_id]=$currentUserId"
-        } else {
-            "https://vehicle.api.smartcar.com/v3/connections"
-        }
+        val url = "https://api.smartcar.com/v2.0/vehicles"
 
         val response = apiGet(url)
         val json = JSONObject(response)
-        val connections = json.getJSONArray("data")
-        if (connections.length() > 0) {
-            // Parse JSONAPI relationship structure to get the vehicle ID
-            val firstConnection = connections.getJSONObject(0)
-            val relationships = firstConnection.getJSONObject("relationships")
-            val vehicle = relationships.getJSONObject("vehicle").getJSONObject("data")
-            vehicleId = vehicle.getString("id")
+        val vehicles = json.getJSONArray("vehicles")
+        if (vehicles.length() > 0) {
+            vehicleId = vehicles.getString(0)
             Log.i(TAG, "Vehicle ID: $vehicleId")
         } else {
             throw Exception("No vehicles found in account")
@@ -269,12 +398,7 @@ class SmartcarApiClient @Inject constructor() {
     }
 
     private suspend fun apiGet(urlString: String, retryCount: Int = 1): String {
-        val finalUrl = if (urlString.startsWith(Constants.SMARTCAR_BASE_URL)) {
-            "https://vehicle.api.smartcar.com/v3/" + urlString.removePrefix(Constants.SMARTCAR_BASE_URL)
-        } else {
-            urlString
-        }
-        val url = URL(finalUrl)
+        val url = URL(urlString)
         val connection = url.openConnection() as HttpURLConnection
         connection.requestMethod = "GET"
         connection.setRequestProperty("Authorization", "Bearer $accessToken")
@@ -339,6 +463,9 @@ class SmartcarApiClient @Inject constructor() {
                 true
             } else {
                 Log.e(TAG, "Token refresh failed with response code ${connection.responseCode}")
+                if (connection.responseCode == 400 || connection.responseCode == 401) {
+                    _state.value = ApiState.AUTH_FAILED
+                }
                 false
             }
         } catch (e: Exception) {

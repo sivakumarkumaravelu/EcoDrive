@@ -8,6 +8,7 @@ import com.ecodrive.app.data.remote.SmartcarApiClient
 import com.ecodrive.app.domain.analyzer.FuelEstimationEngine
 import com.ecodrive.app.util.PermissionManager
 import com.ecodrive.app.domain.model.AppColorPalette
+import com.ecodrive.app.domain.model.AppFontScale
 import com.ecodrive.app.domain.model.AppTheme
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
@@ -40,26 +41,25 @@ class SettingsViewModel @Inject constructor(
         val useMetric: Boolean = true,
         val appTheme: AppTheme = AppTheme.DARK,
         val appPalette: AppColorPalette = AppColorPalette.ECO_GREEN,
+        val appFontScale: AppFontScale = AppFontScale.MEDIUM,
         val hasBluetoothPermissions: Boolean = false,
         val hasBackgroundLocationPermission: Boolean = false,
+        val vehicleMake: String? = null,
+        val vehicleModel: String? = null,
+        val vehicleYear: Int? = null,
         val fuelTankPercent: Double? = null,
         val odometerKm: Double? = null,
         val isObdEnabled: Boolean = false,
         val autoRecordEnabled: Boolean = false,
         val useGoogleMaps: Boolean = false,
         val mapStyle: com.ecodrive.app.util.MapStyle = com.ecodrive.app.util.MapStyle.DEFAULT,
-        val selectedAiProvider: String = "GEMINI",
-        val selectedModel: String = "",
-        val availableModels: List<String> = emptyList(),
-        val isLoadingModels: Boolean = false,
-        val validProviders: List<String> = listOf("LOCAL"),
-        val isValidatingProviders: Boolean = false,
+        val liveCoachingEnabled: Boolean = true,
+        val coachVoice: String = "DEFAULT",
+        val keepDisplayOn: Boolean = true,
     )
 
     private val _state = MutableStateFlow(SettingsState())
     val state: StateFlow<SettingsState> = _state.asStateFlow()
-
-    private val providerModelsCache = ConcurrentHashMap<String, List<String>>()
 
     init {
         // Load initial client credentials from preferences
@@ -74,15 +74,23 @@ class SettingsViewModel @Inject constructor(
                     smartcarClientSecret = secret
                 )
             }
+            
+            // Auto-reconnect if credentials are present
+            if (id.isNotBlank() && secret.isNotBlank()) {
+                smartcarApiClient.authenticate(id, secret)
+            }
         }
         observeSmartcarState()
         observeGeneralPreferences()
-        validateProvidersAndObserveAiPrefs()
     }
 
     private fun observeSmartcarState() {
         viewModelScope.launch {
             smartcarApiClient.state.collect { apiState ->
+                if (apiState == SmartcarApiClient.ApiState.AUTH_FAILED) {
+                    disconnectSmartcar()
+                }
+                
                 _state.update {
                     it.copy(
                         smartcarApiState = apiState,
@@ -97,6 +105,9 @@ class SettingsViewModel @Inject constructor(
             smartcarApiClient.vehicleData.collect { data ->
                 _state.update {
                     it.copy(
+                        vehicleMake = data.make,
+                        vehicleModel = data.model,
+                        vehicleYear = data.year,
                         fuelTankPercent = data.fuelPercent,
                         odometerKm = data.odometerKm,
                     )
@@ -130,8 +141,15 @@ class SettingsViewModel @Inject constructor(
                     preferenceManager.useGoogleMaps,
                     preferenceManager.mapStyle,
                     ::Triple
-                )
-            ) { (autoRecord, useMetric, theme), (palette, useGoogleMaps, mapStyle) ->
+                ),
+                combine(
+                    preferenceManager.liveCoachingEnabled,
+                    preferenceManager.coachVoice,
+                    preferenceManager.appFontScale,
+                    ::Triple
+                ),
+                preferenceManager.keepDisplayOn
+            ) { (autoRecord, useMetric, theme), (palette, useGoogleMaps, mapStyle), (liveCoaching, voice, fontScale), keepDisplayOn ->
                 // Sync AppConfig map provider dynamically on changes
                 com.ecodrive.app.util.AppConfig.ACTIVE_MAP_PROVIDER = if (useGoogleMaps) {
                     com.ecodrive.app.util.MapProvider.GOOGLE_MAPS
@@ -145,104 +163,18 @@ class SettingsViewModel @Inject constructor(
                         useMetric = useMetric,
                         appTheme = theme,
                         appPalette = palette,
+                        appFontScale = fontScale,
                         useGoogleMaps = useGoogleMaps,
-                        mapStyle = mapStyle
+                        mapStyle = mapStyle,
+                        liveCoachingEnabled = liveCoaching,
+                        coachVoice = voice,
+                        keepDisplayOn = keepDisplayOn
                     )
                 }
             }.collect()
         }
     }
 
-    private fun validateProvidersAndObserveAiPrefs() {
-        viewModelScope.launch {
-            _state.update { it.copy(isValidatingProviders = true) }
-            val allProviders = aiManager.getAllProviders()
-            
-            // Validate each non-LOCAL provider in parallel
-            val jobs = allProviders.filter { it.name != "LOCAL" }.map { provider ->
-                async {
-                    try {
-                        val models = provider.getAvailableModels()
-                        if (!models.isNullOrEmpty()) {
-                            provider.name to models
-                        } else {
-                            null
-                        }
-                    } catch (e: Exception) {
-                        Log.e("SettingsViewModel", "Error validating provider ${provider.name}", e)
-                        null
-                    }
-                }
-            }
-            
-            val results = jobs.awaitAll().filterNotNull()
-            
-            // Populate cache
-            results.forEach { (name, models) ->
-                providerModelsCache[name] = models
-            }
-            
-            val workingProviderNames = results.map { it.first }
-            val validList = listOf("LOCAL") + workingProviderNames
-            
-            _state.update {
-                it.copy(
-                    validProviders = validList,
-                    isValidatingProviders = false
-                )
-            }
-            
-            // Start observing AI preferences after validation
-            observeAiPreferences(validList)
-        }
-    }
-
-    private fun observeAiPreferences(validList: List<String>) {
-        viewModelScope.launch {
-            preferenceManager.selectedAiProvider.collectLatest { providerName ->
-                // Check if selected provider is still valid, fallback if not
-                if (!validList.contains(providerName)) {
-                    val fallback = if (validList.contains("GEMINI")) "GEMINI" else "LOCAL"
-                    setSelectedAiProvider(fallback)
-                    return@collectLatest
-                }
-
-                _state.update { it.copy(selectedAiProvider = providerName) }
-                fetchModelsForProvider(providerName)
-                
-                preferenceManager.getSelectedModel(providerName).collect { modelName ->
-                    val defaultModel = aiManager.getProviderByName(providerName).defaultModel
-                    _state.update { it.copy(selectedModel = modelName ?: defaultModel) }
-                }
-            }
-        }
-    }
-
-    private fun fetchModelsForProvider(providerName: String) {
-        if (providerName == "LOCAL") {
-            _state.update { it.copy(availableModels = emptyList(), isLoadingModels = false) }
-            return
-        }
-        val cachedModels = providerModelsCache[providerName]
-        if (cachedModels != null) {
-            _state.update { it.copy(availableModels = cachedModels, isLoadingModels = false) }
-            return
-        }
-        
-        viewModelScope.launch {
-            _state.update { it.copy(isLoadingModels = true, availableModels = emptyList()) }
-            val provider = aiManager.getProviderByName(providerName)
-            val models = try {
-                provider.getAvailableModels() ?: emptyList()
-            } catch (e: Exception) {
-                emptyList()
-            }
-            if (models.isNotEmpty()) {
-                providerModelsCache[providerName] = models
-            }
-            _state.update { it.copy(isLoadingModels = false, availableModels = models) }
-        }
-    }
 
     /**
      * Generate the Smartcar Connect OAuth URL for the user to log in.
@@ -347,15 +279,28 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setSelectedAiProvider(provider: String) {
+    fun setAppFontScale(scale: AppFontScale) {
         viewModelScope.launch {
-            preferenceManager.setSelectedAiProvider(provider)
+            preferenceManager.setAppFontScale(scale)
         }
     }
 
-    fun setSelectedModel(model: String) {
+
+    fun toggleLiveCoaching() {
         viewModelScope.launch {
-            preferenceManager.setSelectedModel(_state.value.selectedAiProvider, model)
+            preferenceManager.setLiveCoachingEnabled(!_state.value.liveCoachingEnabled)
+        }
+    }
+
+    fun setKeepDisplayOn(keep: Boolean) {
+        viewModelScope.launch {
+            preferenceManager.setKeepDisplayOn(keep)
+        }
+    }
+
+    fun setCoachVoice(voice: String) {
+        viewModelScope.launch {
+            preferenceManager.setCoachVoice(voice)
         }
     }
 }

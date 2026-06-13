@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ecodrive.app.data.remote.SmartcarApiClient
 import com.ecodrive.app.domain.ai.config.AiConfig
 import com.ecodrive.app.domain.model.AppColorPalette
+import com.ecodrive.app.domain.model.AppFontScale
 import com.ecodrive.app.domain.model.AppTheme
 import com.ecodrive.app.ui.theme.*
 import com.ecodrive.app.util.AppConfig
@@ -97,23 +98,65 @@ fun SettingsScreen(
                 thickness = 0.5.dp,
                 color = MaterialTheme.colorScheme.outlineVariant
             )
+            SettingsRow(
+                label = "Text Size",
+                subLabel = state.appFontScale.getDisplayName(),
+                onClick = { showAppearanceSheet = true }
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 4.dp),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
             SettingsCheckRow(
-                label = "Use Google Maps",
-                checked = state.useGoogleMaps,
-                enabled = true,
+                label = "Keep display on",
+                checked = state.keepDisplayOn,
                 onCheckedChange = {
-                    viewModel.toggleUseGoogleMaps()
+                    viewModel.setKeepDisplayOn(it)
                     com.ecodrive.app.util.HapticHelper.playClick(context)
                 }
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 4.dp),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            SettingsCheckRow(
+                label = "Use Google Maps (Paid)",
+                checked = state.useGoogleMaps,
+                enabled = false,
+                onCheckedChange = {
+                    // Disabled
+                }
+            )
+            Text(
+                text = "Google Maps integration requires a paid API key.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 16.dp, top = 2.dp)
             )
         }
 
         // ── Vehicle Profile ─────────────────────────────────────
         SettingsSection(title = "Vehicle", icon = Icons.Filled.DirectionsCar) {
-            SettingsInfoRow("Profile", "Active Vehicle")
-            SettingsInfoRow("Auto-detection", "Smartcar API")
+            if (state.smartcarApiState == SmartcarApiClient.ApiState.CONNECTED) {
+                val vehicleName = buildString {
+                    if (state.vehicleYear != null) append("${state.vehicleYear} ")
+                    if (state.vehicleMake != null) append("${state.vehicleMake} ")
+                    if (state.vehicleModel != null) append(state.vehicleModel)
+                }.trim().takeIf { it.isNotEmpty() } ?: "Connected Vehicle"
+
+                SettingsInfoRow("Profile", vehicleName)
+                SettingsInfoRow("Odometer", state.odometerKm?.let { UnitConverter.formatDistance(it, state.useMetric) } ?: "--")
+                SettingsInfoRow("Fuel Level", state.fuelTankPercent?.let { "%.0f%%".format(it) } ?: "--")
+            } else {
+                SettingsInfoRow("Profile", "Not Connected")
+                SettingsInfoRow("Odometer", "--")
+                SettingsInfoRow("Fuel Level", "--")
+            }
+
             Text(
-                text = "Add and manage multiple vehicles in the next update.",
+                text = "Connect via Smartcar in the section below to automatically sync your vehicle details.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 4.dp)
@@ -137,6 +180,7 @@ fun SettingsScreen(
                     SmartcarApiClient.ApiState.CONNECTED -> "Connected" to EcoDriveTheme.colors.scoreExcellent
                     SmartcarApiClient.ApiState.AUTHENTICATING -> "Authenticating…" to EcoDriveTheme.colors.scoreAverage
                     SmartcarApiClient.ApiState.ERROR -> "Error" to MaterialTheme.colorScheme.error
+                    SmartcarApiClient.ApiState.AUTH_FAILED -> "Auth Failed" to MaterialTheme.colorScheme.error
                     SmartcarApiClient.ApiState.NOT_CONFIGURED -> "Not configured" to MaterialTheme.colorScheme.onSurfaceVariant
                 }
                 Text(
@@ -148,12 +192,6 @@ fun SettingsScreen(
 
             if (state.smartcarApiState == SmartcarApiClient.ApiState.CONNECTED) {
                 // Show live data from Smartcar API
-                state.fuelTankPercent?.let {
-                    SettingsInfoRow("Fuel Level", "%.0f%%".format(it))
-                }
-                state.odometerKm?.let {
-                    SettingsInfoRow("Odometer", UnitConverter.formatDistance(it, state.useMetric))
-                }
                 SettingsInfoRow(
                     "Calibration Factor",
                     "%.3f".format(state.calibrationFactor),
@@ -337,165 +375,62 @@ fun SettingsScreen(
 
         // ── AI Insights ────────────────────────────────────────
         SettingsSection(title = "AI Coaching & Insights", icon = Icons.Filled.AutoAwesome) {
+            SettingsCheckRow(
+                label = "Live Coaching",
+                checked = state.liveCoachingEnabled,
+                onCheckedChange = {
+                    viewModel.toggleLiveCoaching()
+                    com.ecodrive.app.util.HapticHelper.playClick(context)
+                }
+            )
             Text(
-                text = "Choose an AI provider for real-time coaching and post-trip analysis.",
-                style = MaterialTheme.typography.bodySmall,
+                text = "Provides real-time spoken driving tips and safety alerts.",
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            var showProviderMenu by remember { mutableStateOf(false) }
-            
-            Box(modifier = Modifier.fillMaxWidth()) {
-                OutlinedCard(
-                    onClick = { if (!state.isValidatingProviders) showProviderMenu = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = if (state.isValidatingProviders) "Checking AI Providers..." else "Selected Provider",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            val providerDisplayName = state.selectedAiProvider.lowercase().replaceFirstChar { it.uppercase() }
-                            Text(
-                                text = providerDisplayName,
-                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
-                            )
-                        }
-                        if (state.isValidatingProviders) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                        } else {
-                            Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
-                        }
-                    }
-                }
-
-                DropdownMenu(
-                    expanded = showProviderMenu && !state.isValidatingProviders,
-                    onDismissRequest = { showProviderMenu = false },
-                    modifier = Modifier.fillMaxWidth(0.9f)
-                ) {
-                    val providers = state.validProviders
-                    providers.forEach { provider ->
-                        DropdownMenuItem(
-                            text = { Text(provider.lowercase().replaceFirstChar { it.uppercase() }) },
-                            onClick = {
-                                viewModel.setSelectedAiProvider(provider)
-                                showProviderMenu = false
-                            },
-                            trailingIcon = {
-                                if (state.selectedAiProvider == provider) {
-                                    Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                }
+            Text(
+                text = "Coach Voice",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                val voiceOptions = listOf("DEFAULT", "JARVIS", "FRIDAY")
+                val voiceLabels = listOf("Default", "Jarvis", "Friday")
+                voiceOptions.forEachIndexed { index, voiceOption ->
+                    SegmentedButton(
+                        selected = state.coachVoice == voiceOption,
+                        onClick = {
+                            if (state.coachVoice != voiceOption) {
+                                viewModel.setCoachVoice(voiceOption)
+                                com.ecodrive.app.util.HapticHelper.playClick(context)
                             }
-                        )
-                    }
-                }
-            }
-
-            if (state.selectedAiProvider != "LOCAL") {
-                Spacer(modifier = Modifier.height(16.dp))
-
-                var showModelMenu by remember { mutableStateOf(false) }
-
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedCard(
-                        onClick = { showModelMenu = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Selected Model",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                if (state.isLoadingModels) {
-                                    Text(
-                                        text = "Loading models...",
-                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
-                                    )
-                                } else {
-                                    Text(
-                                        text = state.selectedModel.ifBlank { "Default Model" },
-                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                            if (state.isLoadingModels) {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                            } else {
-                                Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
-                            }
-                        }
-                    }
-
-                    if (state.availableModels.isNotEmpty()) {
-                        DropdownMenu(
-                            expanded = showModelMenu,
-                            onDismissRequest = { showModelMenu = false },
-                            modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 300.dp)
-                        ) {
-                            state.availableModels.forEach { model ->
-                                DropdownMenuItem(
-                                    text = { Text(model) },
-                                    onClick = {
-                                        viewModel.setSelectedModel(model)
-                                        showModelMenu = false
-                                    },
-                                    trailingIcon = {
-                                        if (state.selectedModel == model) {
-                                            Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                    }
+                        },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = voiceOptions.size),
+                        label = { Text(voiceLabels[index]) }
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (state.selectedAiProvider == "LOCAL") {
-                Text(
-                    text = "Local coaching uses rule-based logic and doesn't require an internet connection or API keys.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                Text(
-                    text = "Coaching and insights are powered by hardcoded AI configurations for optimal performance.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Text(
+                text = "EcoDrive automatically selects the best AI provider for optimal performance and cost efficiency.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         // ── About ───────────────────────────────────────────────
         SettingsSection(title = "About", icon = Icons.Filled.Info) {
-            SettingsInfoRow("App", "EcoDrive v1.1.0")
+            val appVersion = "${com.ecodrive.app.BuildConfig.VERSION_NAME} (${com.ecodrive.app.BuildConfig.VERSION_CODE})"
+            val buildType = com.ecodrive.app.BuildConfig.BUILD_TYPE.replaceFirstChar { it.uppercase() }
+            
+            SettingsInfoRow("App Version", appVersion)
+            SettingsInfoRow("Build", buildType)
+            SettingsInfoRow("Package", com.ecodrive.app.BuildConfig.APPLICATION_ID)
             SettingsInfoRow("Engine", "Physics-based Power-to-Fuel Model")
             SettingsInfoRow("Calibration", "Self-improving via Smartcar API")
         }
@@ -507,10 +442,12 @@ fun SettingsScreen(
         AppearanceBottomSheet(
             currentTheme = state.appTheme,
             currentPalette = state.appPalette,
+            currentFontScale = state.appFontScale,
             useMetric = state.useMetric,
             mapStyle = state.mapStyle,
             onThemeChange = viewModel::setAppTheme,
             onPaletteChange = viewModel::setColorPalette,
+            onFontScaleChange = viewModel::setAppFontScale,
             onToggleUnits = viewModel::toggleUnits,
             onMapStyleChange = viewModel::setMapStyle,
             onDismiss = { showAppearanceSheet = false }
@@ -523,10 +460,12 @@ fun SettingsScreen(
 private fun AppearanceBottomSheet(
     currentTheme: AppTheme,
     currentPalette: AppColorPalette,
+    currentFontScale: AppFontScale,
     useMetric: Boolean,
     mapStyle: com.ecodrive.app.util.MapStyle,
     onThemeChange: (AppTheme) -> Unit,
     onPaletteChange: (AppColorPalette) -> Unit,
+    onFontScaleChange: (AppFontScale) -> Unit,
     onToggleUnits: () -> Unit,
     onMapStyleChange: (com.ecodrive.app.util.MapStyle) -> Unit,
     onDismiss: () -> Unit,
@@ -540,10 +479,12 @@ private fun AppearanceBottomSheet(
         AppearanceSelector(
             currentTheme = currentTheme,
             currentPalette = currentPalette,
+            currentFontScale = currentFontScale,
             useMetric = useMetric,
             mapStyle = mapStyle,
             onThemeChange = onThemeChange,
             onPaletteChange = onPaletteChange,
+            onFontScaleChange = onFontScaleChange,
             onToggleUnits = onToggleUnits,
             onMapStyleChange = onMapStyleChange
         )
@@ -555,10 +496,12 @@ private fun AppearanceBottomSheet(
 private fun AppearanceSelector(
     currentTheme: AppTheme,
     currentPalette: AppColorPalette,
+    currentFontScale: AppFontScale,
     useMetric: Boolean,
     mapStyle: com.ecodrive.app.util.MapStyle,
     onThemeChange: (AppTheme) -> Unit,
     onPaletteChange: (AppColorPalette) -> Unit,
+    onFontScaleChange: (AppFontScale) -> Unit,
     onToggleUnits: () -> Unit,
     onMapStyleChange: (com.ecodrive.app.util.MapStyle) -> Unit,
 ) {
@@ -598,6 +541,30 @@ private fun AppearanceSelector(
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+                    )
+                }
+            }
+        }
+
+        // Font Scale Selector
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "Text Size",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                AppFontScale.entries.forEachIndexed { index, scale ->
+                    SegmentedButton(
+                        selected = currentFontScale == scale,
+                        onClick = {
+                            if (currentFontScale != scale) {
+                                onFontScaleChange(scale)
+                                com.ecodrive.app.util.HapticHelper.playClick(context)
+                            }
+                        },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = AppFontScale.entries.size),
+                        label = { Text(scale.getDisplayName()) }
                     )
                 }
             }

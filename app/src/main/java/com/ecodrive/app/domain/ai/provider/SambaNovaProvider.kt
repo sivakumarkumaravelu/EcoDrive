@@ -60,8 +60,15 @@ class SambaNovaProvider @Inject constructor() : AiProvider {
         val apiKey = AiConfig.SAMBANOVA_API_KEY
         if (apiKey.isBlank() || apiKey.startsWith("YOUR_")) return@withContext null
 
+        val availableModels = getAvailableModels()
+        val targetModel = if (availableModels.isNullOrEmpty()) {
+            model ?: defaultModel
+        } else {
+            if (model != null && availableModels.contains(model)) model else availableModels.first()
+        }
+
         val requestBodyJson = buildJsonObject {
-            put("model", model ?: defaultModel)
+            put("model", targetModel)
             put("messages", buildJsonArray {
                 add(buildJsonObject { put("role", "user"); put("content", prompt) })
             })

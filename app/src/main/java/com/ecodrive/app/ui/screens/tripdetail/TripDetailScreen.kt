@@ -272,7 +272,7 @@ fun TripDetailScreen(
                     )
                 }
                 items(state.anomalies) { anomaly ->
-                    AnomalyCard(anomaly)
+                    AnomalyCard(anomaly, state.useMetric)
                     Spacer(modifier = Modifier.height(12.dp))
                 }
             }
@@ -287,7 +287,7 @@ fun TripDetailScreen(
                     ) {
                         LineChart(
                             points = if (state.useMetric) state.fuelPoints else state.fuelPoints.map {
-                                it.copy(y = UnitConverter.l100kmToMpg(it.y.toDouble()).toFloat())
+                                it.copy(y = UnitConverter.l100kmToMpg(it.y.toDouble()).toFloat().coerceAtMost(100f))
                             },
                             lineColor = EcoDriveTheme.colors.gaugeOrange,
                             yAxisLabel = unit,
@@ -402,25 +402,37 @@ private fun AiInsightCard(
             )
         } else if (insight != null) {
             val sections = remember(insight) {
-                insight.split(Regex("(?=\\d\\.\\s|Summary:|Key Moments:|Improvement Plan:)"))
+                // First, normalize the headers to prevent splitting inside ** markers
+                val normalizedInsight = insight
+                    .replace(Regex("\\*\\*(\\d\\.\\s.*?):?\\*\\*:?"), "$1:")
+                    .replace(Regex("\\*\\*(Summary|Key Moments|Improvement Plan):?\\*\\*:?"), "$1:")
+                    .replace(Regex("###\\s+"), "") // Remove markdown h3 if present
+                
+                normalizedInsight.split(Regex("(?=\\d\\.\\s|Summary:|Key Moments:|Improvement Plan:)"))
                     .map { it.trim() }
                     .filter { it.isNotBlank() }
             }
 
             if (sections.size > 1) {
                 sections.forEach { section ->
-                    val isSummary = section.startsWith("Summary") || section.startsWith("1.")
-                    val isKeyMoments = section.startsWith("Key Moments") || section.startsWith("2.")
-                    val isImprovement = section.startsWith("Improvement Plan") || section.startsWith("3.")
+                    val isSummary = section.contains("Summary") || section.startsWith("1.")
+                    val isKeyMoments = section.contains("Key Moments") || section.startsWith("2.")
+                    val isImprovement = section.contains("Improvement Plan") || section.startsWith("3.")
 
-                    val (headerText, bodyText) = if (section.contains(":")) {
-                        section.substringBefore(":").replace(Regex("\\d\\.\\s"), "").trim() to 
-                        section.substringAfter(":").trim()
-                    } else if (section.matches(Regex("\\d\\.\\s.*"))) {
-                        section.substringBefore(" ").trim() to section.substringAfter(" ").trim()
-                    } else {
-                        "" to section
+                    // Cleanly extract header and body
+                    var headerText = ""
+                    var bodyText = section
+                    
+                    if (section.contains(":")) {
+                        headerText = section.substringBefore(":").replace(Regex("^\\d\\.\\s*"), "").trim()
+                        bodyText = section.substringAfter(":").trim()
+                    } else if (section.matches(Regex("^\\d\\.\\s[\\s\\S]*"))) {
+                        headerText = section.substringBefore("\n").replace(Regex("^\\d\\.\\s*"), "").trim()
+                        bodyText = section.substringAfter("\n").trim()
                     }
+
+                    // Remove any lingering bold tags from the header
+                    headerText = headerText.replace("**", "").trim()
 
                     if (headerText.isNotBlank()) {
                         Row(
@@ -453,7 +465,7 @@ private fun AiInsightCard(
                     
                     if (bodyText.isNotBlank()) {
                         Text(
-                            text = bodyText,
+                            text = formatMarkdownBold(bodyText),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(bottom = 8.dp)
@@ -462,7 +474,7 @@ private fun AiInsightCard(
                 }
             } else {
                 Text(
-                    text = insight,
+                    text = formatMarkdownBold(insight),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
@@ -679,8 +691,14 @@ private fun EventTimelineItem(
         )
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
+            val displayDescription = if (event.type == DrivingEventType.EXCESSIVE_SPEED) {
+                "Excessive speed: ${com.ecodrive.app.util.UnitConverter.formatSpeed(event.value, useMetric)}"
+            } else {
+                event.description
+            }
+            
             Text(
-                text = event.description,
+                text = displayDescription,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -727,7 +745,7 @@ private fun formatDuration(seconds: Long): String {
 }
 
 @Composable
-private fun AnomalyCard(anomaly: com.ecodrive.app.domain.model.VehicleAnomaly) {
+private fun AnomalyCard(anomaly: com.ecodrive.app.domain.model.VehicleAnomaly, useMetric: Boolean) {
     val (icon, color) = when (anomaly.severity) {
         com.ecodrive.app.domain.model.AnomalySeverity.HIGH -> Icons.Filled.Error to MaterialTheme.colorScheme.error
         com.ecodrive.app.domain.model.AnomalySeverity.MEDIUM -> Icons.Filled.Warning to EcoDriveTheme.colors.gaugeOrange
@@ -758,8 +776,15 @@ private fun AnomalyCard(anomaly: com.ecodrive.app.domain.model.VehicleAnomaly) {
         
         Spacer(modifier = Modifier.height(8.dp))
         
+        val displayDescription = if (anomaly.type == com.ecodrive.app.domain.model.AnomalyType.HIGH_FUEL_CONSUMPTION) {
+            val baseDesc = anomaly.description.replace(Regex(" at .*$"), "")
+            "$baseDesc at ${com.ecodrive.app.util.UnitConverter.formatSpeed(anomaly.detectedAtSpeedKmh, useMetric)}"
+        } else {
+            anomaly.description
+        }
+        
         Text(
-            text = anomaly.description,
+            text = displayDescription,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -781,7 +806,7 @@ private fun AnomalyCard(anomaly: com.ecodrive.app.domain.model.VehicleAnomaly) {
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = anomaly.aiDiagnosis,
+                    text = formatMarkdownBold(anomaly.aiDiagnosis),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
