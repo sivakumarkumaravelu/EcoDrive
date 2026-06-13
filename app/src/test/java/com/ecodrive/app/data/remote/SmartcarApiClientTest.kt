@@ -16,54 +16,41 @@ class SmartcarApiClientTest {
 
     @Test
     fun `test getAuthUrl includes make when provided`() {
-        // Given
-        val clientId = "test-client-id"
-        val make = "ford"
+        val appId = "test_app_id"
+        val make = "FORD"
 
-        // When
-        val url = smartcarApiClient.getAuthUrl(clientId, make)
+        val url = smartcarApiClient.getAuthUrl(appId, make)
 
-        // Then
-        assertTrue(url.contains("make=FORD"))
-        // Smartcar Connect requires the raw ID without the client_ prefix
-        assertTrue(url.contains("client_id=test-client-id"))
+        assertTrue("URL should contain client_id", url.contains("client_id=test_app_id"))
+        assertTrue("URL should contain make=FORD", url.contains("make=FORD"))
+        assertTrue("URL should contain single_select", url.contains("single_select=true"))
     }
 
     @Test
     fun `test getAuthUrl omits make when null`() {
-        // Given
-        val clientId = "test-client-id"
+        val appId = "test_app_id"
 
-        // When
-        val url = smartcarApiClient.getAuthUrl(clientId, null)
+        val url = smartcarApiClient.getAuthUrl(appId, null)
 
-        // Then
-        assertTrue(!url.contains("make="))
-        // Smartcar Connect requires the raw ID without the client_ prefix
-        assertTrue(url.contains("client_id=test-client-id"))
+        assertTrue("URL should contain client_id", url.contains("client_id=test_app_id"))
+        assertTrue("URL should not contain make", !url.contains("make="))
     }
 
     @Test
-    fun `test getAuthUrl uses existing client_ prefix`() {
-        // Given
-        val clientId = "client_test-client-id"
+    fun `test getAuthUrl uses existing app id`() {
+        val appId = "fa9028be-a5c6-4c9b-8ca8-8289e90c701c"
 
-        // When
-        val url = smartcarApiClient.getAuthUrl(clientId, null)
+        val url = smartcarApiClient.getAuthUrl(appId, null)
 
-        // Then
-        // Must strip the client_ prefix
-        assertTrue(url.contains("client_id=test-client-id"))
-        assertTrue(!url.contains("client_id=client_test-client-id"))
+        assertTrue("URL should contain exact app id", url.contains("client_id=fa9028be-a5c6-4c9b-8ca8-8289e90c701c"))
+        assertTrue("URL should not contain make", !url.contains("make="))
     }
 
     @Test
     fun `test getAuthUrl includes required scopes`() {
-        // Given
-        val clientId = "test-client-id"
+        val appId = "test_app_id"
 
-        // When
-        val url = smartcarApiClient.getAuthUrl(clientId)
+        val url = smartcarApiClient.getAuthUrl(appId)
 
         // Then
         assertTrue(url.contains("read_vehicle_info"))

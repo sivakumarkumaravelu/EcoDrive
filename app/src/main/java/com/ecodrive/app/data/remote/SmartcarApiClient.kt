@@ -85,18 +85,17 @@ class SmartcarApiClient @Inject constructor() {
 
     /**
      * Generate the Smartcar Connect OAuth URL.
-     * Smartcar Connect expects the client_id WITHOUT the "client_" prefix.
+     * Smartcar Connect expects the Application ID as the client_id parameter.
      *
-     * @param clientId Your Smartcar app's client ID (with or without client_ prefix)
+     * @param applicationId Your Smartcar app's Application ID
      * @param make Optional vehicle brand to pre-filter (e.g., "FORD", "TOYOTA")
      */
-    fun getAuthUrl(clientId: String, make: String? = null): String {
-        // Smartcar Connect expects the raw ID without the "client_" prefix
-        val cleanClientId = clientId.trim().removePrefix("client_")
+    fun getAuthUrl(applicationId: String, make: String? = null): String {
+        val cleanAppId = applicationId.trim()
         val makeParam = if (make.isNullOrBlank()) "" else "&make=${make.uppercase()}"
         return "https://connect.smartcar.com/oauth/authorize" +
                 "?response_type=code" +
-                "&client_id=$cleanClientId" +
+                "&client_id=$cleanAppId" +
                 "&redirect_uri=${Constants.SMARTCAR_REDIRECT_URI}" +
                 "&scope=read_vehicle_info+read_fuel+read_battery+read_odometer+read_tires+read_location" +
                 makeParam +

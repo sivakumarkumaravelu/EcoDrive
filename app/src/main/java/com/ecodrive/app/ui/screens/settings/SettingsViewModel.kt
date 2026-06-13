@@ -201,7 +201,7 @@ class SettingsViewModel @Inject constructor(
             preferenceManager.setSmartcarClientId(clientId)
             preferenceManager.setSmartcarClientSecret(clientSecret)
         }
-        return smartcarApiClient.getAuthUrl(clientId)
+        return smartcarApiClient.getAuthUrl(appId)
     }
 
     /**

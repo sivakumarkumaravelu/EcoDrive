@@ -149,7 +149,7 @@ class SettingsViewModelTest {
     @Test
     fun `test getAuthUrl delegates to smartcarApiClient when clientId set`() = runTest {
         advanceUntilIdle()
-        every { smartcarApiClient.getAuthUrl("my-client") } returns "https://auth.example.com"
+        every { smartcarApiClient.getAuthUrl("my-app") } returns "https://auth.example.com"
         viewModel.updateApplicationId("my-app")
         viewModel.updateClientId("my-client")
         val url = viewModel.getAuthUrl()
@@ -236,11 +236,11 @@ class SettingsViewModelTest {
         viewModel.updateClientId("  client_123   ")
         viewModel.updateClientSecret("   secret_456  ")
 
-        every { smartcarApiClient.getAuthUrl("client_123") } returns "https://auth.example.com?client_id=client_123"
+        every { smartcarApiClient.getAuthUrl("app_123") } returns "https://auth.example.com?client_id=app_123"
 
         val url = viewModel.getAuthUrl()
 
-        assertEquals("https://auth.example.com?client_id=client_123", url)
+        assertEquals("https://auth.example.com?client_id=app_123", url)
 
         advanceUntilIdle()
 
