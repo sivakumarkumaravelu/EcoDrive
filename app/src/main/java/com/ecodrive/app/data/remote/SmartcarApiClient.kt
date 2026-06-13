@@ -93,13 +93,14 @@ class SmartcarApiClient @Inject constructor() {
      * @param make Optional vehicle brand to pre-filter (e.g., "FORD", "TOYOTA")
      */
     fun getAuthUrl(clientId: String, make: String? = null): String {
-        val cleanClientId = clientId.trim().removePrefix("client_")
+        // Smartcar Connect requires the full client_ prefixed ID
+        val fullClientId = if (clientId.trim().startsWith("client_")) clientId.trim() else "client_${clientId.trim()}"
         val makeParam = if (make.isNullOrBlank()) "" else "&make=${make.uppercase()}"
         return "https://connect.smartcar.com/oauth/authorize" +
                 "?response_type=code" +
-                "&client_id=$cleanClientId" +
+                "&client_id=$fullClientId" +
                 "&redirect_uri=${Constants.SMARTCAR_REDIRECT_URI}" +
-                "&scope=read_fuel+read_battery+read_odometer+read_tires+read_location" +
+                "&scope=read_vehicle_info+read_fuel+read_battery+read_odometer+read_tires+read_location" +
                 makeParam +
                 "&mode=live" +
                 "&single_select=true"
@@ -377,13 +378,20 @@ class SmartcarApiClient @Inject constructor() {
     // ── Internals ───────────────────────────────────────────────
 
     private suspend fun fetchVehicleId() {
-        val url = "https://api.smartcar.com/v2.0/vehicles"
+        // Smartcar API v3: use /connections endpoint, scoped by user ID
+        val url = if (currentUserId != null) {
+            "${BASE_URL}connections?filter[user_id]=$currentUserId"
+        } else {
+            "${BASE_URL}connections"
+        }
 
         val response = apiGet(url)
         val json = JSONObject(response)
-        val vehicles = json.getJSONArray("vehicles")
-        if (vehicles.length() > 0) {
-            vehicleId = vehicles.getString(0)
+        // v3 connections response: { "connections": [ { "vehicleId": "...", "userId": "...", ... } ] }
+        val connections = json.getJSONArray("connections")
+        if (connections.length() > 0) {
+            val firstConnection = connections.getJSONObject(0)
+            vehicleId = firstConnection.getString("vehicleId")
             Log.i(TAG, "Vehicle ID: $vehicleId")
         } else {
             throw Exception("No vehicles found in account")
