@@ -67,17 +67,6 @@ class DashboardViewModel @Inject constructor(
         observeRecorderState()
         observePreferences()
         fetchPrediction()
-        
-        // Auto-reconnect Smartcar if credentials exist
-        viewModelScope.launch {
-            val id = preferenceManager.smartcarClientId.first()
-            val secret = preferenceManager.smartcarClientSecret.first()
-            val refreshToken = preferenceManager.smartcarRefreshToken.first()
-            val userId = preferenceManager.smartcarUserId.first()
-            if (id.isNotBlank() && secret.isNotBlank() && refreshToken.isNotBlank()) {
-                smartcarApiClient.refreshAccessToken(id, secret, refreshToken, userId)
-            }
-        }
     }
 
     private fun observeLocalVehicle() {

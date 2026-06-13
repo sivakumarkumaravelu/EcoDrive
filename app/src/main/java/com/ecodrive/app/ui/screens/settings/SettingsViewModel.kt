@@ -45,7 +45,6 @@ class SettingsViewModel @Inject constructor(
         val appFontScale: AppFontScale = AppFontScale.MEDIUM,
         val hasBluetoothPermissions: Boolean = false,
         val hasBackgroundLocationPermission: Boolean = false,
-        val smartcarUserId: String = "",
         // Active/Display data (Smartcar preferred if connected)
         val vehicleMake: String? = null,
         val vehicleModel: String? = null,
@@ -73,19 +72,17 @@ class SettingsViewModel @Inject constructor(
             val id = preferenceManager.smartcarClientId.first()
             val secret = preferenceManager.smartcarClientSecret.first()
             val refreshToken = preferenceManager.smartcarRefreshToken.first()
-            val userId = preferenceManager.smartcarUserId.first()
             _state.update {
                 it.copy(
                     smartcarApplicationId = appId,
                     smartcarClientId = id,
-                    smartcarClientSecret = secret,
-                    smartcarUserId = userId
+                    smartcarClientSecret = secret
                 )
             }
             
             // Auto-reconnect if credentials are present
             if (id.isNotBlank() && secret.isNotBlank() && refreshToken.isNotBlank()) {
-                smartcarApiClient.refreshAccessToken(id, secret, refreshToken, userId)
+                smartcarApiClient.authenticate(id, secret, refreshToken)
             }
         }
         observeSmartcarState()
@@ -241,10 +238,8 @@ class SettingsViewModel @Inject constructor(
         val clientSecret = _state.value.smartcarClientSecret.trim()
         viewModelScope.launch {
             val result = smartcarApiClient.exchangeCode(code, userId, clientId, clientSecret)
-            result.onSuccess { (newRefreshToken, scUserId) ->
-                preferenceManager.setSmartcarRefreshToken(newRefreshToken)
-                preferenceManager.setSmartcarUserId(scUserId)
-                _state.update { it.copy(smartcarUserId = scUserId) }
+            result.onSuccess {
+                // The restored v1.3.9 implementation uses app-level credentials and doesn't return a refresh token here.
             }
         }
     }
@@ -272,13 +267,11 @@ class SettingsViewModel @Inject constructor(
             preferenceManager.setSmartcarClientId("")
             preferenceManager.setSmartcarClientSecret("")
             preferenceManager.setSmartcarRefreshToken("")
-            preferenceManager.setSmartcarUserId("")
         }
         _state.update {
             it.copy(
                 smartcarClientId = "",
-                smartcarClientSecret = "",
-                smartcarUserId = ""
+                smartcarClientSecret = ""
             )
         }
     }
