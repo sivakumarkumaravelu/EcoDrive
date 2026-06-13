@@ -69,6 +69,8 @@ class SmartcarApiClient @Inject constructor() {
     @Volatile
     private var accessToken: String? = null
     @Volatile
+    private var refreshToken: String? = null
+    @Volatile
     private var currentUserId: String? = null
     @Volatile
     private var vehicleId: String? = null
@@ -109,27 +111,28 @@ class SmartcarApiClient @Inject constructor() {
     suspend fun authenticate(
         clientId: String,
         clientSecret: String,
-        userId: String? = null
-    ): Result<Unit> = withContext(Dispatchers.IO) {
+        savedRefreshToken: String
+    ): Result<String> = withContext(Dispatchers.IO) {
         val fullClientId = if (clientId.trim().startsWith("client_")) clientId.trim() else "client_${clientId.trim()}"
         try {
             _state.value = ApiState.AUTHENTICATING
-            if (userId != null) {
-                currentUserId = userId
-            }
             savedClientId = fullClientId
             savedClientSecret = clientSecret.trim()
+            this@SmartcarApiClient.refreshToken = savedRefreshToken
 
-            val url = URL("https://iam.smartcar.com/oauth2/token")
+            val url = URL("https://auth.smartcar.com/oauth/token")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
             
+            val authStr = "$fullClientId:${clientSecret.trim()}"
+            val b64Auth = android.util.Base64.encodeToString(authStr.toByteArray(), android.util.Base64.NO_WRAP)
+            connection.setRequestProperty("Authorization", "Basic $b64Auth")
+            
             connection.doOutput = true
 
-            val body = "grant_type=client_credentials" +
-                    "&client_id=$fullClientId" +
-                    "&client_secret=${clientSecret.trim()}"
+            val body = "grant_type=refresh_token" +
+                    "&refresh_token=$savedRefreshToken"
 
             connection.outputStream.write(body.toByteArray())
 
@@ -137,13 +140,15 @@ class SmartcarApiClient @Inject constructor() {
                 val response = readResponse(connection)
                 val json = JSONObject(response)
                 accessToken = json.getString("access_token")
+                val newRefreshToken = json.getString("refresh_token")
+                this@SmartcarApiClient.refreshToken = newRefreshToken
 
                 // Get vehicle ID
                 fetchVehicleId()
 
                 _state.value = ApiState.CONNECTED
                 startPolling()
-                Result.success(Unit)
+                Result.success(newRefreshToken)
             } else {
                 val errorStream = connection.errorStream
                 val errorDetails = if (errorStream != null) {
@@ -188,7 +193,7 @@ class SmartcarApiClient @Inject constructor() {
         userId: String?,
         clientId: String,
         clientSecret: String,
-    ): Result<Unit> = withContext(Dispatchers.IO) {
+    ): Result<String> = withContext(Dispatchers.IO) {
         val fullClientId = if (clientId.trim().startsWith("client_")) clientId.trim() else "client_${clientId.trim()}"
         try {
             _state.value = ApiState.AUTHENTICATING
@@ -219,13 +224,15 @@ class SmartcarApiClient @Inject constructor() {
                 val response = readResponse(connection)
                 val json = JSONObject(response)
                 accessToken = json.getString("access_token")
+                val newRefreshToken = json.getString("refresh_token")
+                refreshToken = newRefreshToken
 
                 // Get vehicle ID
                 fetchVehicleId()
 
                 _state.value = ApiState.CONNECTED
                 startPolling()
-                Result.success(Unit)
+                Result.success(newRefreshToken)
             } else {
                 val errorStream = connection.errorStream
                 val errorDetails = if (errorStream != null) {
@@ -370,20 +377,13 @@ class SmartcarApiClient @Inject constructor() {
     // ── Internals ───────────────────────────────────────────────
 
     private suspend fun fetchVehicleId() {
-        val url = if (currentUserId != null) {
-            "${BASE_URL}connections?filter[user_id]=$currentUserId"
-        } else {
-            "${BASE_URL}connections"
-        }
+        val url = "https://api.smartcar.com/v2.0/vehicles"
 
         val response = apiGet(url)
         val json = JSONObject(response)
-        val connections = json.getJSONArray("data")
-        if (connections.length() > 0) {
-            val firstConnection = connections.getJSONObject(0)
-            val relationships = firstConnection.getJSONObject("relationships")
-            val vehicle = relationships.getJSONObject("vehicle").getJSONObject("data")
-            vehicleId = vehicle.getString("id")
+        val vehicles = json.getJSONArray("vehicles")
+        if (vehicles.length() > 0) {
+            vehicleId = vehicles.getString(0)
             Log.i(TAG, "Vehicle ID: $vehicleId")
         } else {
             throw Exception("No vehicles found in account")
@@ -450,16 +450,21 @@ class SmartcarApiClient @Inject constructor() {
     private suspend fun refreshToken(): Boolean = withContext(Dispatchers.IO) {
         val clientId = savedClientId ?: return@withContext false
         val secret = savedClientSecret ?: return@withContext false
+        val refToken = refreshToken ?: return@withContext false
         try {
-            val url = URL("https://iam.smartcar.com/oauth2/token")
+            val url = URL("https://auth.smartcar.com/oauth/token")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            
+            val authStr = "$clientId:${secret}"
+            val b64Auth = android.util.Base64.encodeToString(authStr.toByteArray(), android.util.Base64.NO_WRAP)
+            connection.setRequestProperty("Authorization", "Basic $b64Auth")
+            
             connection.doOutput = true
 
-            val body = "grant_type=client_credentials" +
-                    "&client_id=$clientId" +
-                    "&client_secret=$secret"
+            val body = "grant_type=refresh_token" +
+                    "&refresh_token=$refToken"
 
             connection.outputStream.write(body.toByteArray())
 
@@ -467,6 +472,7 @@ class SmartcarApiClient @Inject constructor() {
                 val response = readResponse(connection)
                 val json = JSONObject(response)
                 accessToken = json.getString("access_token")
+                refreshToken = json.getString("refresh_token")
                 true
             } else {
                 Log.e(TAG, "Token refresh failed with response code ${connection.responseCode}")

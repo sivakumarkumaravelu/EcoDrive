@@ -42,6 +42,18 @@ class SmartcarApiClientTest {
     }
 
     @Test
+    fun `test getAuthUrl uses existing client_ prefix`() {
+        // Given
+        val clientId = "client_test-client-id"
+
+        // When
+        val url = smartcarApiClient.getAuthUrl(clientId, null)
+
+        // Then
+        assertTrue(url.contains("client_id=test-client-id"))
+    }
+
+    @Test
     fun `test getAuthUrl includes required scopes`() {
         // Given
         val clientId = "test-client-id"
