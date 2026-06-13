@@ -25,8 +25,8 @@ class SmartcarApiClientTest {
 
         // Then
         assertTrue(url.contains("make=FORD"))
-        // Smartcar Connect requires the full client_ prefixed ID
-        assertTrue(url.contains("client_id=client_test-client-id"))
+        // Smartcar Connect requires the raw ID without the client_ prefix
+        assertTrue(url.contains("client_id=test-client-id"))
     }
 
     @Test
@@ -39,8 +39,8 @@ class SmartcarApiClientTest {
 
         // Then
         assertTrue(!url.contains("make="))
-        // Smartcar Connect requires the full client_ prefixed ID
-        assertTrue(url.contains("client_id=client_test-client-id"))
+        // Smartcar Connect requires the raw ID without the client_ prefix
+        assertTrue(url.contains("client_id=test-client-id"))
     }
 
     @Test
@@ -52,9 +52,9 @@ class SmartcarApiClientTest {
         val url = smartcarApiClient.getAuthUrl(clientId, null)
 
         // Then
-        // Must NOT double-prefix - if already has client_, use as-is
-        assertTrue(url.contains("client_id=client_test-client-id"))
-        assertTrue(!url.contains("client_id=client_client_test-client-id"))
+        // Must strip the client_ prefix
+        assertTrue(url.contains("client_id=test-client-id"))
+        assertTrue(!url.contains("client_id=client_test-client-id"))
     }
 
     @Test

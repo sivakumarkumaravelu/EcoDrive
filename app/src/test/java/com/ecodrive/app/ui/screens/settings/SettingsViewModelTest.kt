@@ -58,7 +58,7 @@ class SettingsViewModelTest {
 
         every { smartcarApiClient.state } returns apiStateFlow
         every { smartcarApiClient.vehicleData } returns vehicleDataFlow
-        coEvery { smartcarApiClient.exchangeCode(any(), any(), any(), any()) } returns Result.success("mock_refresh_token")
+        coEvery { smartcarApiClient.exchangeCode(any(), any(), any(), any()) } returns Result.success(Unit)
         every { preferenceManager.autoRecordEnabled } returns autoRecordFlow
         every { preferenceManager.useMetricUnits } returns useMetricFlow
         every { preferenceManager.appTheme } returns appThemeFlow

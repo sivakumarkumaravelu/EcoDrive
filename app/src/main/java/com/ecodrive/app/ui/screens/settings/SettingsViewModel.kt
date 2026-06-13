@@ -212,8 +212,8 @@ class SettingsViewModel @Inject constructor(
         val clientSecret = _state.value.smartcarClientSecret.trim()
         viewModelScope.launch {
             val result = smartcarApiClient.exchangeCode(code, userId, clientId, clientSecret)
-            result.onSuccess { refreshToken ->
-                preferenceManager.setSmartcarRefreshToken(refreshToken)
+            result.onSuccess {
+                // The restored v1.3.9 implementation uses app-level credentials and doesn't return a refresh token here.
             }
         }
     }
