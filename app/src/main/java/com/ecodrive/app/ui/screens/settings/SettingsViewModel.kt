@@ -72,6 +72,7 @@ class SettingsViewModel @Inject constructor(
             val id = preferenceManager.smartcarClientId.first()
             val secret = preferenceManager.smartcarClientSecret.first()
             val refreshToken = preferenceManager.smartcarRefreshToken.first()
+            val userId = preferenceManager.smartcarUserId.first()
             _state.update {
                 it.copy(
                     smartcarApplicationId = appId,
@@ -82,7 +83,7 @@ class SettingsViewModel @Inject constructor(
             
             // Auto-reconnect if credentials are present
             if (id.isNotBlank() && secret.isNotBlank() && refreshToken.isNotBlank()) {
-                smartcarApiClient.authenticate(id, secret, refreshToken)
+                smartcarApiClient.authenticate(id, secret, userId)
             }
         }
         observeSmartcarState()
@@ -237,9 +238,12 @@ class SettingsViewModel @Inject constructor(
         val clientId = _state.value.smartcarClientId.trim()
         val clientSecret = _state.value.smartcarClientSecret.trim()
         viewModelScope.launch {
+            if (userId != null) {
+                preferenceManager.setSmartcarUserId(userId)
+            }
             val result = smartcarApiClient.exchangeCode(code, userId, clientId, clientSecret)
             result.onSuccess {
-                // The restored v1.3.9 implementation uses app-level credentials and doesn't return a refresh token here.
+                // Management API uses app-level credentials
             }
         }
     }
@@ -267,6 +271,7 @@ class SettingsViewModel @Inject constructor(
             preferenceManager.setSmartcarClientId("")
             preferenceManager.setSmartcarClientSecret("")
             preferenceManager.setSmartcarRefreshToken("")
+            preferenceManager.setSmartcarUserId("")
         }
         _state.update {
             it.copy(
