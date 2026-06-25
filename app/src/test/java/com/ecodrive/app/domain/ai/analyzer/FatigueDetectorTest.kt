@@ -33,7 +33,7 @@ class FatigueDetectorTest {
         
         var status = FatigueStatus.NORMAL
         for (i in 0 until 50) {
-            val speed = if (i % 2 == 0) 75.0 else 45.0
+            val speed = if (i % 2 == 0) 85.0 else 35.0
             status = fatigueDetector.analyze(DrivingMetrics(speedKmh = speed))
         }
         
@@ -68,9 +68,9 @@ class FatigueDetectorTest {
         
         var status = FatigueStatus.NORMAL
         for (i in 0 until 50) {
-            // Use 4.0 to ensure average abs > 1.5
-            // (50*0 + 50*4)/100 = 2.0
-            status = fatigueDetector.analyze(DrivingMetrics(speedKmh = 60.0, lateralAccelMps2 = 4.0))
+            // Use 5.0 to ensure average abs > 2.0
+            // (50*0 + 50*5)/100 = 2.5
+            status = fatigueDetector.analyze(DrivingMetrics(speedKmh = 60.0, lateralAccelMps2 = 5.0))
         }
         
         assertEquals(FatigueStatus.MODERATE_RISK, status)

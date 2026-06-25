@@ -71,7 +71,6 @@ class SettingsViewModel @Inject constructor(
             val appId = preferenceManager.smartcarApplicationId.first()
             val id = preferenceManager.smartcarClientId.first()
             val secret = preferenceManager.smartcarClientSecret.first()
-            val refreshToken = preferenceManager.smartcarRefreshToken.first()
             val userId = preferenceManager.smartcarUserId.first()
             _state.update {
                 it.copy(
@@ -82,7 +81,7 @@ class SettingsViewModel @Inject constructor(
             }
             
             // Auto-reconnect if credentials are present
-            if (id.isNotBlank() && secret.isNotBlank() && refreshToken.isNotBlank()) {
+            if (id.isNotBlank() && secret.isNotBlank() && userId.isNotBlank()) {
                 smartcarApiClient.authenticate(id, secret, userId)
             }
         }
@@ -132,6 +131,17 @@ class SettingsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             smartcarApiClient.vehicleData.collect { data ->
+                if (data.make != null || data.model != null || data.year != null || data.fuelPercent != null || data.odometerKm != null) {
+                    val current = _state.value.localVehicle ?: Vehicle()
+                    vehicleRepository.saveVehicle(current.copy(
+                        make = data.make ?: current.make,
+                        model = data.model ?: current.model,
+                        year = data.year ?: current.year,
+                        fuelLevelPercent = data.fuelPercent ?: current.fuelLevelPercent,
+                        odometerKm = data.odometerKm ?: current.odometerKm
+                    ))
+                }
+
                 _state.update {
                     it.copy(
                         vehicleMake = data.make,

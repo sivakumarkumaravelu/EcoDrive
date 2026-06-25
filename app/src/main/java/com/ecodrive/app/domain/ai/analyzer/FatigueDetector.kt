@@ -39,9 +39,9 @@ class FatigueDetector @Inject constructor() {
         val avgLateralAbs = lateralAccelHistory.map { abs(it) }.average()
         
         return when {
-            speedStdDev > 15.0 && metrics.speedKmh > 50 -> FatigueStatus.HIGH_RISK
-            avgLateralAbs > 1.5 -> FatigueStatus.MODERATE_RISK
-            speedStdDev > 10.0 -> FatigueStatus.MODERATE_RISK
+            speedStdDev > 20.0 && metrics.speedKmh > 50 -> FatigueStatus.HIGH_RISK
+            avgLateralAbs > 2.0 -> FatigueStatus.MODERATE_RISK
+            speedStdDev > 15.0 -> FatigueStatus.MODERATE_RISK
             else -> FatigueStatus.NORMAL
         }
     }

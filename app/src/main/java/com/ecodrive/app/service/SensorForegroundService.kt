@@ -427,7 +427,7 @@ class SensorForegroundService : Service() {
         if (!liveCoachingEnabled) return
         
         val now = System.currentTimeMillis()
-        if (now - lastFatigueAlertMs < 60_000L) return // Don't annoy too much
+        if (now - lastFatigueAlertMs < 15 * 60_000L) return // Don't annoy too much, alert at most once every 15 mins
         
         lastFatigueAlertMs = now
         val message = when (status) {

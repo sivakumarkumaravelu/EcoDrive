@@ -72,9 +72,8 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             val id = preferenceManager.smartcarClientId.first()
             val secret = preferenceManager.smartcarClientSecret.first()
-            val refreshToken = preferenceManager.smartcarRefreshToken.first()
             val userId = preferenceManager.smartcarUserId.first()
-            if (id.isNotBlank() && secret.isNotBlank() && refreshToken.isNotBlank()) {
+            if (id.isNotBlank() && secret.isNotBlank() && userId.isNotBlank()) {
                 smartcarApiClient.authenticate(id, secret, userId)
             }
         }
