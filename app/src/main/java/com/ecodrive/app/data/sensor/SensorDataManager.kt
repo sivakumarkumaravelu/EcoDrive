@@ -29,6 +29,8 @@ class SensorDataManager @Inject constructor(
     private val preferenceManager: PreferenceManager,
     private val clock: Clock,
     private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    @com.ecodrive.app.di.ApplicationScope private val applicationScope: kotlinx.coroutines.CoroutineScope
+        = kotlinx.coroutines.CoroutineScope(Dispatchers.Default + kotlinx.coroutines.SupervisorJob()),
 ) {
     companion object {
         private const val TAG = "SensorDataManager"
@@ -73,7 +75,9 @@ class SensorDataManager @Inject constructor(
         if (_state.value == CollectionState.COLLECTING) return
 
         collectionJob?.cancel()
-        collectionJob = CoroutineScope(defaultDispatcher + SupervisorJob()).launch {
+        // D07: Launch on applicationScope so the parent scope is never leaked;
+        // stopCollection() cancels the job cleanly without leaving zombie SupervisorJobs.
+        collectionJob = applicationScope.launch(defaultDispatcher) {
             _state.value = CollectionState.COLLECTING
             Log.i(TAG, "Starting sensor data collection")
 

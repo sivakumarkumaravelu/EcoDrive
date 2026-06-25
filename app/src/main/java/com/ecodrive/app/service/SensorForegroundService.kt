@@ -186,23 +186,27 @@ class SensorForegroundService : Service() {
 
     fun startRecording() {
         if (_isRecording.value) return
-        
+
         Log.i(TAG, "Starting trip recording in service")
         resetCounters()
         aiCoachService.clearContext()
-        sensorDataManager.startCollection()
 
         serviceScope.launch {
             val vehicle = vehicleRepository.getDefaultVehicle()
             vehicleType = vehicle?.vehicleType ?: com.ecodrive.app.domain.model.VehicleType.ICE
-            
+
             // Set adaptive thresholds
             val thresholds = adaptiveThresholdEngine.getPersonalizedThresholds()
             analyzer.updateThresholds(thresholds)
 
             activeTripId = tripRepository.startTrip(vehicle?.id ?: 1)
             anomalyDetector.reset()
+
+            // D14: Set isRecording=true and start sensor collection AFTER the trip ID is
+            // persisted. This prevents the first few seconds of metrics being emitted
+            // with a null tripId, which would cause data loss at trip start.
             _isRecording.value = true
+            sensorDataManager.startCollection()
         }
     }
 
@@ -272,7 +276,9 @@ class SensorForegroundService : Service() {
                     activeTripId = null
                     _isRecording.value = false
                     withContext(Dispatchers.Main) {
-                        audioFeedbackManager.playTip("Trip saved.")
+                        if (liveCoachingEnabled) {
+                            audioFeedbackManager.playTip("Trip saved.")
+                        }
                     }
                     stopSelf()
                 }
@@ -337,7 +343,9 @@ class SensorForegroundService : Service() {
         val tripId = activeTripId ?: 0
         val events = analyzer.analyze(metrics, tripId)
         for (event in events) {
-            audioFeedbackManager.playEventFeedback(event)
+            if (liveCoachingEnabled) {
+                audioFeedbackManager.playEventFeedback(event)
+            }
             when (event.type) {
                 DrivingEventType.HARD_BRAKE -> { hardBrakes++; _hardBrakeCount.value = hardBrakes }
                 DrivingEventType.HARD_ACCELERATION -> { hardAccels++; _hardAccelCount.value = hardAccels }
@@ -401,9 +409,11 @@ class SensorForegroundService : Service() {
         val anomalies = anomalyDetector.analyze(metrics)
         for (anomaly in anomalies) {
             if (anomaly.severity == com.ecodrive.app.domain.model.AnomalySeverity.HIGH) {
-                serviceScope.launch(Dispatchers.Main) {
-                    // Anomaly warnings are safety-critical — use playSafetyAlert for QUEUE_FLUSH priority.
-                    audioFeedbackManager.playSafetyAlert(anomaly.description)
+                if (liveCoachingEnabled) {
+                    serviceScope.launch(Dispatchers.Main) {
+                        // Anomaly warnings are safety-critical — use playSafetyAlert for QUEUE_FLUSH priority.
+                        audioFeedbackManager.playSafetyAlert(anomaly.description)
+                    }
                 }
             }
         }

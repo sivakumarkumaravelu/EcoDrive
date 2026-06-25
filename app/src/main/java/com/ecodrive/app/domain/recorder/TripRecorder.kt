@@ -75,8 +75,10 @@ class TripRecorder @Inject constructor(
     }
 
     init {
-        // Attempt to bind initially if service is already running
-        bindToService()
+        // D12: Do NOT bind on init. Service binding with BIND_AUTO_CREATE in init
+        // would create SensorForegroundService eagerly on every app launch,
+        // potentially showing a foreground notification before the user starts a trip.
+        // Binding is deferred until startRecording() is explicitly called.
     }
 
     private fun bindToService() {

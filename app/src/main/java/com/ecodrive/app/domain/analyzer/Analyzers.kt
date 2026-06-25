@@ -9,6 +9,7 @@ import android.util.Log
 import com.ecodrive.app.data.local.PreferenceManager
 import com.ecodrive.app.data.local.dao.FuelCalibrationDao
 import com.ecodrive.app.data.local.entity.FuelCalibrationEntity
+import com.ecodrive.app.di.ApplicationScope
 import com.ecodrive.app.domain.ai.service.AiManager
 import com.ecodrive.app.domain.model.DrivingEvent
 import com.ecodrive.app.domain.model.DrivingEventType
@@ -36,6 +37,10 @@ import kotlin.math.sin
 
 /**
  * Analyzes driving patterns from phone sensor data.
+ *
+ * D15: Uses a plain MutableList with explicit synchronized{} blocks consistently
+ * for all read and write compound operations. The previous mix of
+ * Collections.synchronizedList + extra synchronized{} blocks was error-prone.
  */
 @Singleton
 class DrivingPatternAnalyzer @Inject constructor() {
@@ -43,7 +48,8 @@ class DrivingPatternAnalyzer @Inject constructor() {
     private var previousMetrics: DrivingMetrics? = null
     private var idleStartTimeMs: Long? = null
     private var lastIdleEventDuration: Long = 0
-    private val speedHistory = java.util.Collections.synchronizedList(mutableListOf<Double>())
+    // D15: Use a plain list guarded by explicit synchronized{} everywhere
+    private val speedHistory = mutableListOf<Double>()
     private var thresholds = com.ecodrive.app.domain.ai.engine.DrivingThresholds()
 
     fun updateThresholds(newThresholds: com.ecodrive.app.domain.ai.engine.DrivingThresholds) {
@@ -53,8 +59,9 @@ class DrivingPatternAnalyzer @Inject constructor() {
     fun analyze(metrics: DrivingMetrics, tripId: Long): List<DrivingEvent> {
         val events = mutableListOf<DrivingEvent>()
         if (metrics.isMoving) {
-            speedHistory.add(metrics.speedKmh)
+            // D15: Single synchronized block for both add + trim
             synchronized(speedHistory) {
+                speedHistory.add(metrics.speedKmh)
                 while (speedHistory.size > 120) speedHistory.removeAt(0)
             }
         }
@@ -110,10 +117,12 @@ class DrivingPatternAnalyzer @Inject constructor() {
     }
 
     fun reset() {
+        synchronized(speedHistory) {
+            speedHistory.clear()
+        }
         previousMetrics = null
         idleStartTimeMs = null
         lastIdleEventDuration = 0
-        speedHistory.clear()
     }
 }
 
@@ -129,6 +138,7 @@ class FuelEstimationEngine @Inject constructor(
     private val aiManager: AiManager,
     private val preferenceManager: PreferenceManager,
     private val mlModel: com.ecodrive.app.domain.ai.analyzer.FuelPredictionModel,
+    @ApplicationScope private val applicationScope: CoroutineScope,
 ) {
     companion object {
         private const val TAG = "FuelEstimationEngine"
@@ -144,7 +154,8 @@ class FuelEstimationEngine @Inject constructor(
     }
 
     private fun loadCalibrationFactorFromDatabase() {
-        CoroutineScope(Dispatchers.IO).launch {
+        // D04: Use applicationScope instead of a fire-and-forget orphan CoroutineScope.
+        applicationScope.launch(Dispatchers.IO) {
             try {
                 val factor = fuelCalibrationDao.getAverageCorrectionRatio(Constants.CALIBRATION_WINDOW_TRIPS)
                 if (factor != null && factor > 0) {
@@ -247,7 +258,8 @@ class FuelEstimationEngine @Inject constructor(
      * Periodically analyze recent trips with AI to refine the correction factor.
      */
     fun performAiRefinement(trips: List<Trip>) {
-        CoroutineScope(Dispatchers.IO).launch {
+        // D04: Use applicationScope instead of a fire-and-forget orphan CoroutineScope.
+        applicationScope.launch(Dispatchers.IO) {
             if (trips.isEmpty()) return@launch
 
             val prompt = """
@@ -299,7 +311,8 @@ class FuelEstimationEngine @Inject constructor(
     }
 
     private fun persistCalibrationFactorToDatabase() {
-        CoroutineScope(Dispatchers.IO).launch {
+        // D04: Use applicationScope instead of a fire-and-forget orphan CoroutineScope.
+        applicationScope.launch(Dispatchers.IO) {
             try {
                 val lastPoint = synchronized(calibrationHistory) { calibrationHistory.lastOrNull() }
                 val entity = FuelCalibrationEntity(

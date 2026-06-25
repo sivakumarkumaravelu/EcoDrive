@@ -30,9 +30,12 @@ class VehicleRepository @Inject constructor(
 
     /**
      * Get the default (active) vehicle.
+     * Returns the vehicle explicitly marked as default ([Vehicle.isDefault] = true).
+     * Falls back to the first-inserted vehicle for users who have not set a default,
+     * preserving backwards compatibility.
      */
     suspend fun getDefaultVehicle(): Vehicle? {
-        return vehicleDao.getDefaultVehicle()?.toDomain()
+        return (vehicleDao.getDefaultVehicle() ?: vehicleDao.getFirstVehicle())?.toDomain()
     }
 
     /**

@@ -241,7 +241,8 @@ class SettingsViewModel @Inject constructor(
             if (userId != null) {
                 preferenceManager.setSmartcarUserId(userId)
             }
-            val result = smartcarApiClient.exchangeCode(code, userId, clientId, clientSecret)
+            // D05: renamed from exchangeCode to authenticateWithCode to match actual behaviour
+            val result = smartcarApiClient.authenticateWithCode(code, userId, clientId, clientSecret)
             result.onSuccess {
                 // Management API uses app-level credentials
             }
@@ -267,17 +268,11 @@ class SettingsViewModel @Inject constructor(
 
     fun disconnectSmartcar() {
         smartcarApiClient.disconnect()
+        // D13: Only clear the session token and userId — NOT the client_id/secret.
+        // Preserving credentials allows the user to reconnect without re-entering them.
         viewModelScope.launch {
-            preferenceManager.setSmartcarClientId("")
-            preferenceManager.setSmartcarClientSecret("")
             preferenceManager.setSmartcarRefreshToken("")
             preferenceManager.setSmartcarUserId("")
-        }
-        _state.update {
-            it.copy(
-                smartcarClientId = "",
-                smartcarClientSecret = ""
-            )
         }
     }
 

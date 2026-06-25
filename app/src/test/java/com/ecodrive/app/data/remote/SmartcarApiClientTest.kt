@@ -9,9 +9,11 @@ class SmartcarApiClientTest {
 
     private lateinit var smartcarApiClient: SmartcarApiClient
 
+    private val applicationScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined)
+
     @Before
     fun setup() {
-        smartcarApiClient = SmartcarApiClient()
+        smartcarApiClient = SmartcarApiClient(applicationScope)
     }
 
     @Test

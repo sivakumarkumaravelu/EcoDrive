@@ -4,17 +4,26 @@ import android.content.Context
 import android.speech.tts.TextToSpeech
 import com.ecodrive.app.domain.model.DrivingEvent
 import com.ecodrive.app.domain.model.DrivingEventType
+import com.ecodrive.app.data.local.PreferenceManager
 import io.mockk.*
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.cancel
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class AudioFeedbackManagerTest {
 
     private val context: Context = mockk(relaxed = true)
+    private val preferenceManager: PreferenceManager = mockk(relaxed = true)
+    private val liveCoachingFlow = MutableStateFlow(true)
     private lateinit var audioFeedbackManager: AudioFeedbackManager
 
     @Before
@@ -29,50 +38,95 @@ class AudioFeedbackManagerTest {
         every {
             anyConstructed<TextToSpeech>().speak(any<String>(), any<Int>(), any(), any<String>())
         } returns TextToSpeech.SUCCESS
-        audioFeedbackManager = AudioFeedbackManager(context, mockk(relaxed = true), kotlinx.coroutines.test.TestScope())
+
+        every { preferenceManager.liveCoachingEnabled } returns liveCoachingFlow
+        every { preferenceManager.coachVoice } returns MutableStateFlow("DEFAULT")
+        coEvery { preferenceManager.setLiveCoachingEnabled(any()) } answers {
+            liveCoachingFlow.value = firstArg()
+        }
+        
+        audioFeedbackManager = AudioFeedbackManager(context, preferenceManager, kotlinx.coroutines.test.TestScope())
     }
 
-    // ── isAudioEnabled state ──────────────────────────────────────────────
+    private fun initManager() {
+        audioFeedbackManager.onInit(TextToSpeech.SUCCESS)
+    }
 
     @Test
     fun `test isAudioEnabled defaults to true`() = runTest {
-        assertTrue(audioFeedbackManager.isAudioEnabled.first())
+        liveCoachingFlow.value = true
+        val manager = AudioFeedbackManager(context, preferenceManager, this)
+        manager.onInit(TextToSpeech.SUCCESS)
+        runCurrent()
+        assertTrue(manager.isAudioEnabled.first())
+        coroutineContext.cancelChildren()
     }
 
     @Test
     fun `test setAudioEnabled to false emits false`() = runTest {
-        audioFeedbackManager.setAudioEnabled(false)
-        assertFalse(audioFeedbackManager.isAudioEnabled.first())
+        liveCoachingFlow.value = true
+        val manager = AudioFeedbackManager(context, preferenceManager, this)
+        manager.onInit(TextToSpeech.SUCCESS)
+        runCurrent()
+        manager.setAudioEnabled(false)
+        runCurrent()
+        assertFalse(manager.isAudioEnabled.first())
+        coroutineContext.cancelChildren()
     }
 
     @Test
     fun `test setAudioEnabled to true emits true`() = runTest {
-        audioFeedbackManager.setAudioEnabled(false)
-        audioFeedbackManager.setAudioEnabled(true)
-        assertTrue(audioFeedbackManager.isAudioEnabled.first())
+        liveCoachingFlow.value = true
+        val manager = AudioFeedbackManager(context, preferenceManager, this)
+        manager.onInit(TextToSpeech.SUCCESS)
+        runCurrent()
+        manager.setAudioEnabled(false)
+        runCurrent()
+        manager.setAudioEnabled(true)
+        runCurrent()
+        assertTrue(manager.isAudioEnabled.first())
+        coroutineContext.cancelChildren()
     }
 
     // ── Audio-disabled guards ─────────────────────────────────────────────
 
     @Test
-    fun `test playEventFeedback does nothing when audio disabled`() {
-        audioFeedbackManager.setAudioEnabled(false)
-        audioFeedbackManager.playEventFeedback(buildEvent(DrivingEventType.HARD_BRAKE))
+    fun `test playEventFeedback does nothing when audio disabled`() = runTest {
+        liveCoachingFlow.value = true
+        val manager = AudioFeedbackManager(context, preferenceManager, this)
+        manager.onInit(TextToSpeech.SUCCESS)
+        runCurrent()
+        manager.setAudioEnabled(false)
+        runCurrent()
+        manager.playEventFeedback(buildEvent(DrivingEventType.HARD_BRAKE))
         verify(exactly = 0) { anyConstructed<TextToSpeech>().speak(any(), any(), any(), any()) }
+        coroutineContext.cancelChildren()
     }
 
     @Test
-    fun `test playTip does nothing when audio disabled`() {
-        audioFeedbackManager.setAudioEnabled(false)
-        audioFeedbackManager.playTip("slow down")
+    fun `test playTip does nothing when audio disabled`() = runTest {
+        liveCoachingFlow.value = true
+        val manager = AudioFeedbackManager(context, preferenceManager, this)
+        manager.onInit(TextToSpeech.SUCCESS)
+        runCurrent()
+        manager.setAudioEnabled(false)
+        runCurrent()
+        manager.playTip("slow down")
         verify(exactly = 0) { anyConstructed<TextToSpeech>().speak(any(), any(), any(), any()) }
+        coroutineContext.cancelChildren()
     }
 
     @Test
-    fun `test playSafetyAlert does nothing when audio disabled`() {
-        audioFeedbackManager.setAudioEnabled(false)
-        audioFeedbackManager.playSafetyAlert("High fatigue risk detected.")
+    fun `test playSafetyAlert does nothing when audio disabled`() = runTest {
+        liveCoachingFlow.value = true
+        val manager = AudioFeedbackManager(context, preferenceManager, this)
+        manager.onInit(TextToSpeech.SUCCESS)
+        runCurrent()
+        manager.setAudioEnabled(false)
+        runCurrent()
+        manager.playSafetyAlert("High fatigue risk detected.")
         verify(exactly = 0) { anyConstructed<TextToSpeech>().speak(any(), any(), any(), any()) }
+        coroutineContext.cancelChildren()
     }
 
     // ── sanitizeForTts ────────────────────────────────────────────────────
@@ -130,7 +184,7 @@ class AudioFeedbackManagerTest {
 
     @Test
     fun `playTip speaks via QUEUE_ADD`() {
-        audioFeedbackManager.onInit(TextToSpeech.SUCCESS)
+        initManager()
         audioFeedbackManager.playTip("Ease off the accelerator")
 
         verify(exactly = 1) {
@@ -145,7 +199,7 @@ class AudioFeedbackManagerTest {
 
     @Test
     fun `playSafetyAlert speaks via QUEUE_FLUSH`() {
-        audioFeedbackManager.onInit(TextToSpeech.SUCCESS)
+        initManager()
         audioFeedbackManager.playSafetyAlert("High fatigue risk detected. Please take a break.")
 
         verify(exactly = 1) {
@@ -160,7 +214,7 @@ class AudioFeedbackManagerTest {
 
     @Test
     fun `playEventFeedback speaks via QUEUE_FLUSH`() {
-        audioFeedbackManager.onInit(TextToSpeech.SUCCESS)
+        initManager()
         audioFeedbackManager.playEventFeedback(buildEvent(DrivingEventType.HARD_BRAKE))
 
         verify(exactly = 1) {
@@ -175,7 +229,7 @@ class AudioFeedbackManagerTest {
 
     @Test
     fun `playTip drops third tip when queue is full`() {
-        audioFeedbackManager.onInit(TextToSpeech.SUCCESS)
+        initManager()
 
         // Fill the queue to MAX_TIP_QUEUE (2)
         audioFeedbackManager.playTip("First tip")
@@ -191,7 +245,7 @@ class AudioFeedbackManagerTest {
 
     @Test
     fun `playTip sanitizes emoji before speaking`() {
-        audioFeedbackManager.onInit(TextToSpeech.SUCCESS)
+        initManager()
         audioFeedbackManager.playTip("\uD83E\uDD16 Slow down!")
 
         verify(exactly = 1) {

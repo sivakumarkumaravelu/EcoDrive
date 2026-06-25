@@ -107,10 +107,10 @@ class PreferenceManager @Inject constructor(
         get() = dataStore.data.map { it[SMARTCAR_APPLICATION_ID_KEY] ?: "" }
 
     val smartcarClientId: Flow<String>
-        get() = dataStore.data.map { it[SMARTCAR_CLIENT_ID] ?: "client_01KRQFQKMXYQK09HJ9TCRGDTE3" }
+        get() = dataStore.data.map { it[SMARTCAR_CLIENT_ID] ?: "" }
 
     val smartcarClientSecret: Flow<String>
-        get() = dataStore.data.map { it[SMARTCAR_CLIENT_SECRET] ?: "9782e5a0bc2a85fa2c18d298b983fdebc5e0d3b041c7cc82cbac9fa28a5cad34" }
+        get() = dataStore.data.map { it[SMARTCAR_CLIENT_SECRET] ?: "" }
 
     val smartcarRefreshToken: Flow<String>
         get() = dataStore.data.map { it[SMARTCAR_REFRESH_TOKEN] ?: "" }

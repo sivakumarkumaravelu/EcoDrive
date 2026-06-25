@@ -15,6 +15,10 @@ secrets {
     defaultPropertiesFileName = "local.defaults.properties"
 }
 
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 android {
     namespace = "com.ecodrive.app"
     compileSdk = 35
@@ -23,8 +27,8 @@ android {
         applicationId = "com.ecodrive.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 27
-        versionName = "1.3.23"
+        versionCode = 28
+        versionName = "1.3.24"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

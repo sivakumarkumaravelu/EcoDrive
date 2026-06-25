@@ -89,7 +89,8 @@ class WeatherApiClient @Inject constructor() {
 
     /**
      * Derives a plausible [WeatherContext] from hemisphere, season, and time-of-day.
-     * No network calls required.
+     * No network calls and no randomness — results are fully deterministic and reproducible.
+     * D10: Replaced Math.random() with deterministic rules based on month, hour, and latitude.
      */
     private fun buildHeuristicContext(lat: Double): WeatherContext {
         val cal = Calendar.getInstance()
@@ -102,27 +103,23 @@ class WeatherApiClient @Inject constructor() {
         // Season (Northern Hemisphere): Dec/Jan/Feb = winter, Jun/Jul/Aug = summer
         val adjustedMonth = if (!isNorthern) ((month + 6 - 1) % 12) + 1 else month
         val isSummer = adjustedMonth in 6..8
-        val isWinter = adjustedMonth in 12..12 || adjustedMonth in 1..2
+        val isWinter = adjustedMonth == 12 || adjustedMonth in 1..2
         val isSpringAutumn = !isSummer && !isWinter
 
         // Temperature heuristic
         val baseTempC = when {
             isSummer -> 25.0
-            isWinter -> -2.0 + (abs(lat) / 90.0) * -15.0  // Colder at higher latitudes
+            isWinter -> -2.0 + (kotlin.math.abs(lat) / 90.0) * -15.0  // Colder at higher latitudes
             else -> 12.0
         }
         // Night/day delta
         val dayDelta = if (hour in 10..16) 5.0 else if (hour in 0..5) -5.0 else 0.0
         val tempC = baseTempC + dayDelta
 
-        // Rain probability heuristic (spring/autumn = wetter)
-        val rainChance = when {
-            isSpringAutumn && hour in 12..18 -> 0.3
-            isSummer && hour in 14..17 -> 0.15  // Summer afternoon showers
-            else -> 0.05
-        }
-        val isRaining = Math.random() < rainChance
-        val isSnowing = isWinter && tempC < 0 && Math.random() < 0.2
+        // D10: Deterministic rain/snow rules — no Math.random()
+        // Spring/autumn afternoons are reliably wetter; winter nights with sub-zero temps may snow.
+        val isRaining = isSpringAutumn && hour in 12..18
+        val isSnowing = isWinter && tempC < 0 && hour in 0..6  // Overnight freezing conditions
 
         return WeatherContext(
             tempC = tempC,

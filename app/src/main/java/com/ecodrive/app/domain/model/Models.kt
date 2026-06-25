@@ -116,8 +116,8 @@ data class DrivingMetrics(
     val verticalAccelMps2: Double = 0.0,
 
     // ── State ───────────────────────────────────────────────
-    val isMoving: Boolean = speedKmh > 1.0,
-    val isIdle: Boolean = speedKmh <= 1.0,
+    val isMoving: Boolean = speedKmh >= com.ecodrive.app.util.Constants.MOVING_SPEED_THRESHOLD_KMH,
+    val isIdle: Boolean = speedKmh < com.ecodrive.app.util.Constants.MOVING_SPEED_THRESHOLD_KMH,
     
     // ── Smartcar API Data ───────────────────────────────────
     val odometerKm: Double? = null,
@@ -356,8 +356,11 @@ data class WeatherContext(
     val humidity: Int = 50,
     val isRaining: Boolean = false,
     val isSnowing: Boolean = false,
-    val isFoggy: Boolean = visibilityKm < 1.0,
 ) {
+    /** 
+     * Computed property to ensure it remains accurate even if visibilityKm is updated via copy().
+     */
+    val isFoggy: Boolean get() = visibilityKm < 1.0
     /** Fuel consumption penalty factor for current conditions (1.0 = no penalty). */
     val fuelPenaltyFactor: Double get() = when {
         isSnowing -> 1.25            // Snow: 25% more fuel

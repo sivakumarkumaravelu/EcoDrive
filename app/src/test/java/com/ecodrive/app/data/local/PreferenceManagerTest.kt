@@ -164,7 +164,7 @@ class PreferenceManagerTest {
     fun `test smartcarClientId default is loaded correctly`() = runTest {
         every { dataStore.data } returns flowOf(emptyPreferences())
         val clientId = preferenceManager.smartcarClientId.first()
-        assertEquals("client_01KRQFQKMXYQK09HJ9TCRGDTE3", clientId)
+        assertEquals("", clientId)
     }
 
     @Test
@@ -181,7 +181,7 @@ class PreferenceManagerTest {
     fun `test smartcarClientSecret default is loaded correctly`() = runTest {
         every { dataStore.data } returns flowOf(emptyPreferences())
         val secret = preferenceManager.smartcarClientSecret.first()
-        assertEquals("9782e5a0bc2a85fa2c18d298b983fdebc5e0d3b041c7cc82cbac9fa28a5cad34", secret)
+        assertEquals("", secret)
     }
 
     @Test

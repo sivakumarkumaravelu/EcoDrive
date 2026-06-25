@@ -23,7 +23,7 @@ import com.ecodrive.app.data.local.entity.*
         AnomalyEntity::class,
     ],
     version = 7,
-    exportSchema = false,
+    exportSchema = true,
 )
 abstract class EcoDriveDatabase : RoomDatabase() {
     abstract fun tripDao(): TripDao

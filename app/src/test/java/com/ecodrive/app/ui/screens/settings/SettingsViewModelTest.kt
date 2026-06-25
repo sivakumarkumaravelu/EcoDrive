@@ -47,6 +47,7 @@ class SettingsViewModelTest {
     private val smartcarClientIdFlow = MutableStateFlow("")
     private val smartcarClientSecretFlow = MutableStateFlow("")
     private val smartcarRefreshTokenFlow = MutableStateFlow("")
+    private val smartcarUserIdFlow = MutableStateFlow("")
     private val mapStyleFlow = MutableStateFlow(com.ecodrive.app.util.MapStyle.DEFAULT)
     private val liveCoachingFlow = MutableStateFlow(true)
     private val coachVoiceFlow = MutableStateFlow("DEFAULT")
@@ -61,7 +62,7 @@ class SettingsViewModelTest {
 
         every { smartcarApiClient.state } returns apiStateFlow
         every { smartcarApiClient.vehicleData } returns vehicleDataFlow
-        coEvery { smartcarApiClient.exchangeCode(any(), any(), any(), any()) } returns Result.success(Unit)
+        coEvery { smartcarApiClient.authenticateWithCode(any(), any(), any(), any()) } returns Result.success(Unit)
         every { preferenceManager.autoRecordEnabled } returns autoRecordFlow
         every { preferenceManager.useMetricUnits } returns useMetricFlow
         every { preferenceManager.appTheme } returns appThemeFlow
@@ -72,6 +73,7 @@ class SettingsViewModelTest {
         every { preferenceManager.smartcarClientId } returns smartcarClientIdFlow
         every { preferenceManager.smartcarClientSecret } returns smartcarClientSecretFlow
         every { preferenceManager.smartcarRefreshToken } returns smartcarRefreshTokenFlow
+        every { preferenceManager.smartcarUserId } returns smartcarUserIdFlow
         every { preferenceManager.mapStyle } returns mapStyleFlow
         every { preferenceManager.liveCoachingEnabled } returns liveCoachingFlow
         every { preferenceManager.coachVoice } returns coachVoiceFlow
@@ -82,6 +84,7 @@ class SettingsViewModelTest {
         coEvery { preferenceManager.setSmartcarClientId(any()) } just Runs
         coEvery { preferenceManager.setSmartcarClientSecret(any()) } just Runs
         coEvery { preferenceManager.setSmartcarRefreshToken(any()) } just Runs
+        coEvery { preferenceManager.setSmartcarUserId(any()) } just Runs
         coEvery { preferenceManager.setMapStyle(any()) } just Runs
         coEvery { preferenceManager.setAppFontScale(any()) } just Runs
         coEvery { preferenceManager.setLiveCoachingEnabled(any()) } just Runs
@@ -283,7 +286,7 @@ class SettingsViewModelTest {
 
         advanceUntilIdle()
 
-        coVerify { smartcarApiClient.exchangeCode("auth_code_xyz", "user_abc", "client_123", "secret_456") }
+        coVerify { smartcarApiClient.authenticateWithCode("auth_code_xyz", "user_abc", "client_123", "secret_456") }
     }
 
     @Test
@@ -296,11 +299,12 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         verify { smartcarApiClient.disconnect() }
-        coVerify { preferenceManager.setSmartcarClientId("") }
-        coVerify { preferenceManager.setSmartcarClientSecret("") }
+        coVerify(exactly = 0) { preferenceManager.setSmartcarClientId(any()) }
+        coVerify(exactly = 0) { preferenceManager.setSmartcarClientSecret(any()) }
         coVerify { preferenceManager.setSmartcarRefreshToken("") }
-        assertEquals("", viewModel.state.value.smartcarClientId)
-        assertEquals("", viewModel.state.value.smartcarClientSecret)
+        coVerify { preferenceManager.setSmartcarUserId("") }
+        assertEquals("client_123", viewModel.state.value.smartcarClientId)
+        assertEquals("secret_456", viewModel.state.value.smartcarClientSecret)
     }
 
     @Test
@@ -324,7 +328,7 @@ class SettingsViewModelTest {
         authCodeFlow.value = Pair("deep_link_code_abc", "user_xyz")
         advanceUntilIdle()
 
-        coVerify { smartcarApiClient.exchangeCode("deep_link_code_abc", "user_xyz", "client_123", "secret_456") }
+        coVerify { smartcarApiClient.authenticateWithCode("deep_link_code_abc", "user_xyz", "client_123", "secret_456") }
         assertNull(authCodeFlow.value) // Reset after consumption
     }
 
@@ -358,10 +362,11 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         verify { smartcarApiClient.disconnect() }
-        coVerify { preferenceManager.setSmartcarClientId("") }
-        coVerify { preferenceManager.setSmartcarClientSecret("") }
+        coVerify(exactly = 0) { preferenceManager.setSmartcarClientId(any()) }
+        coVerify(exactly = 0) { preferenceManager.setSmartcarClientSecret(any()) }
         coVerify { preferenceManager.setSmartcarRefreshToken("") }
-        assertEquals("", viewModel.state.value.smartcarClientId)
-        assertEquals("", viewModel.state.value.smartcarClientSecret)
+        coVerify { preferenceManager.setSmartcarUserId("") }
+        assertEquals("client_123", viewModel.state.value.smartcarClientId)
+        assertEquals("secret_456", viewModel.state.value.smartcarClientSecret)
     }
 }

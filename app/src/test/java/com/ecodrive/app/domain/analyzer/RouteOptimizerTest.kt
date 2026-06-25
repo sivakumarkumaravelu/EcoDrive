@@ -21,6 +21,7 @@ class RouteOptimizerTest {
     private val aiManager: AiManager = mockk(relaxed = true)
     private val preferenceManager: PreferenceManager = mockk(relaxed = true)
     private val mlModel: FuelPredictionModel = mockk(relaxed = true)
+    private val applicationScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined)
 
     private val testVehicle = Vehicle(
         name = "Test Car",
@@ -44,7 +45,7 @@ class RouteOptimizerTest {
         }
 
         every { mlModel.predictCorrectionFactor(any(), any(), any(), any()) } returns 1.0
-        fuelEstimationEngine = FuelEstimationEngine(fuelCalibrationDao, aiManager, preferenceManager, mlModel)
+        fuelEstimationEngine = FuelEstimationEngine(fuelCalibrationDao, aiManager, preferenceManager, mlModel, applicationScope)
         routeOptimizer = RouteOptimizer(fuelEstimationEngine)
     }
 

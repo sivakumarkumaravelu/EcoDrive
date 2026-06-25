@@ -73,6 +73,10 @@ class DashboardViewModelTest {
         every { tripRecorder.sharpTurnCount } returns sharpTurnCountFlow
         every { permissionManager.hasRequiredPermissions() } returns true
         every { preferenceManager.useMetricUnits } returns flowOf(true)
+        every { preferenceManager.smartcarClientId } returns flowOf("")
+        every { preferenceManager.smartcarClientSecret } returns flowOf("")
+        every { preferenceManager.smartcarRefreshToken } returns flowOf("")
+        every { preferenceManager.smartcarUserId } returns flowOf("")
 
         viewModel = DashboardViewModel(
             sensorDataManager,

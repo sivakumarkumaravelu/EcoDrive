@@ -150,8 +150,18 @@ interface VehicleDao {
     @Query("SELECT * FROM vehicles WHERE id = :vehicleId")
     suspend fun getVehicleById(vehicleId: Long): VehicleEntity?
 
-    @Query("SELECT * FROM vehicles ORDER BY id ASC LIMIT 1")
+    /**
+     * Get the vehicle explicitly marked as default.
+     * Use [getFirstVehicle] as a fallback when no vehicle has isDefault=true.
+     */
+    @Query("SELECT * FROM vehicles WHERE isDefault = 1 LIMIT 1")
     suspend fun getDefaultVehicle(): VehicleEntity?
+
+    /**
+     * Fallback: returns the first vehicle by insertion order when no default is set.
+     */
+    @Query("SELECT * FROM vehicles ORDER BY id ASC LIMIT 1")
+    suspend fun getFirstVehicle(): VehicleEntity?
 
     @Query("SELECT * FROM vehicles")
     fun getAllVehicles(): Flow<List<VehicleEntity>>
@@ -168,7 +178,7 @@ interface FuelCalibrationDao {
     @Query("SELECT * FROM fuel_calibration ORDER BY timestampEpochMs DESC LIMIT :limit")
     suspend fun getRecent(limit: Int): List<FuelCalibrationEntity>
 
-    @Query("SELECT AVG(correctionRatio) FROM fuel_calibration ORDER BY timestampEpochMs DESC LIMIT :limit")
+    @Query("SELECT AVG(correctionRatio) FROM (SELECT correctionRatio FROM fuel_calibration ORDER BY timestampEpochMs DESC LIMIT :limit)")
     suspend fun getAverageCorrectionRatio(limit: Int): Double?
 }
 

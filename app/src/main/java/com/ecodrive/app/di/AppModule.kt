@@ -67,7 +67,16 @@ object AppModule {
             EcoDriveDatabase::class.java,
             "ecodrive_database"
         )
-            .fallbackToDestructiveMigration()
+            // Explicit incremental migrations to preserve user data on schema changes.
+            // Add a new migration object in EcoDriveMigrations for every version bump.
+            .addMigrations(
+                com.ecodrive.app.data.local.EcoDriveMigrations.MIGRATION_1_7,
+                com.ecodrive.app.data.local.EcoDriveMigrations.MIGRATION_6_7,
+            )
+            // Absolute last resort: only fires if the device has a schema version
+            // for which no migration path exists. Should never happen if migrations
+            // are maintained correctly.
+            .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5)
             .build()
     }
 
@@ -117,7 +126,8 @@ object AppModule {
         aiManager: com.ecodrive.app.domain.ai.service.AiManager,
         preferenceManager: com.ecodrive.app.data.local.PreferenceManager,
         mlModel: com.ecodrive.app.domain.ai.analyzer.FuelPredictionModel,
-    ): FuelEstimationEngine = FuelEstimationEngine(fuelCalibrationDao, aiManager, preferenceManager, mlModel)
+        @ApplicationScope applicationScope: CoroutineScope,
+    ): FuelEstimationEngine = FuelEstimationEngine(fuelCalibrationDao, aiManager, preferenceManager, mlModel, applicationScope)
 
     @Provides
     @Singleton
@@ -128,6 +138,7 @@ object AppModule {
         vehicleRepository: VehicleRepository,
         preferenceManager: com.ecodrive.app.data.local.PreferenceManager,
         clock: java.time.Clock,
+        @ApplicationScope applicationScope: CoroutineScope,
     ): SensorDataManager = SensorDataManager(
         locationTracker,
         phoneSensorManager,
@@ -135,14 +146,17 @@ object AppModule {
         vehicleRepository,
         preferenceManager,
         clock,
-        Dispatchers.Default
+        Dispatchers.Default,
+        applicationScope,
     )
 
     // ── Smartcar API (Supplementary) ─────────────────────────────
 
     @Provides
     @Singleton
-    fun provideSmartcarApiClient(): SmartcarApiClient = SmartcarApiClient()
+    fun provideSmartcarApiClient(
+        @ApplicationScope applicationScope: CoroutineScope,
+    ): SmartcarApiClient = SmartcarApiClient(applicationScope)
 
     // ── Directions ─────────────────────────────────────────────
 
@@ -152,10 +166,19 @@ object AppModule {
         googleMapsServicesClient: GoogleMapsServicesClient,
         osrmDirectionsClient: OsrmDirectionsClient
     ): DirectionsClient {
-        return if (AppConfig.USE_GOOGLE_MAPS) {
-            googleMapsServicesClient
-        } else {
-            osrmDirectionsClient
+        // Runtime-switchable wrapper: delegates to whichever client is currently
+        // selected in AppConfig. Toggling the setting in the UI takes effect
+        // on the next route request without requiring an app restart.
+        return object : DirectionsClient {
+            override suspend fun getRoutes(
+                origin: com.google.android.gms.maps.model.LatLng,
+                destination: com.google.android.gms.maps.model.LatLng,
+                apiKey: String?
+            ) = if (AppConfig.USE_GOOGLE_MAPS) {
+                googleMapsServicesClient.getRoutes(origin, destination, apiKey)
+            } else {
+                osrmDirectionsClient.getRoutes(origin, destination, apiKey)
+            }
         }
     }
 

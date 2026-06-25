@@ -11,7 +11,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -137,11 +136,20 @@ class AudioFeedbackManager @Inject constructor(
                 applyVoicePreference(voiceType)
             }
         }
+
+        scope.launch {
+            preferenceManager.liveCoachingEnabled.collect { enabled ->
+                _isAudioEnabled.value = enabled
+            }
+        }
         Log.i(TAG, "TTS ready.")
     }
 
     fun setAudioEnabled(enabled: Boolean) {
-        _isAudioEnabled.update { enabled }
+        _isAudioEnabled.value = enabled
+        scope.launch {
+            preferenceManager.setLiveCoachingEnabled(enabled)
+        }
     }
 
     /**

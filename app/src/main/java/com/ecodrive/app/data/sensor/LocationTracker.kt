@@ -3,6 +3,8 @@ package com.ecodrive.app.data.sensor
 import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Location
+import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.util.Log
 import com.ecodrive.app.util.Constants
@@ -80,19 +82,24 @@ class LocationTracker @Inject constructor(
             }
         }
 
-        // Use a background looper to avoid blocking the main thread
+        // D08: Use a dedicated background HandlerThread for GPS callbacks so the
+        // main thread is never blocked by 1Hz location processing.
+        val gpsThread = HandlerThread("ecodrive-gps-worker").also { it.start() }
+        val gpsHandler = Handler(gpsThread.looper)
+
         fusedLocationClient.requestLocationUpdates(
             locationRequest,
             callback,
-            Looper.getMainLooper(), // Ideally should be a dedicated background looper
+            gpsThread.looper,
         ).addOnFailureListener { e ->
             close(e)
         }
 
-        Log.i(TAG, "GPS location updates started (interval=${Constants.GPS_UPDATE_INTERVAL_MS}ms)")
+        Log.i(TAG, "GPS location updates started on background thread (interval=${Constants.GPS_UPDATE_INTERVAL_MS}ms)")
 
         awaitClose {
             fusedLocationClient.removeLocationUpdates(callback)
+            gpsThread.quitSafely()
             Log.i(TAG, "GPS location updates stopped")
         }
     }

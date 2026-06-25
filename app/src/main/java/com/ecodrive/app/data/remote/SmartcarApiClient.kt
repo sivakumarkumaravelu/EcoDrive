@@ -1,6 +1,7 @@
 package com.ecodrive.app.data.remote
 
 import android.util.Log
+import com.ecodrive.app.di.ApplicationScope
 import com.ecodrive.app.util.Constants
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,7 +41,9 @@ data class SmartcarVehicleData(
  * to maintain compatibility with multi-brand vehicle integrations and MFA flows.
  */
 @Singleton
-class SmartcarApiClient @Inject constructor() {
+class SmartcarApiClient @Inject constructor(
+    @ApplicationScope private val applicationScope: CoroutineScope,
+) {
 
     companion object {
         private const val TAG = "SmartcarApiClient"
@@ -87,24 +90,32 @@ class SmartcarApiClient @Inject constructor() {
     }
 
     /**
-     * Exchange the OAuth callback code for an app-level access token.
-     * Uses client_credentials for the Management API.
+     * Authenticates using client_credentials and (if provided) a userId to scope requests.
+     *
+     * NOTE: This implementation intentionally uses the client_credentials grant to
+     * obtain a Management API token. The `code` parameter from the OAuth callback
+     * is used to identify the connected user (via [userId]) but not exchanged —
+     * Smartcar's Management API requires a per-app token rather than a per-user token
+     * for the vehicle data endpoints used here.
+     *
+     * If your Smartcar plan supports per-user access tokens, replace the body
+     * with grant_type=authorization_code&code=$code&redirect_uri=...
      */
-    suspend fun exchangeCode(
+    suspend fun authenticateWithCode(
         code: String,
         userId: String?,
         clientId: String,
         clientSecret: String,
     ): Result<Unit> = withContext(Dispatchers.IO) {
         val fullClientId = if (clientId.trim().startsWith("client_")) clientId.trim() else "client_${clientId.trim()}"
+        var connection: HttpURLConnection? = null
         try {
             _state.value = ApiState.AUTHENTICATING
             if (userId != null) {
                 currentUserId = userId
             }
 
-            val url = URL("https://iam.smartcar.com/oauth2/token")
-            val connection = url.openConnection() as HttpURLConnection
+            connection = URL("https://iam.smartcar.com/oauth2/token").openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
             connection.doOutput = true
@@ -113,7 +124,7 @@ class SmartcarApiClient @Inject constructor() {
                     "&client_id=$fullClientId" +
                     "&client_secret=${clientSecret.trim()}"
 
-            connection.outputStream.write(body.toByteArray())
+            connection.outputStream.use { it.write(body.toByteArray()) }
 
             if (connection.responseCode == 200) {
                 val response = readResponse(connection)
@@ -133,6 +144,8 @@ class SmartcarApiClient @Inject constructor() {
             Log.e(TAG, "Token exchange failed: ${e.message}")
             _state.value = ApiState.AUTH_FAILED
             Result.failure(e)
+        } finally {
+            connection?.disconnect()
         }
     }
 
@@ -141,12 +154,12 @@ class SmartcarApiClient @Inject constructor() {
      */
     suspend fun authenticate(clientId: String, clientSecret: String, userId: String?) {
         val fullClientId = if (clientId.trim().startsWith("client_")) clientId.trim() else "client_${clientId.trim()}"
+        var connection: HttpURLConnection? = null
         try {
             _state.value = ApiState.AUTHENTICATING
             currentUserId = userId
 
-            val url = URL("https://iam.smartcar.com/oauth2/token")
-            val connection = url.openConnection() as HttpURLConnection
+            connection = URL("https://iam.smartcar.com/oauth2/token").openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
             connection.doOutput = true
@@ -155,7 +168,7 @@ class SmartcarApiClient @Inject constructor() {
                     "&client_id=$fullClientId" +
                     "&client_secret=${clientSecret.trim()}"
 
-            connection.outputStream.write(body.toByteArray())
+            connection.outputStream.use { it.write(body.toByteArray()) }
 
             if (connection.responseCode == 200) {
                 val response = readResponse(connection)
@@ -170,6 +183,8 @@ class SmartcarApiClient @Inject constructor() {
         } catch (e: Exception) {
             Log.e(TAG, "Re-authenticate failed: ${e.message}")
             _state.value = ApiState.AUTH_FAILED
+        } finally {
+            connection?.disconnect()
         }
     }
 
@@ -262,7 +277,9 @@ class SmartcarApiClient @Inject constructor() {
 
     private fun startPolling() {
         pollingJob?.cancel()
-        pollingJob = CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+        // D04: Use the injected application-scoped coroutine scope instead of creating
+        // an orphan scope that outlives its usefulness and cannot be cancelled.
+        pollingJob = applicationScope.launch(Dispatchers.IO) {
             while (isActive) {
                 try {
                     fetchAll()
@@ -275,25 +292,24 @@ class SmartcarApiClient @Inject constructor() {
     }
 
     private fun apiGet(urlString: String): String {
-        val url = URL(urlString)
-        val connection = url.openConnection() as HttpURLConnection
-        connection.requestMethod = "GET"
-        connection.setRequestProperty("Authorization", "Bearer $accessToken")
-        currentUserId?.let {
-            connection.setRequestProperty("sc-user-id", it)
-        }
-        connection.setRequestProperty("Content-Type", "application/json")
-
-        if (connection.responseCode != 200) {
-            val errorStream = connection.errorStream
-            val errorDetails = if (errorStream != null) {
-                BufferedReader(InputStreamReader(errorStream)).use { it.readText() }
-            } else {
-                "No error details"
+        val connection = URL(urlString).openConnection() as HttpURLConnection
+        try {
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("Authorization", "Bearer $accessToken")
+            currentUserId?.let {
+                connection.setRequestProperty("sc-user-id", it)
             }
-            throw Exception("API Error ${connection.responseCode}: $errorDetails")
+            connection.setRequestProperty("Content-Type", "application/json")
+
+            if (connection.responseCode != 200) {
+                val errorDetails = connection.errorStream
+                    ?.bufferedReader()?.use { it.readText() } ?: "No error details"
+                throw Exception("API Error ${connection.responseCode}: $errorDetails")
+            }
+            return readResponse(connection)
+        } finally {
+            connection.disconnect()
         }
-        return readResponse(connection)
     }
 
     private fun handleAuthError(connection: HttpURLConnection): Result<Unit> {

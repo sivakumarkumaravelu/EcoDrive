@@ -49,9 +49,13 @@ object AppConfig {
 
     /**
      * Read-only property for backward compatibility with other features.
+     * D16: Includes runtime validation for MAPS_API_KEY to prevent crashes
+     * if the user tries to use Google Maps with the placeholder key.
      */
     val USE_GOOGLE_MAPS: Boolean
-        get() = ACTIVE_MAP_PROVIDER == MapProvider.GOOGLE_MAPS
+        get() = ACTIVE_MAP_PROVIDER == MapProvider.GOOGLE_MAPS && 
+                MAPS_API_KEY.isNotBlank() && 
+                MAPS_API_KEY != "YOUR_GOOGLE_MAPS_API_KEY_HERE"
 }
 
 /**

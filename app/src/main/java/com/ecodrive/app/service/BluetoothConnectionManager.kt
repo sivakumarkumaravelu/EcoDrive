@@ -28,6 +28,7 @@ class BluetoothConnectionManager @Inject constructor(
     private val bluetoothAdapter: BluetoothAdapter?,
     private val obdConnection: ObdConnection,
     private val fuelCalculator: FuelEfficiencyCalculator,
+    @com.ecodrive.app.di.ApplicationScope private val applicationScope: kotlinx.coroutines.CoroutineScope,
 ) {
     companion object {
         private const val TAG = "BtConnectionManager"
@@ -120,7 +121,8 @@ class BluetoothConnectionManager @Inject constructor(
 
     private fun startPolling() {
         pollingJob?.cancel()
-        pollingJob = CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+        // D04: Use injected applicationScope instead of an orphan CoroutineScope
+        pollingJob = applicationScope.launch(Dispatchers.IO) {
             var cycleCount = 0
             var previousSpeed = 0.0
             var previousTimestamp = Instant.now()
