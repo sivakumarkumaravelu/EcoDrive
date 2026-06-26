@@ -152,7 +152,7 @@ class SmartcarApiClient @Inject constructor(
     /**
      * Re-acquires an app-level token via client_credentials.
      */
-    suspend fun authenticate(clientId: String, clientSecret: String, userId: String?) {
+    suspend fun authenticate(clientId: String, clientSecret: String, userId: String?) = withContext(Dispatchers.IO) {
         val fullClientId = if (clientId.trim().startsWith("client_")) clientId.trim() else "client_${clientId.trim()}"
         var connection: HttpURLConnection? = null
         try {
@@ -291,7 +291,7 @@ class SmartcarApiClient @Inject constructor(
         }
     }
 
-    private fun apiGet(urlString: String): String {
+    private suspend fun apiGet(urlString: String): String = withContext(Dispatchers.IO) {
         val connection = URL(urlString).openConnection() as HttpURLConnection
         try {
             connection.requestMethod = "GET"
@@ -306,7 +306,7 @@ class SmartcarApiClient @Inject constructor(
                     ?.bufferedReader()?.use { it.readText() } ?: "No error details"
                 throw Exception("API Error ${connection.responseCode}: $errorDetails")
             }
-            return readResponse(connection)
+            readResponse(connection)
         } finally {
             connection.disconnect()
         }
