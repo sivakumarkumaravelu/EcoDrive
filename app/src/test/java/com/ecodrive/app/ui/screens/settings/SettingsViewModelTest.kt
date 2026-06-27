@@ -354,19 +354,25 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `test AUTH_FAILED api state triggers disconnectSmartcar`() = runTest {
+    fun `test AUTH_FAILED api state shows error message and preserves credentials`() = runTest {
+        // D14: AUTH_FAILED must NOT call disconnectSmartcar() or wipe the saved userId.
+        // It is a transient error (network timeout, 401, 5xx). Wiping credentials here
+        // destroys the session-persistence fix and forces the user to re-enter MFA every launch.
         viewModel.updateClientId("client_123")
         viewModel.updateClientSecret("secret_456")
 
         apiStateFlow.value = SmartcarApiClient.ApiState.AUTH_FAILED
         advanceUntilIdle()
 
-        verify { smartcarApiClient.disconnect() }
-        coVerify(exactly = 0) { preferenceManager.setSmartcarClientId(any()) }
-        coVerify(exactly = 0) { preferenceManager.setSmartcarClientSecret(any()) }
-        coVerify { preferenceManager.setSmartcarRefreshToken("") }
-        coVerify { preferenceManager.setSmartcarUserId("") }
+        // Credentials must NOT be wiped on a transient auth failure
+        verify(exactly = 0) { smartcarApiClient.disconnect() }
+        coVerify(exactly = 0) { preferenceManager.setSmartcarRefreshToken(any()) }
+        coVerify(exactly = 0) { preferenceManager.setSmartcarUserId(any()) }
+
+        // UI state: credentials preserved, error message surfaced
         assertEquals("client_123", viewModel.state.value.smartcarClientId)
         assertEquals("secret_456", viewModel.state.value.smartcarClientSecret)
+        assertNotNull(viewModel.state.value.smartcarAuthError)
+        assertTrue(viewModel.state.value.smartcarAuthError!!.isNotBlank())
     }
 }

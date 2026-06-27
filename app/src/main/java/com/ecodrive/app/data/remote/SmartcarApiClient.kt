@@ -131,11 +131,13 @@ class SmartcarApiClient @Inject constructor(
                 val json = JSONObject(response)
                 accessToken = json.getString("access_token")
 
-                // Get vehicle ID from the connections API
-                fetchVehicleId()
-
-                _state.value = ApiState.CONNECTED
-                startPolling()
+                // Get vehicle ID from the connections API.
+                // fetchVehicleId() returns false and sets AUTH_FAILED itself
+                // if no connections exist — do not override state in that case.
+                if (fetchVehicleId()) {
+                    _state.value = ApiState.CONNECTED
+                    startPolling()
+                }
                 Result.success(Unit)
             } else {
                 handleAuthError(connection)
@@ -174,9 +176,12 @@ class SmartcarApiClient @Inject constructor(
                 val response = readResponse(connection)
                 val json = JSONObject(response)
                 accessToken = json.getString("access_token")
-                fetchVehicleId()
-                _state.value = ApiState.CONNECTED
-                startPolling()
+                // fetchVehicleId() returns false and sets AUTH_FAILED itself
+                // if no connections exist — do not override state in that case.
+                if (fetchVehicleId()) {
+                    _state.value = ApiState.CONNECTED
+                    startPolling()
+                }
             } else {
                 _state.value = ApiState.AUTH_FAILED
             }
@@ -255,7 +260,14 @@ class SmartcarApiClient @Inject constructor(
 
     // ── Internals ───────────────────────────────────────────────
 
-    private suspend fun fetchVehicleId() {
+    /**
+     * Fetches the vehicle ID for the current user from the Smartcar connections API.
+     *
+     * Returns `true` if a vehicle was found and [vehicleId] was set.
+     * Returns `false` (and sets state to [ApiState.AUTH_FAILED]) if no connections
+     * exist for this user — this is a non-throwing, recoverable failure.
+     */
+    private suspend fun fetchVehicleId(): Boolean {
         val url = if (currentUserId != null) {
             "${Constants.SMARTCAR_CONNECTIONS_URL}connections?filter[user_id]=$currentUserId"
         } else {
@@ -265,13 +277,16 @@ class SmartcarApiClient @Inject constructor(
         val response = apiGet(url)
         val json = JSONObject(response)
         val data = json.getJSONArray("data")
-        if (data.length() > 0) {
+        return if (data.length() > 0) {
             val first = data.getJSONObject(0)
             val vehicle = first.getJSONObject("relationships").getJSONObject("vehicle").getJSONObject("data")
             vehicleId = vehicle.getString("id")
             Log.i(TAG, "Found Vehicle ID: $vehicleId")
+            true
         } else {
-            throw Exception("No connections found for user")
+            Log.w(TAG, "No vehicle connections found for this user")
+            _state.value = ApiState.AUTH_FAILED
+            false
         }
     }
 

@@ -115,10 +115,17 @@ class SettingsViewModel @Inject constructor(
     private fun observeSmartcarState() {
         viewModelScope.launch {
             smartcarApiClient.state.collect { apiState ->
+                // D14: Do NOT call disconnectSmartcar() on AUTH_FAILED.
+                // AUTH_FAILED is a transient error (network timeout, 401, 5xx).
+                // Wiping the saved userId here permanently destroys the session
+                // that the session-persistence fix was meant to keep alive.
+                // Only an explicit user-initiated logout should clear credentials.
                 if (apiState == SmartcarApiClient.ApiState.AUTH_FAILED) {
-                    disconnectSmartcar()
+                    _state.update {
+                        it.copy(smartcarAuthError = "Connection lost. Tap 'Connect' to reconnect.")
+                    }
                 }
-                
+
                 _state.update {
                     it.copy(
                         smartcarApiState = apiState,

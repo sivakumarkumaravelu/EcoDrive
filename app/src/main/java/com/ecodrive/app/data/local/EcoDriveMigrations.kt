@@ -109,7 +109,21 @@ object EcoDriveMigrations {
      */
     val MIGRATION_6_7 = object : Migration(6, 7) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            db.execSQL("ALTER TABLE `vehicles` ADD COLUMN `isDefault` INTEGER NOT NULL DEFAULT 0")
+            // Guard against "duplicate column" error on SQLite < 3.35 which does
+            // not support ALTER TABLE ... ADD COLUMN IF NOT EXISTS.
+            val cursor = db.query("PRAGMA table_info(vehicles)")
+            var hasIsDefault = false
+            while (cursor.moveToNext()) {
+                val colName = cursor.getString(cursor.getColumnIndexOrThrow("name"))
+                if (colName == "isDefault") {
+                    hasIsDefault = true
+                    break
+                }
+            }
+            cursor.close()
+            if (!hasIsDefault) {
+                db.execSQL("ALTER TABLE `vehicles` ADD COLUMN `isDefault` INTEGER NOT NULL DEFAULT 0")
+            }
         }
     }
 }
